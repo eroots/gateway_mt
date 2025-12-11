@@ -87,6 +87,10 @@ if __name__ == '__main__':
     listfile = local_path + 'Regions/Lanai/edis/allall.lst'
     filename = local_path + 'Regions/Lanai/lanai_plotset.dat'
     out_path = local_path + 'Documents/Lanai/roughFigs/PT_plots/beta/'
+    listfile = local_path + 'Regions/MSH/edis-all/empower/edi_interpolated/all-T1_noTransect-matchinglocs.lst'
+    filename = local_path + 'Regions/MSH/edis-all/empower/edi_interpolated/msh-T1_matching-locs.dat'
+    filename_resp = local_path + 'Regions/MSH/edis-all/empower/edi_interpolated/msh-T2_matched_names.dat'
+    out_path = local_path + 'Documents/MSH/roughFigs/pt_plots/t2-t1/'
     # out_path = 'E:/phd/NextCloud/Documents/ME_Transects/wst/PTs/by_period/pt_only/phi2/'
     # filename = local_path + 'data/Regions/snorcle/j2/2020-collation-ian/grid_north.lst'
     # listfile = local_path + 'data/Regions/snorcle/j2/2020-collation-ian/grid_north.lst'
@@ -96,9 +100,13 @@ if __name__ == '__main__':
     # jpg_file_name = local_path + 'Regions/undercover/UND_boundaries.jpg'
     jpg_file_name = ''
     out_file = 'Lanai_PT-beta_'
+    transparent_background = False
+    out_file = 'MSH_PT-phi-max_'
     ext = ['.png', '.svg']
+    # plot_data = ['data']
+    plot_data = ['data', 'response']
     dpi = 300
-    padding = 10000
+    padding = 5000
     save_fig = 1
     bostick_depth = None
     cutoff_distance = 3500
@@ -108,11 +116,14 @@ if __name__ == '__main__':
     # fill_param = ['phi_2', 'beta']
     # fill_param = ['phi_split_pt', None]
     fill_param = ['beta', None]
+    fill_param = ['phi_max', None]
     data = WSDS.Data(filename, listfile=listfile)
+    resp = WSDS.Data(filename_resp, listfile=listfile)
+    # resp = ''
     raw = WSDS.RawData(listfile)
     # data = deepcopy(raw)
     # data.locations = rawdata.get_locs(mode='latlong')
-    freq_skip = 0
+    freq_skip = 1
 
     all_sites = deepcopy(data.site_names)
     # Remove redunantly close points
@@ -158,13 +169,19 @@ if __name__ == '__main__':
     MV.phase_cax = [0, 90]
     MV.skew_cax = [-10, 10]
     MV.diff_cax = [-40, 40]
+    MV.phase_cax = [0, 90]
+    MV.skew_cax = [-15, 15]
+    MV.diff_cax = [-20, 20]
     # MV.interpolant = 'cubic'
-    # MV.colourmap = 'bwr'
+    MV.colourmap = 'bwr_r'
     # MV.colourmap = 'greys_r'
     MV.site_data['data'] = data
     MV.site_data['raw_data'] = raw
+    if resp:
+        MV.site_data['response'] = resp
     MV.site_names = data.site_names
     MV.padding_scale = 5
+    MV.padding_scale = 10
     MV.pt_scale = 1.5
     MV.min_pt_ratio = 0.3
     MV.pt_ratio_cutoff = 0.01
@@ -173,6 +190,8 @@ if __name__ == '__main__':
     MV.include_outliers = True
     MV.allowed_std = 20
     MV.lut = 33
+    MV.pt_difference_definition = 'Hill'
+    MV.use_colourbar = True
     # # MV.site_locations['generic'] = MV.get_locations(sites=MV.generic_sites)
     # MV.site_locations['active'] = MV.get_locations(
     #     sites=MV.active_sites)
@@ -181,6 +200,8 @@ if __name__ == '__main__':
     # for ii in range(len(data.periods)):
     for ii in range(0, data.NP, 2):
     # for ii in range(0, len(data.periods), freq_skip + 1):
+    # for ii in range(data.NP):
+    for ii in range(0, data.NP, freq_skip + 1):
     # for ii in [0]:
     # for ii in range(len(data.periods)):   
         if not first_time:
@@ -213,21 +234,21 @@ if __name__ == '__main__':
             MV.min_pt_ratio = 1
             MV.pt_scale = 1.5
             MV.ellipse_linewidth = 0
-            MV.plot_phase_tensor(data_type='data', normalize=True,
+            MV.plot_phase_tensor(data_type=plot_data, normalize=True,
                              fill_param=fill_param[1], period_idx=ii,
                              bostick_depth=bostick_depth, cb_slot=1)
             # MV.colourmap = 'turbo'
             # MV.ellipse_linewidth = 1
             # MV.min_pt_ratio = 0.3
             # MV.pt_scale = 1.
-            MV.plot_phase_tensor(data_type='data', normalize=True,
+            MV.plot_phase_tensor(data_type=plot_data, normalize=True,
                              fill_param=fill_param[0], period_idx=ii,
                              bostick_depth=bostick_depth, cb_slot=2)
             # MV.plot_phase_bar(data_type='data', normalize=True,
                               # fill_param='beta', period_idx=ii)
         else:
             two_param = 0
-            MV.plot_phase_tensor(data_type='data', normalize=True,
+            MV.plot_phase_tensor(data_type=plot_data, normalize=True,
                              fill_param=fill_param[0], period_idx=ii,
                              bostick_depth=bostick_depth, cb_slot=1)
         # MV.plot_phase_bar2(data_type='data', normalize=True,
@@ -242,49 +263,49 @@ if __name__ == '__main__':
         MV.window['axes'][0].set_xlabel('Easting (km)', fontsize=label_fontsize)
         MV.window['axes'][0].set_ylabel('Northing (km)', fontsize=label_fontsize)
         MV.window['axes'][0].tick_params(axis='both', which='major', labelsize=tick_fontsize)
-        if not two_param:
-            label = MV.get_label(fill_param[0])
-            MV.window['colorbar'].set_label(label + r' ($^{\circ}$)',
-                                            rotation=270,
-                                            labelpad=20,
-                                            fontsize=18)
-            caxes = [MV.window['colorbar'].ax]
-        else:
-            cax1 = MV.window['colorbar'].ax
-            pos = MV.window['colorbar'].ax.get_position()
-            cax1.set_aspect('auto')
-            cax2 = MV.window['colorbar'].ax.twinx()
-            # MV.window['colorbar'].ax.yaxis.set_label_position('left')
-            if fill_param[1].lower() == 'beta':
-                cax2.set_ylim([-10, 10])
-                newlabel = [str(x) for x in range(-10, 12, 2)]
-                cax2.set_yticks(range(-10, 12, 2))
-                cax2.set_yticklabels(newlabel)
-            elif fill_param[1].lower() == 'absbeta':
-                cax2.set_ylim([0, 10])
-                newlabel = [str(x) for x in range(0, 11, 1)]
-                cax2.set_yticks(range(0, 11, 1))
-                cax2.set_yticklabels(newlabel)
-            pos.x0 += 0.05
-            pos.x1 += 0.05
-            cax1.set_position(pos)
-            cax2.set_position(pos)
-            label = MV.get_label(fill_param[0])
-            cax1.set_ylabel(label + r' ($^{\circ}$)', fontsize=18)
-            cax1.yaxis.set_ticks_position('right')
-            cax1.yaxis.set_label_position('right')
-            cax2.yaxis.set_ticks_position('left')
-            cax2.yaxis.set_label_position('left')
-            label = MV.get_label(fill_param[1])
-            cax2.set_ylabel(label + r' ($^{\circ}$)', fontsize=18)
-            caxes = [cax1, cax2]
+        # if not two_param:
+        #     label = MV.get_label(fill_param[0])
+        #     MV.window['colorbar'].set_label(label + r' ($^{\circ}$)',
+        #                                     rotation=270,
+        #                                     labelpad=20,
+        #                                     fontsize=18)
+        #     caxes = [MV.window['colorbar'].ax]
+        # else:
+        #     cax1 = MV.window['colorbar'].ax
+        #     pos = MV.window['colorbar'].ax.get_position()
+        #     cax1.set_aspect('auto')
+        #     cax2 = MV.window['colorbar'].ax.twinx()
+        #     # MV.window['colorbar'].ax.yaxis.set_label_position('left')
+        #     if fill_param[1].lower() == 'beta':
+        #         cax2.set_ylim([-10, 10])
+        #         newlabel = [str(x) for x in range(-10, 12, 2)]
+        #         cax2.set_yticks(range(-10, 12, 2))
+        #         cax2.set_yticklabels(newlabel)
+        #     elif fill_param[1].lower() == 'absbeta':
+        #         cax2.set_ylim([0, 10])
+        #         newlabel = [str(x) for x in range(0, 11, 1)]
+        #         cax2.set_yticks(range(0, 11, 1))
+        #         cax2.set_yticklabels(newlabel)
+        #     pos.x0 += 0.05
+        #     pos.x1 += 0.05
+        #     cax1.set_position(pos)
+        #     cax2.set_position(pos)
+        #     label = MV.get_label(fill_param[0])
+        #     cax1.set_ylabel(label + r' ($^{\circ}$)', fontsize=18)
+        #     cax1.yaxis.set_ticks_position('right')
+        #     cax1.yaxis.set_label_position('right')
+        #     cax2.yaxis.set_ticks_position('left')
+        #     cax2.yaxis.set_label_position('left')
+        #     label = MV.get_label(fill_param[1])
+        #     cax2.set_ylabel(label + r' ($^{\circ}$)', fontsize=18)
+        #     caxes = [cax1, cax2]
         MV.window['axes'][0].set_title('Period: {0:.5g} s'.format(data.sites[data.site_names[0]].periods[ii]))
         # MV.window['axes'][0].set_title('NB Depth: {0:.5g} s'.format(bostick_depth))
         # ells, vals, norm_vals = plot_ellipse(data, fill_param='phi_max')
         if save_fig:
             for file_format in ext:
                 plt.savefig(out_path + out_file + 'idx' + str(ii) + period_suffix + period + file_format, dpi=dpi,
-                            transparent=True)
+                            transparent=transparent_background)
             plt.close('all')
             MV.window['colorbar'] = None
             # ax.clear()

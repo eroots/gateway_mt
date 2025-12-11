@@ -10,6 +10,7 @@ from pyMT.WSExceptions import WSFileError
 # If you have multiple lists / lines that you want to keep seperate, add them all here. Otherwise, just rename the transect (but keep it in brackets as is)
 # transects = ['litho_bb', 'litho_lmt', 'metal_earth', 'usarray']
 transects = ['Yukon-MT']
+transects = ['Reykjanes']
 # Path to the list file
 # list_path = 'E:/Work/sync/Regions/Norway/GoFEM/data/edi_interpolated/'
 # list_path = 'E:/Work/sync/Regions/ATHA/gofem/edi_interpolated/mcarthur/'
@@ -30,6 +31,7 @@ lists = ['allall.lst']
 data_type = ''
 list_path = 'E:/Work/sync/Regions/Yukon/edis/'
 # list_path = 'G:/Other computers/My Computer/sync/Regions/MSH/edis-all/empower/edi_interpolated/'
+list_path = 'G:/Other computers/My Computer/sync/Regions/Reykjanes/edis/'
 # Set the paths you want things to be saved to
 # shp_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/wst_cullmantle/'
 # kml_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
@@ -41,6 +43,11 @@ csv_save_path = 'E:/Work/sync/GIS/MT-locations/Yukon/CSV/'
 # shp_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/MSH/SHP/'
 # kml_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/MSH/KML/'
 # csv_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/MSH/CSV/'
+# csv_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
+# shp_save_path = 'E:/phd/NextCloud/data/ArcMap/MT-locations/stations/'
+shp_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/Reykjanes/SHP/'
+kml_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/Reykjanes/KML/'
+csv_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/Reykjanes/CSV/'
 # kml_save_path = 'C:/Users/eroots/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
 # csv_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
 
