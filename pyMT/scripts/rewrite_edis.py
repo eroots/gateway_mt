@@ -202,8 +202,8 @@ def to_edi(site, out_file, info=None, header=None, mtsect=None, defs=None):
 # out_path = 'E:/Work/sync/Regions/ATHA/j2/industry_AMT/S3-74H13-0013/temp/'
 # list_path = 'E:/Work/sync/Regions/undercover/j2/kuusamo_original/allall.lst'
 # out_path = 'E:/Work/sync/Regions/undercover/j2/kuusamo_original/fix_header/'
-list_path = r'E:/Work/sync/Regions/Reykjanes/edis/allall.lst'
-out_path = r'E:/Work/sync/Regions/Reykjanes/edis/fix_header/'
+list_path = r'G:/Other Computers/My Computer/sync/Regions/Yukon/edis/allall.lst'
+out_path = r'G:/Other Computers/My Computer/sync/Regions/Yukon/edis/fix/'
 # files = [x for x in os.listdir(path) if x.endswith('edi')]
 
 data = DS.RawData(list_path)
