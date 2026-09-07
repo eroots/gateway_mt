@@ -5,9 +5,15 @@ import pyMT.utils as utils
 
 
 # listfile = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/j2/mantle/fullrun/wst_cullmantle.lst'
-data_file = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/fullmantle/cull/Z/ZK/wst_cullmantle3_LAMBERT_ZK_removed.dat'
-response_file = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/fullmantle/cull/Z/ZK/wstZK_lastIter.dat'
-save_path = 'E:/phd/NextCloud/Documents/ME_Transects/wst/rms_plots'
+# data_file = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/fullmantle/cull/Z/ZK/wst_cullmantle3_LAMBERT_ZK_removed.dat'
+# response_file = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/fullmantle/cull/Z/ZK/wstZK_lastIter.dat'
+# save_path = 'E:/phd/NextCloud/Documents/ME_Transects/wst/rms_plots'
+local_path = 'G:/Other Computers/My Computer/sync/Regions/'
+save_path = 'G:/Other Computers/My Computer/sync/Documents/MSH/'
+listfile = local_path + 'MSH/edis-all/empower/edi_interpolated/all_T1-rmdupes.lst'
+data_file = local_path + 'MSH/model5/t1/mshT1_wTransect-ZK_rmdupes.gdat'
+response_file = local_path + 'MSH/model5/t1/ZK/finalize/inv_data_21.gdat'
+datafile2 = local_path + 'MSH/model5/t1/ftest/inv_data_0-rmdupes.gdat'
 dataset = DS.Dataset(datafile=data_file, responsefile=response_file)
 
 # for ii, p in enumerate(dataset.data.periods):
@@ -21,8 +27,9 @@ for ii, site in enumerate(dataset.data.site_names):
 
 # Plot a histogram of rms per period
 p_rms = np.sqrt(np.mean(all_rms**2, axis=2))
-bins = np.linspace(0.5, 4, 15)
-for ii, period in enumerate(dataset.data.periods[::4]):
+# bins = np.linspace(0.5, 4, 15)
+bins = np.linspace(-1.5, 3.2, 22)
+for ii, period in enumerate(dataset.data.periods):
     if ii < 5:
         end_point = (ii+1)*4
     else:
@@ -30,11 +37,12 @@ for ii, period in enumerate(dataset.data.periods[::4]):
     # Average them?
     # to_plot = np.sqrt(np.mean(p_rms[ii*4:(ii+1)*multiple, :], axis=0))
     # Or stack them?
-    to_plot = p_rms[ii*4:end_point,:].flatten()
+    to_plot = p_rms.flatten()#[ii*4:end_point,:].flatten()
     # plt.hist(to_plot, bins, density=True, color='orange', edgecolor='black', linewidth='1.5')
     plt.hist(to_plot, bins, weights=np.ones(len(to_plot))/len(to_plot), color='orange', edgecolor='black', linewidth='1.5')
     plt.gca().set_ylim(0, 0.3)
-    plt.savefig(save_path + '/rms_histogram_period_{}-{}s'.format(int(period), int(dataset.data.periods[min(22,end_point-1)])))
+    # plt.savefig(save_path + '/rms_histogram_period_{}-{}s'.format(int(period), int(dataset.data.periods[min(22,end_point-1)])))
+    plt.savefig(save_path + '/rms_histogram_period')
     plt.close()
 
 # xy_rms = np.zeros((dataset.data.NP, dataset.data.NS))

@@ -713,9 +713,13 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
                     if blocks[key]:
                         data_block = read_data_block(blocks[key])
                         if 'VAR' in key:
-                            new_key = key[:4]
-                            errors.update({new_key[:-1] + 'R': abs(data_block) * scaling_factor[key[0]]})
-                            errors.update({new_key[:-1] + 'I': abs(data_block) * scaling_factor[key[0]]})
+                            if key.lower().startswith('z'):
+                                new_key = key[:4]
+                            elif key.lower().startswith('t'):
+                                new_key = 'TZ{}V'.format(key[1].upper())
+                            # EDIs typically store variances, need to sqrt them to get std. dev (uncertainties)
+                            errors.update({new_key[:-1] + 'I': ((abs(data_block) ** 0.5) * scaling_factor[key[0]])})
+                            errors.update({new_key[:-1] + 'R': ((abs(data_block) ** 0.5) * scaling_factor[key[0]])})
                         else:
                             if key[0] == 'Z':
                                 new_key = key[:4]
@@ -787,8 +791,10 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
                 except KeyError:
                     # print(component)
                     # print(errors.keys())
+                    print('Resetting errors for {}'.format(component))
+
                     if component.lower().startswith('z'):
-                        print('Reseting errors for {}'.format(component))
+                        
                         errors.update({component: np.abs(data[component]) * 0.05})
                     else:
                         errors.update({component: np.ones(data[component].shape) * 0.03})

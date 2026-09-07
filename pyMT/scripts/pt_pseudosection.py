@@ -19,32 +19,10 @@ def generate_ellipse(phi):
     return phi_x, phi_y
 
 
-# listfile = r'C:\Users\eric\phd\Kilauea\ConvertedEDIs\2018-517\allsites.lst'
-# listfile = r'C:\Users\eric\phd\Kilauea\ConvertedEDIs\all\allsites.lst'
-# listfile = r'C:\Users\eric\phd\Kilauea\ConvertedEDIs\all\515-520.lst'
-# listfile = local_path + '/phd/ownCloud/data/Regions/MetalEarth/swayze/j2/south_main_transect_all.lst'
-# main_list = local_path + '/phd/ownCloud/data/Regions/MetalEarth/swayze/j2/south_main_transect_all.lst'
-# listfile = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/swayze/j2/main_transect.lst'
-# main_list = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/swayze/j2/main_transect.lst'
-# listfile = 'C:/Users/eric/Documents/MATLAB/MATLAB/Inversion/Regions/MetalEarth/swayze/j2/southeast_R2.lst'
-# main_list = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/swayze/j2/main_transect.lst'
-# main_list = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/swayze/j2/north_main_transect_all.lst'
-# listfile = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/swayze/j2/north_main_transect_all.lst'
-# listfile = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/swayze/j2/main_transect.lst'
-# listfile = 'C:/Users/eric/phd/ownCloud/data/Regions/MetalEarth/malartic/j2/main_transect_more.lst'
-# main_list = 'C:/Users/eric/phd/ownCloud/data/Regions/MetalEarth/malartic/j2/main_transect_more.lst'
-# listfile = local_path + 'phd/ownCloud/data/Regions/MetalEarth/matheson/j2/mat_eastLine.lst'
-# main_list = local_path + 'phd/ownCloud/data/Regions/MetalEarth/matheson/j2/mat_eastLine.lst'
-# main_list = 'C:/Users/eroots/phd/ownCloud/data/Regions/MetalEarth/larder/j2/main_transect_bb_NS.lst'
-# listfile = 'C:/Users/eroots/phd/ownCloud/data/Regions/MetalEarth/larder/j2/main_transect_bb_NS.lst'
-# datafile = 'C:/Users/eric/Documents/MATLAB/MATLAB/Inversion/Regions/MetalEarth/swayze/test.data'
-# datafile = 'C:/Users/eric/Documents/MATLAB/MATLAB/Inversion/Regions/MetalEarth/swayze/swz_cull1/finish/swz_cull1i.data'
-# datafile = 'F:/ownCloud/data/Regions/MetalEarth/swayze/swz_cull1/finish/swz_cull1i.data'
-# datafile = r'C:\Users\eric\Documents\MATLAB\MATLAB\Inversion\Regions\MetalEarth\sturgeon\stu3\stu2_j2Rot2.dat')
-# main_list = 'C:/Users/eroots/phd/ownCloud/data/Regions/MetalEarth/dryden/j2/main_transect.lst'
-# listfile = 'C:/Users/eroots/phd/ownCloud/data/Regions/MetalEarth/dryden/j2/main_transect.lst'
-list_file = local_path + '/phd/NextCloud/data/Regions/MetalEarth/wst/j2/mantle/wst_mantle_wNorth.lst'
-main_list = local_path + '/phd/NextCloud/data/Regions/MetalEarth/wst/j2/mantle/wst_NS_pseudosection2.lst'
+##########################################
+# WS
+# list_file = local_path + '/phd/NextCloud/data/Regions/MetalEarth/wst/j2/mantle/wst_mantle_wNorth.lst'
+# main_list = local_path + '/phd/NextCloud/data/Regions/MetalEarth/wst/j2/mantle/wst_NS_pseudosection2.lst'
 ###########################################
 # DRYDEN
 # listfile = local_path + 'phd/ownCloud/data/Regions/MetalEarth/dryden/j2/dry5_3.lst'

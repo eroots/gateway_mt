@@ -173,6 +173,17 @@ class Dataset(object):
         elif self.has_dType('response'):
             return self.response.site_names
 
+    def reset_to_raw_errors(self, use_error_floor=True):
+        for site in self.data.site_names:
+            error_floors = self.data.sites[site].calculate_error_floor()
+            for comp in self.data.components:
+                for ii, p in enumerate(self.data.periods):
+                    if self.data.sites[site].used_error[comp][ii] != self.data.REMOVE_FLAG:
+                        ind = np.argmin(abs(self.raw_data.sites[site].periods - p))
+                        e = np.max((error_floors[comp][ii],
+                                    self.raw_data.sites[site].errors[comp][ind]))
+                        self.data.sites[site].used_error[comp][ii] = e
+
     @utils.enforce_input(sites=list, periods=list, components=list, hTol=float, lTol=float)
     def get_data_from_raw(self, lTol=None, hTol=None, sites=None, periods=None, components=None):
         
@@ -2220,7 +2231,7 @@ class Site(object):
         self.use_independent_errors = False
         self.error_floors = {'Off-Diagonal Impedance': 0.03,
                              'Diagonal Impedance': 0.03,
-                             'Tipper': 0.03,
+                             'Tipper': 0.000003,
                              'Rho': 0.03,
                              'Phase': 0.02}
         self.file_format = file_format
@@ -3229,7 +3240,7 @@ class RawData(object):
                 # First check the impedances
                 # vals = [site.data[comp][ii] for comp in site.components if comp[0] == 'Z']
                 vals = [site.data[comp][ii] for comp in site.components]
-                if all(abs(abs(np.array(vals)) - abs(vals[0])) < threshold):
+                if all(abs(abs(np.array(vals)) - abs(vals[0])) < threshold) or any(np.array(vals) > 1e10):
                     # print(site.name)
                     # Then check the tippers
                     # vals = [site.data[comp][ii] for comp in site.components if comp[0] == 'T']
@@ -3779,8 +3790,9 @@ class PhaseTensor(object):
         new_phi.diff_azimuth = fact * (self.azimuth - y.azimuth)
         new_phi.diff_delta = (100 * (np.linalg.norm(self.phi - y.phi) / np.linalg.norm(self.phi)))
         new_phi.delta = (100 * (np.linalg.norm(self.phi - y.phi) / np.linalg.norm(self.phi)))
-        new_phi.diff_det_phi = fact * (self.det_phi - y.det_phi)
+        new_phi.diff_det_phi = fact * np.tan(np.arctan(self.det_phi) - np.arctan(y.det_phi))
         new_phi.diff_skew_phi = fact * (self.skew_phi - y.skew_phi)
+        new_phi.diff_dimensionality = fact * (self.dimensionality - y.dimensionality)
         return new_phi
 
 class CART(PhaseTensor):

@@ -9,7 +9,8 @@ from pyMT.WSExceptions import WSFileError
 
 # If you have multiple lists / lines that you want to keep seperate, add them all here. Otherwise, just rename the transect (but keep it in brackets as is)
 # transects = ['litho_bb', 'litho_lmt', 'metal_earth', 'usarray']
-transects = ['Reykjanes']
+transects = ['und_2026-collected']
+# transects = ['und_2025']
 # Path to the list file
 # list_path = 'E:/Work/sync/Regions/Norway/GoFEM/data/edi_interpolated/'
 # list_path = 'E:/Work/sync/Regions/ATHA/gofem/edi_interpolated/mcarthur/'
@@ -24,11 +25,11 @@ transects = ['Reykjanes']
 # Name of the list file(s) - these would go with your list of transects above
 # lists = ['allsites.lst']
 # lists = ['litho_bb.lst', 'litho_lmt.lst', 'metal_earth.lst', 'usarray.lst']
-lists = ['allall.lst']
+lists = ['und_2026.lst']
 # Just a prefix for naming. Previously I had used it to separate AMT/BBMT/LMT data into separate files.
 # data_type = 'BB_'
 data_type = ''
-list_path = 'G:/Other computers/My Computer/sync/Regions/Reykjanes/edis/'
+list_path = 'G:/Other computers/My Computer/sync/Regions/undercover/j2/UND-2026/'
 # Set the paths you want things to be saved to
 # shp_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/wst_cullmantle/'
 # kml_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
@@ -36,9 +37,12 @@ list_path = 'G:/Other computers/My Computer/sync/Regions/Reykjanes/edis/'
 
 # csv_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
 # shp_save_path = 'E:/phd/NextCloud/data/ArcMap/MT-locations/stations/'
-shp_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/Reykjanes/SHP/'
-kml_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/Reykjanes/KML/'
-csv_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/Reykjanes/CSV/'
+# shp_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/usarray/SHP/'
+# kml_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/usarray/KML/'
+# csv_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/usarray/CSV/'
+shp_save_path = 'G:/Other computers/My Computer/sync/GIS/Finland/MT-locations/SHP/'
+kml_save_path = 'G:/Other computers/My Computer/sync/GIS/MT-locations/KMLs/'
+csv_save_path = 'G:/Other computers/My Computer/sync/GIS/Yukon/station_locations/CSV/'
 # kml_save_path = 'C:/Users/eroots/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
 # csv_save_path = 'E:/phd/Nextcloud/data/ArcMap/MT-locations/KMLs/'
 
@@ -47,7 +51,7 @@ write_kml = True
 write_csv = False
 write_shp = True
 # Whatever your UTM zone is
-UTM = 35
+UTM = 9
 
 for ii, lst in enumerate(lists):
     try:

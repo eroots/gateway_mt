@@ -7,43 +7,52 @@ from pyMT.e_colours import colourmaps as cm
 import naturalneighbor as nn
 
 
-local_path = 'E:'
+local_path = 'G:/Other Computers/My Computer/sync/Regions/'
 # listfile = 'E:/phd/NextCloud/data/Regions/plc18/PLC MT-20210303T165501Z-001/PLC MT/edi/all.lst'
 # datafile = 'E:/phd/NextCloud/data/Regions/plc18/PLC MT-20210303T165501Z-001/PLC MT/tests/all_inv18.dat'
 # file_path = 'E:/phd/NextCloud/Documents/GoldenTriangle/RoughFigures/rms_plots/'
 # file_name = 'line3_scatter-all'
-file_path = 'E:/phd/NextCloud/Documents/ME_Transects/wst-mantle/rms_plots/'
-file_name = 'rms_scatterplot'
+file_path = 'G:/Other Computers/My Computer/sync/Documents/MSH/'
+file_name = 'MSH_t2_ftest_rmsDiff-scatterplot'
 # listfile = local_path + '/phd/Nextcloud/data/Regions/snorcle/j2/jformat-0TN/j2edi/ffmt_output/renamed/line3_plus.lst'
 # base_data_file = local_path + '/phd/Nextcloud/data/Regions/snorcle/line3_plus/line3_wTopo_all_removed.dat'
 # datafile = local_path + '/phd/NextCloud/data/Regions/snorcle/line3_plus/line3-all_lastIter.dat'
-listfile = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/j2/mantle/fullrun/wst_cullmantle.lst'
-base_data_file = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/fullmantle/cull/Z/ZK/wst_cullmantle3_LAMBERT_ZK_removed.dat'
-datafile = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/fullmantle/cull/Z/ZK/anisotropic/wstZK_ani_lastIter.dat'
+# listfile = local_path + 'MSH/edis-all/empower/edi_interpolated/all_T1-rmdupes.lst'
+# base_data_file = local_path + 'MSH/model5/t1/mshT1_wTransect-ZK_rmdupes.gdat'
+listfile = local_path + 'MSH/edis-all/empower/edi_interpolated/all_T2-wTransect-rmdupes.lst'
+base_data_file = local_path + 'MSH/model5/t2/MSHT2_wTransect-ZK_rmdupes.gdat'
+rm_sites = ['MSH-t1_614', 'MSH-t1_613', 'MSH-t1_617', 'MSH-t1_619', 'MSH-t1_630', 
+            'MSH-t1_621', 'MSH-t1_622', 'MSH-t1_623', 'MSH-t1_624', 'MSH-t1_627',
+            'MSH-t1_626', 'MSH-t1_625', 'MSH-t1_628']
+# datafile = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/fullmantle/cull/Z/ZK/anisotropic/wstZK_ani_lastIter.dat'
 
 # data = WSDS.Data(datafile=datafile)
 # data = WSDS.RawData(listfile)
 raw_data = WSDS.RawData(listfile)
-raw_data.locations = raw_data.get_locs(mode='lambert')
-for ii, site in enumerate(raw_data.site_names):
-    raw_data.sites[site].locations['X'] = raw_data.locations[ii, 0]
-    raw_data.sites[site].locations['Y'] = raw_data.locations[ii, 1]
-
+base_data = WSDS.Data(datafile=base_data_file, listfile=listfile)
+# raw_data.locations = raw_data.get_locs(mode='lambert')
+# for ii, site in enumerate(raw_data.site_names):
+#     raw_data.sites[site].locations['X'] = raw_data.locations[ii, 0]
+    # raw_data.sites[site].locations['Y'] = raw_data.locations[ii, 1]
+if rm_sites:
+    raw_data.remove_sites(sites=rm_sites)
+    base_data.remove_sites(sites=rm_sites)
 n_interp = 150
 save_fig = 1
+save_extensions = ['.png', '.svg']
 # file_name = 'swzFinish_resp'
 # file_name = 'swz_1000ohm_resp'
 dpi = 300
-padding = 30
+padding = 10
 # interp_type = ('nn', 'linear', 'cubic')
 # interp_type = ['nnscatter']
 annotate_sites = 0
 interp_type = ['scatter']
 # cmap = cm.get_cmap('turbo', 5)
-cmap = cm.get_cmap('bgyw_r', 14)
-# cmap = cm.get_cmap('coolwarm', N=16)
-use_cax = [0.5, 4]
-# use_cax = [-4, 4]
+cmap = cm.get_cmap('bgyw', 28)
+# cmap = cm.get_cmap('bwr', N=33)
+# use_cax = [0.5, 3]
+use_cax = [0, 0.5]
 # depths = ['5.0', '10.0', '14.0', '23.0']
 # rhos = [10, 50, 100, 300, 500]
 # depths = [500, 1000, 1500, 2500, 3500, 5000, 7000, 10000, 15000, 20000, 25000, 35000]
@@ -66,15 +75,18 @@ for d in depths:
         # base_data_file = local_path + '/phd/Nextcloud/data/Regions/snorcle/cull1b/hs100/sno_cull1b_K_reErredL3.dat'
         # datafile = local_path + '/phd/Nextcloud/data/Regions/snorcle/cull1b/hs100/sno-hs100-K_lastIter.dat'
         # base_data_file = local_path + '/phd/Nextcloud/data/Regions/snorcle/line2a_plus/line2a_wTopo_K_erred_removed2.dat'
-        # datafile = local_path + '/phd/Nextcloud/data/Regions/snorcle/line2a_plus/line2a-0p2_K-fromZ_lastIter.dat'
-        # data_files = [datafile, datafile2]
-        data_files = [datafile]
+        datafile = local_path + 'MSH/model5/t2/ZK/finalize/inv_data_21.gdat'
+        datafile2 = local_path + 'MSH/model5/t2/ftest/inv_data_0.gdat'
+        data_files = [datafile, datafile2]
+        # data_files = [datafile]
         data = WSDS.Data(datafile=datafile, listfile=listfile)
-        base_data = WSDS.Data(datafile=base_data_file, listfile=listfile)
+        # base_data = WSDS.Data(datafile=base_data_file, listfile=listfile)
         pt_comps = ('PTXX', 'PTYY', 'PTXY', 'PTYX')
         rms = []
         for file in data_files:
             data = WSDS.Data(datafile=file, listfile=listfile)
+            if rm_sites:
+                data.remove_sites(sites=rm_sites)
             # for site in data.site_names:
                 # for comp in pt_comps:
                 #     data.sites[site].data[comp] = np.array([getattr(pt, comp) for pt in data.sites[site].phase_tensors])
@@ -144,7 +156,7 @@ for d in depths:
                 grid_vals = np.squeeze(nn.griddata(points, vals, grid_ranges)).T
             elif interp != 'scatter':
                 grid_vals = griddata(points, vals, (grid_x, grid_y), method=interp)
-            plt.figure(figsize=(8, 10))
+            plt.figure(figsize=(10, 8))
             if interp != 'scatter':
                 plt.pcolor(grid_x, grid_y, grid_vals, cmap=cmap, vmin=use_cax[0], vmax=use_cax[1])
             if 'scatter' in interp:
@@ -155,8 +167,8 @@ for d in depths:
                     for ii, txt in enumerate(vals):
                         plt.text(s='{:3.2f}'.format(vals[ii]), x=locs[ii], y=periods[ii])
             # plt.plot(locs, periods, 'kx')
-            plt.gca().set_xlabel('Easting (km)')
-            plt.gca().set_ylabel('Northing (km)')
+            plt.gca().set_xlabel('Easting (km)', fontsize=14)
+            plt.gca().set_ylabel('Northing (km)', fontsize=14)
             plt.gca().set_xlim([min_x - padding, max_x + padding])
             plt.gca().set_ylim([min_p - padding, max_p + padding])
             plt.gca().set_aspect(1)
@@ -165,12 +177,13 @@ for d in depths:
             cb.set_label('RMS Misfit',
                          rotation=270,
                          labelpad=20,
-                         fontsize=16)
+                         fontsize=14)
             plt.clim(use_cax)
             if save_fig:
                 # tag = '_{}{}'.format(dtype, comp)
-                ext = '.svg'
-                plt.gcf().savefig(file_path + file_name + ext, dpi=dpi, bbox_inches='tight')
-                plt.close()
+                for ext in save_extensions:
+                # ext = '.svg'
+                    plt.gcf().savefig(file_path + file_name + ext, dpi=dpi, bbox_inches='tight')
+                plt.close() 
     if not save_fig:                
         plt.show()

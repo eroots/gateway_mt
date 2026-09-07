@@ -28,8 +28,10 @@ do_hs = True
 colors = ['b','r','c','g','y','m']
 ii = 0
 # for sig1 in [0.001, 0.0001, 0.00001]:
-for sig1 in [0.0001]:
-    for sig2 in [10, 1, 0.1]:
+# for sig1 in [0.0001]:
+    # for sig2 in [10, 1, 0.1]:
+for sig1 in [1 / 200]:
+    for sig2 in [1]:
     # for sig2 in [10]:
         if do_archies:
             sig_eff, prop = archies(sig1, sig2, 1.)

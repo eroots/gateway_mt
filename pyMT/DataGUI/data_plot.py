@@ -383,9 +383,9 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
     def load_jpeg(self):
         file_name = QtWidgets.QFileDialog.getOpenFileName(self, 'Get JPEG', '', 'Image Files (*.jpg *.jpeg)')[0]
         if file_name:
-            try:
+            # try:
                 im = imread(file_name)
-                with open(file_name[:-3] + 'jgw', 'r') as f:
+                with open(file_name.split('.')[0] + '.jgw', 'r') as f:
                     xsize = float(f.readline())
                     dummy = f.readline()
                     dummy = f.readline()
@@ -400,8 +400,8 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
                 self.background_image['extent'] = [x1, x2, y1, y2]
                 self.actionShow_JPEG.setChecked(True)
                 self.update_map()
-            except FileNotFoundError as e:
-                QtWidgets.QMessageBox.warning(self, 'Error', 'File not readable, or world file not found.')
+            # except FileNotFoundError as e:
+                # QtWidgets.QMessageBox.warning(self, 'Error', 'File not readable, or world file not found.')
 
     def data_phase_tensor(self):
         if self.toggle_dataPhaseTensor.isChecked():

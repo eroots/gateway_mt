@@ -28,6 +28,7 @@ def write_list(transect, lst, data_type):
         lst = [file for file in lst if file[-5] in ending]
     else:
         lst = [file for file in lst if file.endswith(('edi', '.dat'))]
+    lst = sorted(lst)
     with open('all'.join([transect, suffix, '.lst']), 'w') as f:
 
         f.write(str(len(lst)) + '\n')

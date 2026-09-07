@@ -4,6 +4,7 @@ from matplotlib.colorbar import ColorbarBase
 from scipy.interpolate import griddata
 import matplotlib.patches as patches
 import matplotlib.colorbar as colorbar
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.path import Path
 from scipy.interpolate import RBFInterpolator
 import pyMT.utils as utils
@@ -71,6 +72,9 @@ class format_model_coords(object):
         self.im = im
         self.x_label = x_label
         self.y_label = y_label
+        # if self.spatial_units == 'km':
+        #     X *= 1000
+        #     Y *= 1000
         self.X = X
         self.Y = Y
         self.use_log = use_log
@@ -1017,7 +1021,11 @@ class MapView(object):
         if cb_slot == 1:
             self.cb_params['label_1'] = label
             self.cb_params['mappable_1'] = mappable
-            self.window['colorbar'] = self.window['figure'].colorbar(mappable=mappable)
+            # divider = make_axes_locatable(self.window['axes'][0])
+            # cax = divider.append_axes('right', size='3.5%', pad=0.05)
+            self.window['colorbar'] = self.window['figure'].colorbar(mappable)
+                                                                     # ax=self.window['axes'][0],
+                                                                     # cax=cax)
             self.window['colorbar'].set_label(label,
                                               rotation=self.cb_params['rotation'],
                                               labelpad=self.cb_params['labelpad'],
@@ -1801,7 +1809,7 @@ class MapView(object):
                 use_sites = [site for site in data.site_names if set(data.IMPEDANCE_COMPONENTS).issubset(set(data.sites[site].real_components))]
                 vals.append([np.rad2deg(data.sites[site].phase_tensors[period_idx].azimuth) for site in use_sites])
             elif 'bost' in fill_param.lower():
-                data_label = 'Depth'
+                data_label = 'Depth (km)'
                 use_log = True
                 use_sites = [site for site in data.site_names if set(data.IMPEDANCE_COMPONENTS).issubset(set(data.sites[site].real_components))]
                 # vals.append([np.log10(utils.compute_bost1D(data.sites[site], method='phase', comp=fill_param, filter_width=1)[1][period_idx]) for site in use_sites])
@@ -2143,7 +2151,8 @@ class MapView(object):
                     # if radius > 1000:
                     phi_x = [self.ellipse_VE * (self.pt_scale * x_scale / (radius * 100)) * x for x in phi_x]
                     phi_y = [(self.pt_scale * y_scale / (radius * 100)) * y for y in phi_y]
-                    ellipses.append([current_x - phi_x, current_y - phi_y])
+                    # Note the +phi_x is to mirror the ellipse so that it matches the plan-view orientation
+                    ellipses.append([current_x + phi_x, current_y - phi_y]) 
                     fill_vals.append(fill_val)
         fill_vals = np.array(fill_vals)
         lower, upper = self.pt_fill_limits(fill_param, pt_type)
@@ -2173,6 +2182,14 @@ class MapView(object):
         self.fake_im = self.window['axes'][0].scatter(X_all,
                                                       Y_all,
                                                       c=fake_vals, cmap=self.cmap)
+        if x_axis.lower() == 'linear':
+            self.window['axes'][0].set_xlabel('Distance ({})'.format(self.spatial_units), fontsize=self.label_fontsize)
+        elif x_axis.lower() == 'X':
+            self.window['axes'][0].set_xlabel('Northing ({})'.format(self.spatial_units), fontsize=self.label_fontsize)
+        elif x_axis.lower() == 'Y':
+            self.window['axes'][0].set_xlabel('Easting ({})'.format(self.spatial_units), fontsize=self.label_fontsize)
+        self.window['axes'][0].set_ylabel('Period (s)', fontsize=self.label_fontsize)
+
         # fake_im.colorbar()
         self.fake_im.set_visible(False)
         if not self.window['colorbar'] and self.use_colourbar:
@@ -2267,7 +2284,8 @@ class MapView(object):
                     # phi_x = [self.ellipse_VE * (self.pt_scale * x_scale / (radius * 100)) * x for x in phi_x]
                     x = self.ellipse_VE * (self.pt_scale * x_scale / (100)) * x
                     y = (self.pt_scale * y_scale / (100)) * y
-                    rectangles.append([xy[0] - x, xy[1] - y])
+                    # Note the +phi_x is to mirror the ellipse so that it matches the plan-view orientation
+                    rectangles.append([xy[0] + x, xy[1] - y])
                     fill_vals.append(fill_val)
         fill_vals = np.array(fill_vals)
         lower, upper = self.pt_fill_limits(fill_param, pt_type)

@@ -1050,9 +1050,10 @@ def compute_bost1D(site, method='phase', comp=None, filter_width=1):
         comp = comp.lower().replace('bost', '')
     rho = compute_rho(site, calc_comp=comp)[0]
     # Flag bad points
-    idx = np.array(rho != 0) * (site.used_error['ZXYR'] != site.REMOVE_FLAG)
-    rho = rho[idx]
-    periods = site.periods[idx]
+    # idx = np.array(rho != 0) * (site.used_error['ZXYR'] != site.REMOVE_FLAG)
+    # rho = rho[idx]
+    # periods = site.periods[idx]
+    periods = site.periods
     # coefs = np.polyfit(np.log10(periods), np.log10(rho), 4)
     # f = np.poly1d(coefs)
     # rhofit = 10 ** f(np.log10(periods))
@@ -1074,13 +1075,13 @@ def compute_bost1D(site, method='phase', comp=None, filter_width=1):
         phase = compute_phase(site, calc_comp=comp)[0]
     elif method.lower() == 'phase-bostick':
         phase = compute_phase(site, calc_comp=comp)[0]
-        phase = phase[idx]
+        # phase = phase[idx]
         phase = geotools_filter(periods, phase, use_log=False, fwidth=filter_width)
         slope = 1 - phase / 45
         bostick = rho * ((1 + slope) / (1 - slope))
     elif method.lower() == 'phase':
         phase = compute_phase(site, calc_comp=comp)[0]
-        phase = phase[idx]
+        # phase = phase[idx]
         phase = geotools_filter(periods, phase, use_log=False, fwidth=filter_width)
         bostick = rho * ((np.pi / (2 * np.deg2rad(phase % 90))) - 1)
     return bostick, depth, rhofit, phase
