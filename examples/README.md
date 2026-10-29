@@ -49,6 +49,7 @@ no `main()`. Several need packages **not** in `pyMT`'s
 | `plot_misfit_curves.py` | -- | Per-component misfit-curve PDFs (function `generate_misfit_plots`). |
 | `plot_occam.py` | -- | Occam2D data vs response, TE / TM rho and phase (`plot_occam.py DATA RESPONSE`; does not use `pyMT`). |
 | `plot_slice_example.py` | -- | Worked example of interpolating an arbitrary slice through a model. |
+| `plot_transect.py` | `pyshp` | Station locations against a seismic-line shapefile, in UTM. |
 | `pseudosection_gplot.py` | -- | Batch pseudosections via `gplot`. |
 | `pt2csv.py` | `pandas` | Phase-tensor parameters for every site/period to CSV. |
 | `pt_pseudosection.py` | -- | Phase-tensor ellipse pseudosection along a profile. |

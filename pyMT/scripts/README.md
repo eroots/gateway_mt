@@ -19,4 +19,3 @@ be run as-is.
 | `plot_edi.py` | `console_scripts: plot_edi` | Plot apparent resistivity / phase / tipper curves from EDI files: shown on screen, or saved as PNG / PDF (`plot_edi all`, `--save`). See `plot_edi -h`. |
 | `autogen_report.py` | `scripts` | Misfit report for an inversion (any data format pyMT reads): `summary.txt` with RMS by component and worst sites, plus `misfit_curves.pdf` (rho / phase or impedance, with tipper; four sites per page). See `autogen_report -h`. |
 | `plot_dataset.py` | `scripts` | Plot raw data, inversion data and / or a response (any combination) to a multi-page PDF; rho / phase or impedance, with tipper. See `plot_dataset -h`. Its page layout is shared with `autogen_report`. |
-| `plot_transect.py` | `scripts` | Small transect-location plot from a shapefile. Paths hard-coded in the file. |
