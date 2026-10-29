@@ -34,6 +34,7 @@ no `main()`. Several need packages **not** in `pyMT`'s
 | `image_to_vtk.py` | `PIL` | Georeferenced raster (`.tif` + world file) to a VTK surface. |
 | `interp_plan_rms.py` | `naturalneighbor` | Interpolated plan-view RMS map / scatter. |
 | `interp_rhopha.py` | `naturalneighbor` | Interpolated rho / phase plan sections and differences. |
+| `j2ws3d.py` | -- | Interactive raw data -> ModEM data file and starting mesh (superseded by the Data Plot and Mesh Designer GUIs). |
 | `lst2kml.py` | `simplekml`, `pyshp` | Site list to KML / shapefile. |
 | `model_to_geotiff.py` | `rasterio` | Model depth slices / conductance to GeoTIFF. |
 | `np_to_geotiff.py` | `rasterio` | Grid lon / lat / z points to a GeoTIFF (has a real `argparse` CLI). |

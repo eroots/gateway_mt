@@ -1,13 +1,16 @@
-"""Interactive j-format -> WSINV3DMT converter and mesh generator.
+"""Interactive raw-data -> inversion-data converter and starting-mesh generator.
 
-Reads MTU / phoenix ``.dat`` data listed in a ``.lst`` file, lets you
-pick components / periods / error floors, and writes a WSINV3DMT data
-file; also builds an initial model mesh (with ``-i``, in the
-:mod:`mesh_designer` window).
+Reads the EDI / j-format files listed in a ``.lst`` file, lets you pick
+components / periods / error maps, and writes a ModEM-format data file
+(despite the WSINV3DMT-era name); then builds a starting model mesh
+(with ``-i``, in the :mod:`mesh_designer` window).
 
-Flags: ``-data`` (data only), ``-mesh`` (mesh only), ``-i``
-(interactive mesh), ``-dbg``, ``-h``.  Installed via ``setup.py``'s
-``scripts=[...]``.
+Superseded by the Data Plot (data) and Mesh Designer (mesh) GUIs; kept
+as an example of driving pyMT from a script.
+
+Usage::
+
+    python j2ws3d.py [-data | -mesh] [-i] [-dbg] [-h]
 """
 import pyMT.data_structures as WSDS
 import pyMT.IO as WSIO
@@ -161,7 +164,7 @@ def main_data(args):
     if azimuth != 0:
         dataset.rotate_sites(azimuth)
     while True:
-        outdata = WSIO.verify_input('Output file name?', default='.data', expected='write')
+        outdata = WSIO.verify_input('Output file name?', default='inversion.data', expected='write')
         if outdata:
             if outdata[-5:] != '.data':
                 outdata = ''.join([outdata, '.data'])
@@ -203,6 +206,9 @@ def pick_periods(sorted_periods, period_set, interactive):
         chosen.append(WSIO.verify_input('Enter period number', expected=int, default=0))
         if chosen[-1] == 0:
             del chosen[-1]
+            if not chosen:
+                print('Select at least one period.')
+                continue
             chosen = [idx - 1 for idx in chosen]
             print('Selected Periods:')
             for idx in chosen:
@@ -213,10 +219,8 @@ def pick_periods(sorted_periods, period_set, interactive):
             else:
                 chosen = []
                 print('Starting over...')
-    ret = list(sorted([sorted_periods[ii] for ii in chosen]))
-    for ii, p in enumerate(ret):
-        if p < 0:
-            ret[ii] = -1 / p
+        elif not 1 <= chosen[-1] <= len(sorted_periods):
+            print('There is no period {}; choose 1 to {}.'.format(chosen.pop(), len(sorted_periods)))
     return list(sorted([sorted_periods[ii] for ii in chosen]))
 
 
@@ -224,23 +228,32 @@ def main_mesh(args, data=None):
     if data is None:
         datafile = WSIO.verify_input('Data file to use?', expected='read')
         data = WSDS.Data(datafile=datafile)
-    avg_rho = np.mean([utils.compute_rho(site, calc_comp='det', errtype='none')
+    avg_rho = np.mean([np.real(utils.compute_rho(site, calc_comp='det', errtype='none')[0])
                        for site in data.sites.values()])
-    print('Average determinant apparent resistivity is {}'.format(avg_rho))
-    bg_resistivity = WSIO.verify_input('Background resistivity?', expected=float, default=avg_rho)
-    xmesh = utils.generate_lateral_mesh(site_locs=data.locations[:, 0])
-    ymesh = utils.generate_lateral_mesh(site_locs=data.locations[:, 1])
-    max_depth = min([500, utils.skin_depth(bg_resistivity, data.periods[-1])])
-    min_depth = min([1, utils.skin_depth(bg_resistivity, data.periods[0])])
+    print('Average determinant apparent resistivity is {:.1f}'.format(avg_rho))
+    bg_resistivity = WSIO.verify_input('Background resistivity?', expected=float, default=round(avg_rho, 1))
+    # Station-aware mesher (the regular one needs a cell size)
+    xmesh, _ = utils.generate_lateral_mesh(site_locs=data.locations[:, 0], regular=False, DEBUG=False)
+    ymesh, _ = utils.generate_lateral_mesh(site_locs=data.locations[:, 1], regular=False, DEBUG=False)
+    # skin_depth is in metres: cap the defaults at 500 km and 1 m
+    max_depth = round(min([500000, utils.skin_depth(bg_resistivity, data.periods[-1])]))
+    min_depth = round(min([1, utils.skin_depth(bg_resistivity, data.periods[0])]), 3)
     print('Note: Default min and max depths are based on skin depth of lowest and highest periods.')
     min_depth = WSIO.verify_input('Depth of first layer?', expected=float, default=min_depth)
     max_depth = WSIO.verify_input('Depth of last layer?', expected=float, default=max_depth)
-    NZ = WSIO.verify_input('Total # of layers or # of layers per decade?', expected='numtuple', default=60)
-    zmesh = utils.generate_zmesh(min_depth=min_depth, max_depth=max_depth, NZ=NZ)
+    while True:
+        NZ = WSIO.verify_input('Total # of layers or # of layers per decade?', expected='numtuple', default='60')
+        if len(NZ) == 1:
+            NZ = int(NZ[0])     # a single number is the total layer count
+        zmesh = utils.generate_zmesh(min_depth=min_depth, max_depth=max_depth, NZ=NZ)
+        if zmesh is not None:   # None when the per-decade list has the wrong length
+            zmesh = zmesh[0]
+            break
     model = WSDS.Model()
-    model.dx = xmesh
-    model.dy = ymesh
-    model.dz = zmesh
+    model.generate_dummy_model()
+    model.dx = list(xmesh)
+    model.dy = list(ymesh)
+    model.dz = list(zmesh)
     model.vals = bg_resistivity * np.ones((model.nx, model.ny, model.nz))
     if '-i' in args:
         # NOTE: needs a running QApplication; launch mesh_designer directly
@@ -253,13 +266,14 @@ def main_mesh(args, data=None):
         xpads = [model.xCS[0]]
         ypads = [model.yCS[0]]
         for ii in range(nxpads):
-            xpads.append(WSIO.verify_input('Pad size', expected=float, default=xpads[ii] * 1.2))
-            xpads = xpads[1:]
+            xpads.append(WSIO.verify_input('Pad size', expected=float, default=round(xpads[ii] * 1.2)))
         for ii in range(nypads):
-            ypads.append(WSIO.verify_input('Pad size', expected=float, default=ypads[ii] * 1.2))
-            ypads = ypads[:1]
-        model.dx = xpads[-1::-1] + model.dx + xpads
-        model.dy = ypads[-1::-1] + model.dy + ypads
+            ypads.append(WSIO.verify_input('Pad size', expected=float, default=round(ypads[ii] * 1.2)))
+        xpads, ypads = xpads[1:], ypads[1:]   # drop the seed cell sizes
+        # Pads are cell sizes: add them to both sides of the core cells
+        model.xCS = xpads[-1::-1] + list(model.xCS) + xpads
+        model.yCS = ypads[-1::-1] + list(model.yCS) + ypads
+        model.vals = bg_resistivity * np.ones((model.nx, model.ny, model.nz))
         modelname = WSIO.verify_input('Model name', expected='write', default='mod')
         if '.model' not in modelname:
             modelname = ''.join([modelname, '.model'])
@@ -287,7 +301,8 @@ if __name__ == '__main__':
             mesh = main_mesh(sys.argv[1::])
         else:
             dataset = main_data(sys.argv[1:])
-            mesh = main_mesh(sys.argv[1:], data=dataset.data)
+            if dataset is not None:
+                mesh = main_mesh(sys.argv[1:], data=dataset.data)
     except KeyboardInterrupt:
         print('\nExiting...')
     except OSError:

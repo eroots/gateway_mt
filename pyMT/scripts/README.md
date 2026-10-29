@@ -1,8 +1,7 @@
 # pyMT/scripts
 
 Command-line tools installed with `pyMT` (via `setup.py`). Nothing in
-`pyMT` imports from this folder; only `j2ws3d.py` imports *out* of it
-(to `pyMT.ModelGUI.mesh_designer`).
+`pyMT` imports from this folder.
 
 Personal analysis and figure scripts that used to live here are now in
 [`examples/`](../../examples/) at the top of the repository.
@@ -19,6 +18,5 @@ be run as-is.
 | `to_vtk.py` | `console_scripts: to_vtk` + `scripts` | Write a model and / or site locations to VTK for ParaView (ModEM / WSINV3DMT-style inputs). Interactive with no arguments, or `to_vtk -h` for the command-line options. |
 | `plot_edi.py` | `console_scripts: plot_edi` | Plot apparent resistivity / phase / tipper curves from EDI files: shown on screen, or saved as PNG / PDF (`plot_edi all`, `--save`). See `plot_edi -h`. |
 | `autogen_report.py` | `scripts` | Misfit report for an inversion (any data format pyMT reads): `summary.txt` with RMS by component and worst sites, plus `misfit_curves.pdf` (rho / phase or impedance, with tipper; four sites per page). See `autogen_report -h`. |
-| `j2ws3d.py` | `scripts` | Convert j-format `.dat` data to WSINV3DMT, and (with `-i`) launch the mesh designer. |
 | `plot_dataset.py` | `scripts` | Plot a whole dataset (data / response / raw) to a multi-page PDF via `gplot.DataPlotManager`. Paths are edited in the file, not passed on the command line. |
 | `plot_transect.py` | `scripts` | Small transect-location plot from a shapefile. Paths hard-coded in the file. |

@@ -36,7 +36,7 @@ Sometimes it may be desireable to invert a data set that has a non-uniform perio
 Note, a 'wasted data point' is a data point which is will be inverted at a subset of stations, but is unavailable at other stations (most often when mixing stations with different bandwidths, or stations with / without tipper)
 However, if you intend to invert many frequencies and / or components that would be unavailable at a subset of stations, there is a workaround. This workaround requires some knowledge of Python, and preferably a text editor that allows you to find, select, and remove all lines containing a particular string (e.g., Sublime Text).
 
-First, you should set up the ModEM data file as usual (i.e., using Data Plot or j2ws3d).
+First, you should set up the ModEM data file as usual (i.e., using Data Plot).
 Make note of (or intentionally set up) any patterns you can use to distinguish your stations. In this example, broadband stations end in 'M', and AMT stations end in 'A'. The final 4 periods of AMT stations, and first 3 periods of BB stations will be flagged and removed.::
 	
 	data = ds.Data('demo.dat')  # Load your data set
