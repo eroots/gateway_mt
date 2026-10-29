@@ -1,4 +1,61 @@
-"""Summary
+"""In-memory data model for magnetotelluric data, responses and models.
+
+This module holds the core container classes used throughout :mod:`pyMT`.
+It contains no file parsing itself -- every read/write is delegated to
+:mod:`pyMT.IO` -- and no plotting; it is purely representation plus
+manipulation (resampling, rotation, error handling, meshing, phase tensors,
+RMS, coordinate projection).
+
+Class overview
+--------------
+``Dataset``
+    Top-level container.  Owns a :class:`RawData`, a :class:`Data`, a
+    :class:`Response`, a :class:`Model` and a second ``smoothed_data``
+    :class:`RawData`, and keeps their site lists and rotation azimuths
+    consistent.
+``RawData``
+    Raw transfer functions read from EDI / j-format files, one :class:`Site`
+    per station, at each station's native periods.
+``Data``
+    Inversion data on a single common period axis: data points, ``errors``,
+    ``used_error`` (errors actually used, after floors/maps) and integer
+    ``errmap`` multipliers.  Format is auto-detected from the file extension
+    (see :attr:`Data.IMPLEMENTED_FORMATS`).
+``Response(Data)``
+    Model responses.  Thin subclass; only :meth:`Response.write` differs.
+``Model``
+    3-D resistivity mesh.  Private ``_dx/_dy/_dz`` (cell edges) and
+    ``_xCS/_yCS/_zCS`` (cell sizes) are kept in sync through property
+    setters; ``vals`` is the ``(nx, ny, nz)`` resistivity array.
+``Site``
+    All data for one station: parallel dicts ``data``, ``errors``,
+    ``used_error``, ``errmap``, ``flags`` keyed by component
+    (``'ZXYR'``, ``'ZXYI'``, ...), each an array aligned to ``periods``.
+    Holds one :class:`PhaseTensor` per period.
+``PhaseTensor`` / ``CART``
+    Phase tensor for one period, derived from Z (or supplied directly).
+    ``PhaseTensor.__sub__`` implements several phase-tensor *difference*
+    definitions selected by ``difference_definition``.
+
+Shared conventions
+------------------
+* Components are 4-character strings: impedance ``Z{XX,XY,YX,YY}{R,I}``,
+  tipper ``TZ{X,Y}{R,I}``, phase tensor ``PT{XX,XY,YX,YY}``.
+* ``used_error`` entries equal to :data:`pyMT.IO.REMOVE_FLAG` mark points
+  excluded from inversion / RMS.
+* ``errmap`` holds integer multipliers plus sentinel values
+  (:attr:`Data.OUTLIER_MAP`, :attr:`Data.NO_PERIOD_MAP`,
+  :attr:`Data.MISSING_DATA_MAP`, ...).
+* ``site_names`` is an ordered list (display / sort order); ``sites`` is the
+  ``{name: Site}`` dict.
+* ``spatial_units`` ('m' or 'km') is a property on ``Dataset``/``Data``/
+  ``Model``/``Site`` whose setter rescales all stored coordinates in place.
+
+Notes
+-----
+These classes do little input validation -- they assume callers pass
+consistent site data, matching component/period lengths, etc.  ``progress_bar``
+parameters accept an optional Qt progress-bar widget used by the GUIs.
 """
 import numpy as np
 import os
@@ -8,82 +65,60 @@ import pyMT.IO as IO
 from copy import deepcopy
 
 
-# ==========TODO=========== #
-# Model implementation
-# Response
-# Methods for handling the data:
-# Sort, get, filter out based on a criteria
-# Mainly I would like stats on data per periods per site
-# And be able to add a period/site to a Data object from
-# another, or from a RawData object.
-#
-# Should be able to copy responses into data and vice versa, as well as copy parts
-# of raw data into both.
-
-# Need to figure out how to store and manipulate site location data. Rotating sites
-# and making new grids, viewing rotated data should be easy and
-# interactive so you can easily choose the best orientation for a given dataset.
-# At some point I may have to modify the data structures to allow for other
-# kinds of models/data (i.e. not just WS). This should be as simple as writing new read/write
-# methods that are called instead of the WS ones if a certain flag is given. As long as the
-# read method sends back the same info as the WS one, it should be fine.
-#
-# Alternating between datasets only works well when the sites are exactly the same.
-# I'll have to decide if this is a bug or a feature... For instance, the site list doesn't
-# update to the new list of sites.
-
-# Have to figure out what I'm going to do about error flags (i.e. outliers, no data, XXYY).
-# Should probably also put together at least a rudimentary plot of sites locations that is tied
-# to the plotter. Actual model plotter will take a lot of work, but in the meantime it would
-# be nice to be able to see where the sites are that I'm looking at. Also, may to be able to sort the
-# sites by location.
-
-# Look into 'Sphinx' for creating doctstrings to document the modules.
-# Will also eventually have to write tests so that I can easily check any changes I make.
-# ========================= #
-
-# Important note on usage: For most of the class, I assume it is being used correctly.
-# In that I mean there is very little error checking to make sure you aren't trying pass in
-# bogus site data and whatnot. Some of this is probably dangerous, other parts less so. Will
-# eventually have to go through it and check which parts need
-# to be enforced and which ones are internal, and therefore (hopefully) will remain consistent.
-
+#: Module-level flag; when True, several methods print rotation/adjustment traces.
 DEBUG = False
 
 
 class Dataset(object):
+    """Top-level container tying together raw data, inversion data, response and model.
+
+    On construction it reads whatever files are supplied, builds the
+    :class:`Data` from the :class:`RawData` if only raw data is given, and
+    reconciles the rotation azimuths of the sub-objects (rotating them to
+    match if they disagree).
+
+    Attributes
+    ----------
+    raw_data : RawData
+    data : Data
+    response : Response
+    model : Model
+    smoothed_data : RawData
+        A copy of ``raw_data`` populated by :meth:`regulate_errors`.
+    rms : dict or None
+        Output of :meth:`calculate_RMS` (data vs. response), or ``None``.
+    azimuth : float
+        Common rotation of the sub-objects, in degrees.
+    freqset : object or None
+        Frequency-set metadata read from ``datpath`` if present.
+
+    Notes
+    -----
+    ``sort_sites`` reorders ``data``/``response`` but not ``raw_data``.
+    """
     data_types = ('raw_data', 'response', 'data')
-    """
-    Container for all WS related information, including model, data, error, and response.
-    Methods:
-        read_model(modelfile): Reads the model contained in 'modelfile'.
-                               if no file is given, an empty model object is created.
-        read_data(listfile, datafile): Reads the data in 'datafile', with the site names given in
-                                       'listfile'. If no listfile is specified, and self.site_names
-                                       is empty, sites are numbered.
-        read_response(responsefile): Reads the response data given in 'responsefile'.
-                                     Site names are determined the same as with read_data
-        read_raw_data(listfile, datpath): Reads the raw data from the .dat files specified in
-                                          'listfile'. The path to the .dat files
-                                          may be given in 'datpath', otherwise
-                                          the path is taken to be the same as that for 'listfile'.
-    Attributes:
-        data (Data Object): Description
-        model (Model Object): Description
-        raw_data (RawData Object): Description
-        response (Response Object): Description
-    """
 
     def __init__(self, modelfile='', listfile='', datafile='',
                  responsefile='', datpath='', edi_locs_from='definemeas', progress_bar=None):
-        """
-        Summary
-        Args:
-            modelfile (str, optional): Description
-            listfile (str, optional): Description
-            datafile (str, optional): Description
-            responsefile (str, optional): Description
-            datpath (str, optional): Description
+        """Load whichever of raw data / data / response / model files are given.
+
+        If only raw data is provided, the :class:`Data` is built from it via
+        :meth:`get_data_from_raw`.  The sub-objects' rotation azimuths are then
+        reconciled (rotated to match if they disagree).
+
+        Parameters
+        ----------
+        modelfile : str, optional
+        listfile : str or RawData, optional
+            Station list file, or an existing :class:`RawData` to copy.
+        datafile : str, optional
+        responsefile : str, optional
+        datpath : str, optional
+            Directory holding the raw station files.
+        edi_locs_from : str, optional
+            Which EDI block to take site coordinates from.
+        progress_bar : optional
+            Qt progress-bar widget for the GUIs.
         """
         # Check if the list file passed is just a RawData instance, and if so copy it
         if isinstance(listfile, RawData):
@@ -154,26 +189,28 @@ class Dataset(object):
             print('Units {} not understood'.format(units))
 
     def has_dType(self, dType):
+        """``True`` if the named sub-object (``'data'`` / ``'raw_data'`` / ``'response'``) has sites."""
         if dType in self.data_types:
             return bool(getattr(self, dType).sites)
         else:
-            # print('{} is not a valid data type'.format(dType))
             return False
 
     @property
     def site_names(self):
-        # Get site list by order of priority
-        # Important to note that the sort_sites method does NOT sort the raw data
-        # Fix this if it becomes an issue, but the data_plot automatically generates a data object
-        # So it should only be a problem if using this class outside of data_plot
+        """Site names, taken from ``data`` if present, else ``raw_data``, else ``response``.
+
+        Note that :meth:`sort_sites` reorders ``data``/``response`` but not
+        ``raw_data``.
+        """
         if self.has_dType('data'):
             return self.data.site_names
-        elif self.has_dType('data'):
+        elif self.has_dType('raw_data'):
             return self.raw_data.site_names
         elif self.has_dType('response'):
             return self.response.site_names
 
     def reset_to_raw_errors(self, use_error_floor=True):
+        """Set each used error back to ``max(error floor, nearest raw-data error)``."""
         for site in self.data.site_names:
             error_floors = self.data.sites[site].calculate_error_floor()
             for comp in self.data.components:
@@ -186,7 +223,19 @@ class Dataset(object):
 
     @utils.enforce_input(sites=list, periods=list, components=list, hTol=float, lTol=float)
     def get_data_from_raw(self, lTol=None, hTol=None, sites=None, periods=None, components=None):
-        
+        """(Re)build ``self.data`` from ``self.raw_data``.
+
+        Resamples the raw sites onto a common axis (:meth:`RawData.get_data`),
+        runs outlier detection, sets locations/azimuth and auto-detects the
+        inversion type.
+
+        Parameters
+        ----------
+        lTol, hTol : float, optional
+            Fractional period-match tolerance below / above 1 s.
+        sites, periods, components : list, optional
+            Subset to pull; all by default.
+        """
         self.data.sites = self.raw_data.get_data(sites=sites, periods=periods,
                                                  components=components, lTol=lTol,
                                                  hTol=hTol)
@@ -207,6 +256,13 @@ class Dataset(object):
         self.data.auto_set_inv_type()
 
     def reset_dummy_periods(self):
+        """Re-flag data periods that have no close match in the raw data.
+
+        Periods beyond ``remove_*_tol`` of any raw period are marked
+        ``MISSING_DATA_MAP`` / ``REMOVE_FLAG`` (also in the response); periods
+        merely beyond ``low_tol``/``high_tol`` get a ``NO_PERIOD_MAP`` error
+        map.  Needs both ``data`` and ``raw_data``.
+        """
         if self.has_dType('data') and self.has_dType('raw_data'):
             for site in self.data.site_names:
                 for ii, period in enumerate(self.data.periods):
@@ -226,7 +282,6 @@ class Dataset(object):
                     elif (period < 0.001 and (min_diff / period) > self.raw_data.low_tol) or \
                         (period > 0.001 and (min_diff / period) > self.raw_data.high_tol):
                         for comp in self.data.components:
-                            pass
                             self.data.sites[site].change_errmap(periods=period, mult=self.data.NO_PERIOD_MAP,
                                                                 comps=comp,
                                                                 multiplicative=False)
@@ -234,6 +289,7 @@ class Dataset(object):
             print('Cannot reset dummy periods without both data and raw data')
 
     def reset_dummy_components(self):
+        """Flag data components that are absent from the raw data (``MISSING_DATA_MAP`` / ``REMOVE_FLAG``)."""
         if self.has_dType('data') and self.has_dType('raw_data'):
             for site in self.data.site_names:
                 for component in self.data.components:
@@ -244,37 +300,21 @@ class Dataset(object):
             print('Cannot reset dummy components without both data and raw data')
 
     def read_model(self, modelfile=''):
-        """Summary
-
-        Args:
-            modelfile (str, optional): Description
-
-        Returns:
-            TYPE: Description
-        """
+        """Read ``modelfile`` into ``self.model`` (prints the error on failure)."""
         try:
             self.model.__read__(modelfile)
         except WSFileError as e:
-            # self.model = Model()
             print(e.message)
 
     def read_data(self, listfile='', datafile=''):
-        """Summary
-
-        Args:
-            listfile (str, optional): Description
-            datafile (str, optional): Description
-
-        Returns:
-            TYPE: Description
-        """
+        """Read ``datafile`` into ``self.data`` (prints the error on failure)."""
         try:
             self.data.__read__(listfile=listfile, datafile=datafile)
         except WSFileError as e:
-            # self.data = Data()
             print(e.message)
 
     def write_list(self, outfile='', overwrite=False):
+        """Write the site list; refuses to overwrite unless ``overwrite=True``. Returns success."""
         if not outfile:
             print('You should probably name your output file...')
             return False
@@ -286,6 +326,7 @@ class Dataset(object):
             return False
 
     def write_data(self, outfile='', overwrite=False, file_format='modem', write_removed=False):
+        """Write ``self.data``; refuses to overwrite unless ``overwrite=True``. Returns success."""
         if outfile == '':
             print('You should probably name your output first...')
             return False
@@ -297,6 +338,13 @@ class Dataset(object):
             return False
 
     def to_vtk(self, origin=None, UTM=None, outfile=None, sea_level=0):
+        """Write ``<outfile>_model.vtk`` and ``<outfile>_sites.vtk``.
+
+        The origin defaults to the model origin (or the raw-data origin if the
+        model origin is ``(0, 0)``); the UTM zone defaults to
+        ``model.UTM_zone``.  Aborts with a message if the data and raw-data
+        site locations do not line up under ``origin``.
+        """
         if origin is None:
             if self.model.origin == (0, 0):
                 origin = self.raw_data.origin
@@ -326,44 +374,40 @@ class Dataset(object):
         self.data.to_vtk(outfile=site_outfile, UTM=UTM, origin=origin, sea_level=sea_level)
 
     def read_raw_data(self, listfile='', datpath=''):
-        """Summary
-
-        Args:
-            listfile (str, optional): Description
-            datpath (str, optional): Description
-
-        Returns:
-            TYPE: Description
-        """
+        """Read raw station data into ``self.raw_data`` (prints the error on failure)."""
         try:
             self.raw_data.__read__(listfile=listfile, datpath=datpath)
         except WSFileError as e:
-            # self.rawData = RawData()
             print(e.message)
 
     def read_response(self, respfile=''):
-        """Summary
-
-        Args:
-            respfile (str, optional): Description
-
-        Returns:
-            TYPE: Description
-        """
+        """Read a response file into ``self.response`` (prints the error on failure)."""
         try:
-            self.data.__read__(respfile)
+            self.response.__read__(datafile=respfile)
         except WSFileError as e:
-            # self.response = Response()
             print(e.message)
 
     @utils.enforce_input(site_names=list, dTypes=list)
     def get_sites(self, site_names, dTypes='all'):
+        """Collect the named sites' :class:`Site` objects from each sub-object.
+
+        Parameters
+        ----------
+        site_names : list of str
+        dTypes : list of str, optional
+            Which sub-objects to pull from (``'raw_data'``, ``'data'``,
+            ``'response'``, ``'smoothed_data'``).  ``'all'`` (default) pulls
+            from all four.
+
+        Returns
+        -------
+        dict
+            ``{dType: [Site, ...]}``.
+        """
         site_list = {'raw_data': [], 'data': [], 'response': [], 'smoothed_data': []}
         if len(dTypes) == 1:  # or isinstance(dTypes, str):
             if dTypes[0].lower() == 'all':
                 dTypes = ['raw_data', 'response', 'data', 'smoothed_data']
-            # else:
-                # dTypes = utils.to_list(dTypes)
         for site in site_names:
             for dType in dTypes:
                 if dType and getattr(self, dType).sites:
@@ -371,7 +415,7 @@ class Dataset(object):
         return site_list
 
     def rotate_sites(self, azi=0):
-        
+        """Rotate every present sub-object (data, raw_data, response) to azimuth ``azi``."""
         self.azimuth = azi
         if self.has_dType('data'):
             print('Rotating Data')
@@ -386,10 +430,7 @@ class Dataset(object):
             assert (self.azimuth % 360 == self.response.azimuth % 360)
 
     def remove_sites(self, sites):
-        """
-        Removes the specified site from the 'data' and 'response' attributes.
-        Doesn't remove from 'raw_data' as the site might be added back in later.
-        """
+        """Remove the given sites from ``data``, ``response`` and ``raw_data``."""
         if self.has_dType('data'):
             self.data.remove_sites(sites=sites)
         if self.has_dType('response'):
@@ -398,9 +439,15 @@ class Dataset(object):
             self.raw_data.remove_sites(sites=sites)
 
     def add_site(self, site):
+        """Add a site to each sub-object.
+
+        Parameters
+        ----------
+        site : dict
+            ``{'data': Site, 'response': Site, 'raw_data': Site}`` -- an entry
+            for every sub-object currently populated.
+        """
         if self.has_dType('data'):
-            # Need to make sure that the added data is consistent with current, if not, get
-            # the missing data from the relevant raw_data site
             self.data.add_site(site['data'])
         if self.has_dType('response'):
             self.response.add_site(site['response'])
@@ -408,6 +455,15 @@ class Dataset(object):
             self.raw_data.add_site(site['raw_data'])
 
     def sort_sites(self, order=None):
+        """Reorder ``data`` (and ``response``) site names.
+
+        Parameters
+        ----------
+        order : str, optional
+            ``None`` / ``'Default'`` restores raw-data order; ``'west-east'``,
+            ``'south-north'`` and ``'clustering'`` sort by location.  Does not
+            reorder ``raw_data``.
+        """
         if self.raw_data.site_names:
             site_names = self.raw_data.site_names
         elif self.data.site_names:
@@ -454,6 +510,30 @@ class Dataset(object):
             self.response.locations = self.response.get_locs()
 
     def regulate_errors(self, multiplier=2.5, fwidth=1, median_window=11, threshold=1, smooth_by='z'):
+        """Set data errors from the scatter of each component about a smooth curve.
+
+        For every component of every site: de-spike the raw curve
+        (:func:`pyMT.utils.remove_outliers`), smooth it
+        (:func:`pyMT.utils.geotools_filter`), and set the used error to
+        ``multiplier`` times the residual of the data about that curve.  The
+        smoothed curves are stored in ``self.smoothed_data``.  Finishes by
+        re-applying the error floor, equalising complex errors and the no-data
+        map.
+
+        Parameters
+        ----------
+        multiplier : float, optional
+            Residual-to-error scaling.  Default 2.5.
+        fwidth : float, optional
+            :func:`pyMT.utils.geotools_filter` width.  Default 1.
+        median_window : int, optional
+            De-spike median-filter window.  Default 11.
+        threshold : float, optional
+            De-spike fractional threshold.  Default 1.
+        smooth_by : {'z', 'rho'}, optional
+            Smooth the impedance directly, or smooth log apparent resistivity
+            and convert back.  Default ``'z'``.
+        """
         use_log = False
         # self.smoothed_data = deepcopy(self.raw_data)
         for site in self.raw_data.site_names:
@@ -557,14 +637,32 @@ class Dataset(object):
         self.data.apply_no_data_map()
 
     def equalize_complex_errors(self):
-        for site in self.data.site.names:
+        """Run :meth:`Site.equalize_complex_errors` on every data site."""
+        for site in self.data.site_names:
             self.data.sites[site].equalize_complex_errors()
 
     def apply_error_floor(self):
+        """Run :meth:`Site.apply_error_floor` on every data site."""
         for site in self.site_names:
             self.data.sites[site].apply_error_floor()
 
     def calculate_RMS(self):
+        """Normalised RMS misfit between ``data`` and ``response``.
+
+        Returns
+        -------
+        dict or None
+            ``None`` if data/response are missing or their period/site counts
+            disagree.  Otherwise ``{'Total', 'Component', 'Station', 'Period'}``:
+
+            * ``'Total'`` -- overall nRMS.
+            * ``'Component'`` -- ``{component: nRMS}`` (+ ``'Total'``).
+            * ``'Period'`` -- ``{component: array over periods}`` (+ ``'Total'``).
+            * ``'Station'`` -- ``{site: {component: nRMS, ..., 'Total': nRMS}}``.
+
+            Flagged points are excluded, so the sub-totals need not be
+            self-consistent.
+        """
         NP = self.data.NP
         NS = self.data.NS
         NR = self.data.NR
@@ -623,70 +721,33 @@ class Dataset(object):
                 'Station': station_RMS, 'Period': period_RMS}
 
 
-        # NP = self.data.NP
-        # NS = self.data.NS
-        # NR = self.data.NR
-
-        # components = list(self.data.components)
-        # if NS == 0 or NR == 0 or NP == 0:
-        #     return None
-        # if NP != self.response.NP:
-        #     print('Data and response periods do not match')
-        #     print('Data NP: {}, Response NP: {}'.format(self.data.NP, self.response.NP))
-        #     return None
-        # if NS != self.response.NS:
-        #     print('Number of sites in data and response not equal')
-        #     return None
-        # sites = self.data.site_names
-        # misfit = {site: {comp: np.zeros((NP)) for comp in components}
-        #   for site in sites}
-        # period_misfit = {site: np.zeros(NP) for site in sites}
-        # period_misfit = {comp: np.zeros((NP)) for comp in components + ['Total']}
-        # comp_misfit = {comp: 0 for comp in components + ['Total']}
-        # total_misfit = 0
-        # for site in sites:
-        #     all_misfits = utils.calculate_misfit(self.data.sites[site],
-        #                                          self.response.sites[site])
-        #     misfit[site] = all_misfits[0]
-        #     # period_misfit += all_misfits[1]
-        #     total_misfit += np.mean(all_misfits[1]['Total'])
-        #     for comp in comp_misfit.keys():
-        #         period_misfit[comp] += all_misfits[1][comp]
-        #         # comp_misfit[comp] += np.mean(period_misfit[comp])
-        # period_RMS = {comp: np.sqrt(period_misfit[comp] / NS) for comp in period_misfit.keys()}
-        # total_RMS = np.sqrt(total_misfit / NS)
-        # comp_RMS = {comp: np.sqrt(np.mean(period_misfit[comp]) / NS) for comp in comp_misfit.keys()}
-        # station_RMS = {site: {comp: np.sqrt(np.mean(misfit[site][comp])) for comp in components}
-        #                for site in sites}
-        # for site in sites:
-        #     station_RMS[site].update({'Total': 0})
-        #     for comp in components:
-        #         station_RMS[site]['Total'] += station_RMS[site][comp] ** 2
-        #     station_RMS[site]['Total'] = np.sqrt(station_RMS[site]['Total'] / NR)
-
-        # # return {'Total': total_RMS, 'Period': period_RMS,
-        # #         'Component': comp_RMS, 'Station': station_RMS}
-        # return {'Total': total_RMS, 'Component': comp_RMS,
-        #         'Station': station_RMS, 'Period': period_RMS}
-        # # for site in sites:
-        # #     for comp in components:
-        # #         station_RMS[site][comp] = np.sqrt(np.mean(misfit[site][comp]))
-
-
 class Data(object):
-    """Container for data used in a WS inversion, including data points, errors, and error maps.
+    """Inversion data (or a response) on a single common period axis.
 
-    Attributes:
-        ACCEPTED_COMPONENTS (TYPE): Description
-        components (TYPE): Description
-        datafile (TYPE): Description
-        periods (list): Description
-        site_names (list): Description
-        sites (dict): Description
-        datafile - The file used to generate the data contained in the instance.
-        site_names - The names of the sites contained in the instance.
-        sites - a list of Site objects, each containing the data for that site.
+    Read from an inversion data file; the format is taken from ``file_format``
+    or inferred from the file extension (see :attr:`IMPLEMENTED_FORMATS`).
 
+    Attributes
+    ----------
+    sites : dict
+        ``{site_name: Site}``.
+    site_names : list of str
+        Ordered site names (defines display / write order).
+    periods : numpy.ndarray
+        The common period axis all sites are sampled on.
+    components : list of str
+        Components present (e.g. ``'ZXYR'``, ``'ZXYI'``, ...).
+    datafile : str
+    inv_type : int or None
+        Numeric inversion type (see :attr:`INVERSION_TYPES`); auto-set by
+        :meth:`auto_set_inv_type` when not read from the file.
+    azimuth : float
+        Current data rotation, degrees.
+    origin : tuple or None
+    UTM_zone : str or None
+    error_floors : dict
+        Relative error floors per data group, applied by
+        :meth:`apply_error_floor`.
     """
     ACCEPTED_COMPONENTS = ('ZXXR', 'ZXXI',
                            'ZXYR', 'ZXYI',
@@ -709,66 +770,10 @@ class Data(object):
                            'ModEM': '.dat',
                            'EM3DANI': ['.adat', '.resp'],
                            'GoFEM': '.gdat'}
+    #: Component tuple for each numeric inversion type; defined in pyMT.IO.
     INVERSION_TYPES = IO.INVERSION_TYPES
     REMOVE_FLAG = IO.REMOVE_FLAG
     FLOAT_CAP = 1e10
-    # INVERSION_TYPES = {1: ('ZXXR', 'ZXXI',  # 1-5 are WS formats
-    #                        'ZXYR', 'ZXYI',
-    #                        'ZYXR', 'ZYXI',
-    #                        'ZYYR', 'ZYYI'),
-    #                    2: ('ZXYR', 'ZXYI',
-    #                        'ZYXR', 'ZYXI'),
-    #                    3: ('TZXR', 'TZXI',
-    #                        'TZYR', 'TZYI'),
-    #                    4: ('ZXYR', 'ZXYI',
-    #                        'ZYXR', 'ZYXI',
-    #                        'TZXR', 'TZXI',
-    #                        'TZYR', 'TZYI'),
-    #                    5: ('ZXYR', 'ZXYI',
-    #                        'ZYXR', 'ZYXI',
-    #                        'TZXR', 'TZXI',
-    #                        'TZYR', 'TZYI',
-    #                        'ZXXR', 'ZXXI',
-    #                        'ZYYR', 'ZYYI'),
-    #                    6: ('PTXX', 'PTXY',  # 6 is ModEM Phase Tensor inversion
-    #                        'PTYX', 'PTYY'),
-    #                    7: ('PTXX', 'PTXY',
-    #                        'PTYX', 'PTYY',
-    #                        'TZXR', 'TZXI',
-    #                        'TZYR', 'TZYI'),
-    #                    8: ('ZXYR', 'ZXYI'),  # 2-D ModEM inversion of TE mode
-    #                    9: ('ZYXR', 'ZYXI'),  # 2-D ModEM inversion of TM mode
-    #                    10: ('ZXYR', 'ZXYI',  # 2-D ModEM inversion of TE+TM modes
-    #                         'ZYXR', 'ZYXI'),
-    #                    11: ('RhoZXX', 'PhszXX',  # 7-15 are reserved for MARE2DEM inversions
-    #                         'RhoZXY', 'PhszXY',
-    #                         'RhoZYX', 'PhszYX',
-    #                         'RhoZYY', 'PhszYY'),
-    #                    12: ('RhoZXY', 'PhsZXY',
-    #                         'RhoZYX', 'PhsZYX'),
-    #                    13: ('TZYR', 'TZYI'),
-    #                    14: ('RhoZXY', 'PhsZXY',
-    #                         'RhoZYX', 'PhsZYX',
-    #                         'TZYR', 'TZYI'),
-    #                    15: ('RhoZXX', 'PhsZXX',
-    #                         'RhoZXY', 'PhsZXY',
-    #                         'RhoZYX', 'PhsZYX',
-    #                         'RhoZYY', 'PhsZYY',
-    #                         'TZYR', 'TZYI'),
-    #                    16: ('log10RhoZXX', 'PhsZXX',
-    #                         'log10RhoXY', 'PhsXY',
-    #                         'log10RhoYX', 'PhsYX',
-    #                         'log10RhoYY', 'PhsYY'),
-    #                    17: ('log10RhoZXY', 'PhsZXY',
-    #                         'log10RhoZYX', 'PhsZYX'),
-    #                    18: ('log10RhoZXY', 'PhsZXY',
-    #                         'log10RhoZYX', 'PhsZYX',
-    #                         'TZYR', 'TZYI'),
-    #                    19: ('log10RhoZXX', 'PhsZXX',
-    #                         'log10RhoZXY', 'PhsZXY',
-    #                         'log10RhoZYX', 'PhsZYX',
-    #                         'log10RhoZYY', 'PhsZYY',
-    #                         'TZYR', 'TZYI')}
 
     # Scale error map by how much the period differs, or do a straight error mapping
     # First value is 'scaled' or 'straight', second value is mult. For scaled, this is multiplied by
@@ -782,15 +787,21 @@ class Data(object):
     MISSING_DATA_MAP = -9999
 
     def __init__(self, datafile='', listfile='', file_format=None, progress_bar=None):
-        """Summary
+        """Read an inversion data file into a set of :class:`Site` objects.
 
-        Args:
-            datafile (str, optional): Path to the data file to be read in
-            listfile (str, optional): Path to the file containing the station names,
-                                      in the same order as given in the data file.
-            file_format (str, optional): Format of the data file to be read in.
-                                         Options are MARE2DEM, WSINV3DMT, ModEM. If not present,
-                                         format will be inferred from data file extention.
+        Parameters
+        ----------
+        datafile : str, optional
+            Path to the data file.
+        listfile : str, optional
+            Path to the station-name list, in data-file order (only needed
+            when the data file does not carry site names).
+        file_format : str, optional
+            One of the keys of :attr:`IMPLEMENTED_FORMATS` (MARE2DEM,
+            WSINV3DMT, ModEM, EM3DANI, GoFEM).  Inferred from the file
+            extension when omitted.
+        progress_bar : optional
+            Qt progress-bar widget for the GUIs.
         """
         self.datafile = datafile
         self.site_names = []
@@ -838,17 +849,23 @@ class Data(object):
         #                                errmap=site.NO_COMP_MAP)
 
     def __read__(self, listfile='', datafile='', invType=None, progress_bar=None):
-        """Summary
+        """Read a data file (via :mod:`pyMT.IO`) and populate ``sites``.
 
-        Args:
-            listfile (str, optional): Description
-            datafile (str, optional): Description
-            invType (None, optional): Description
+        Also called by :meth:`Dataset.read_data` as a public re-read entry
+        point.  The format is taken from ``self.file_format`` or inferred from
+        the file extension; a :class:`~pyMT.WSExceptions.WSFileError` is raised
+        for an unrecognised extension.
 
-        Returns:
-            TYPE: Description
+        Parameters
+        ----------
+        listfile : str, optional
+            File naming the sites (needed only if the data file has no names).
+        datafile : str, optional
+        invType : int, optional
+            Force the inversion type instead of using the one in the file.
+        progress_bar : optional
+            Qt progress-bar widget for the GUIs.
         """
-        # path, filename, ext = fileparts(datafile)
         if listfile and datafile:
             self.site_names = IO.read_sites(listfile)
         if datafile:
@@ -914,8 +931,23 @@ class Data(object):
             self.inv_type = invType
 
     def generate_synthetic_data(self, site_locations, periods=None, site_names=None, inv_type=5):
-        ###
-        # Generates dummy synthetic data based on station locations
+        """Populate ``sites`` with placeholder data at the given station locations.
+
+        Every component of ``inv_type`` is filled with a tiny constant value
+        and unit errors; ``site_locations`` are assumed to be in the Lambert
+        projection and are converted to lat/long.
+
+        Parameters
+        ----------
+        site_locations : numpy.ndarray
+            ``(NS, 2)`` array of ``(x, y)`` positions.
+        periods : sequence of float, optional
+            Default is 60 points log-spaced over 1e-2..1e3 s.
+        site_names : list of str, optional
+            Default ``['site_0', 'site_1', ...]``.
+        inv_type : int, optional
+            Inversion type whose components to create.  Default 5.
+        """
         NS = site_locations.shape[0]
         if not periods:
             periods = np.logspace(-2, 3, 60)
@@ -963,6 +995,7 @@ class Data(object):
 
     @property
     def has_flagged_data(self):
+        """``True`` if any component of any site has a :data:`~pyMT.IO.REMOVE_FLAG` error."""
         for site in self.site_names:
             for component in self.components:
                 if np.any(self.sites[site].errors[component] == self.REMOVE_FLAG):
@@ -989,7 +1022,10 @@ class Data(object):
             print('Units {} not understood'.format(units))
 
     def auto_set_inv_type(self):
+        """Guess ``inv_type`` by matching the component set to :attr:`INVERSION_TYPES`.
 
+        Leaves ``inv_type`` unchanged if no exact match is found.
+        """
         if set(self.used_components) == set(Data.INVERSION_TYPES[1]):
             #  Full Impedance
             self.inv_type = 1
@@ -1003,7 +1039,7 @@ class Data(object):
             self.inv_type = 3
 
         elif set(self.used_components) == set(Data.INVERSION_TYPES[4]):
-            #  Off-Diagonal + Full Tipper
+            #  Off-Diagonal Impedance + Full Tipper
             self.inv_type = 4
 
         elif set(self.used_components) == set(Data.INVERSION_TYPES[5]):
@@ -1014,51 +1050,54 @@ class Data(object):
             #  Phase Tensor
             self.inv_type = 6
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[6]):
-            #  Full Rho + Phase
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[7]):
+            #  Phase Tensor + Full Tipper
             self.inv_type = 7
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[7]):
-            #  Off-Diagonal Rho + Phase
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[8]):
+            #  2-D TE (ZXY)
             self.inv_type = 8
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[8]):
-            #  2-D Tip
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[9]):
+            #  2-D TM (ZYX)
             self.inv_type = 9
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[9]):
-            #  Off-Diagonal Rho + Phase + 2-D Tipper
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[10]):
+            #  2-D TE + TM
             self.inv_type = 10
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[10]):
-            #  Full Rho + Phase + 2-D Tipper
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[11]):
+            #  Full Rho + Phase
             self.inv_type = 11
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[11]):
-            #  Full log10Rho + Phase
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[12]):
+            #  Off-Diagonal Rho + Phase
             self.inv_type = 12
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[12]):
-            #  Off-Diagonal log10Rho + Phase
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[13]):
+            #  TZY only
             self.inv_type = 13
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[13]):
-            #  Off-Diagonal log10Rho + Phase + 2-D Tipper
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[14]):
+            #  Off-Diagonal Rho + Phase + TZY
             self.inv_type = 14
 
-        elif set(self.used_components) == set(Data.INVERSION_TYPES[14]):
-            #  Full Rho + Phase + 2-D Tipper
+        elif set(self.used_components) == set(Data.INVERSION_TYPES[15]):
+            #  Full Rho + Phase + TZY
             self.inv_type = 15
 
     def equalize_complex_errors(self):
+        """Run :meth:`Site.equalize_complex_errors` on every site."""
         for site in self.site_names:
             self.sites[site].equalize_complex_errors()
 
     def apply_error_floor(self):
+        """Apply :attr:`error_floors` to every site (:meth:`Site.apply_error_floor`)."""
         for site in self.site_names:
             self.sites[site].apply_error_floor(error_floors=self.error_floors)
 
     def print_lowest_errors(self, components=None):
+        """Print which site has the smallest relative actual/used error."""
         all_actual, all_used = ([], [])
         for ii, site in enumerate(self.site_names):
             actual, used = self.sites[site].print_lowest_errors(components=components)
@@ -1070,6 +1109,15 @@ class Data(object):
         print('Lowest used: {} at site {}'.format(all_used[idx_used], self.site_names[idx_used]))
 
     def reset_errors(self, error_floor=None, components=None, sites=None):
+        """Reset the given sites' errors to the error floor (:meth:`Site.reset_errors`).
+
+        Parameters
+        ----------
+        error_floor : dict or float, optional
+        components : list of str, optional
+        sites : list of str or str, optional
+            Sites to reset; all by default.
+        """
         if not sites:
             sites = self.site_names
         elif isinstance(sites, str):
@@ -1080,6 +1128,7 @@ class Data(object):
             self.sites[site].reset_errors(error_floor=error_floor, components=components)
 
     def add_noise(self, noise_level=5, components=None, sites=None):
+        """Add Gaussian noise to the given sites (:meth:`Site.add_noise`)."""
         if not sites:
             sites = self.site_names
         elif isinstance(sites, str):
@@ -1088,6 +1137,11 @@ class Data(object):
             self.sites[site].add_noise(noise_level=noise_level, components=components)
 
     def set_error_map(self):
+        """Rebuild every site's error map from scratch.
+
+        Resets each map to ones, then applies, in order, the diagonal-component
+        (``XXYY``), high-frequency, outlier and no-data multipliers.
+        """
         for site in self.site_names:
             # Make sure the error map is fresh first
             self.sites[site].errmap = self.sites[site].generate_errmap(mult=1)
@@ -1097,6 +1151,7 @@ class Data(object):
         self.apply_no_data_map()
 
     def apply_no_data_map(self):
+        """Multiply the error map by ``NO_COMP_MAP`` / ``NO_PERIOD_MAP`` where flagged."""
         for site in self.site_names:
             for comp in self.components:
                 for ii, flag in enumerate(self.sites[site].flags[comp]):
@@ -1107,16 +1162,19 @@ class Data(object):
                             self.sites[site].errmap[comp][ii] *= self.NO_PERIOD_MAP
 
     def apply_outlier_map(self):
+        """Run outlier detection on every site (:meth:`Site.detect_outliers`)."""
         for site in self.site_names:
             self.sites[site].detect_outliers(self.OUTLIER_MAP)
 
     def apply_XXYY_map(self):
+        """Multiply the error map of every diagonal (XX/YY) component by ``XXYY_MAP``."""
         for site in self.site_names:
             for comp in self.components:
                     if 'xx' in comp.lower() or 'yy' in comp.lower():
                         self.sites[site].errmap[comp] *= self.XXYY_MAP
 
     def apply_hfreq_map(self):
+        """Multiply the error map by ``HIGHFREQ_MAP`` for periods <= 1e-3 s."""
         idx = np.where(self.periods <= 1 / 1000)
         for site in self.site_names:
             for comp in self.components:
@@ -1124,37 +1182,31 @@ class Data(object):
 
     @property
     def NP(self):
+        """Number of periods."""
         return len(self.periods)
 
     @property
     def NS(self):
+        """Number of sites."""
         return len(self.sites)
 
     @property
     def NR(self):
+        """Number of components for the current inversion type."""
         return len(self.used_components)
 
     @property
     def used_components(self):
+        """Components used for the current ``inv_type`` (all present components if unset)."""
         if self.inv_type is None:
-            # print('Inversion Type not set. Returning currently set components')
             components = self.components
         else:
             components = Data.INVERSION_TYPES[self.inv_type]
-        # elif self.inv_type == 1:
-        #     components = self.ACCEPTED_COMPONENTS[:8]
-        # elif self.inv_type == 2:
-        #     components = self.ACCEPTED_COMPONENTS[2:5]
-        # elif self.inv_type == 3:
-        #     components = self.ACCEPTED_COMPONENTS[8:]
-        # elif self.inv_type == 4:
-        #     components = self.ACCEPTED_COMPONENTS[2:]
-        # elif self.inv_type == 5:
-        #     components = self.ACCEPTED_COMPONENTS
         return components
 
     @property
     def inv_type(self):
+        """Numeric inversion type; keys of :attr:`INVERSION_TYPES`. See :meth:`auto_set_inv_type`."""
         return self._inv_type
 
     @inv_type.setter
@@ -1164,13 +1216,22 @@ class Data(object):
         self._inv_type = val
 
     def write(self, outfile, to_write=None, file_format='ModEM', use_elevation=False, write_removed=False):
-        '''
-            Write data to file.
-                INPUTS:
-                    out_file: Filename to write to
-                    to_write One of 'all', DATA', 'ERROR' or 'ERMAP'. Default is 'all'
-                    file_format: Which output format to write to. One of 'wsinv3dmt', 'modem', or 'mare2dem'
-        '''
+        """Write the data to ``outfile`` (via :func:`pyMT.IO.write_data`).
+
+        The data is temporarily converted to metres for writing.
+
+        Parameters
+        ----------
+        outfile : str
+        to_write : {'all', 'DATA', 'ERROR', 'ERMAP'}, optional
+            Which fields to write.  Default 'all'.
+        file_format : str, optional
+            ``'wsinv3dmt'``, ``'modem'``, ``'mare2dem'``, ...  Falls back to
+            ``self.file_format`` if falsy.  Default ``'ModEM'``.
+        use_elevation : bool, optional
+        write_removed : bool, optional
+            Also write a ``*_removed`` file that excludes flagged points.
+        """
         if not file_format:
             file_format = self.file_format
         units = deepcopy(self.spatial_units)
@@ -1189,9 +1250,11 @@ class Data(object):
         self.spatial_units = units
 
     def write_list(self, outfile):
+        """Write the site-name list to ``outfile`` (:func:`pyMT.IO.write_list`)."""
         IO.write_list(data=self, outfile=outfile)
 
     def to_vtk(self, outfile, UTM, origin=None, sea_level=0, use_elevation=False):
+        """Write the site locations as a VTK point set (:func:`pyMT.IO.sites_to_vtk`)."""
         if not origin:
             print('Using origin = (0, 0)')
             origin = (0, 0)
@@ -1199,10 +1262,12 @@ class Data(object):
                            UTM=UTM, sea_level=sea_level, use_elevation=use_elevation)
 
     def write_phase_tensors(self, out_file, verbose=False, scale_factor=1/50, period_idx=None):
+        """Write phase-tensor ellipse data (:func:`pyMT.IO.write_phase_tensors`)."""
         IO.write_phase_tensors(self, out_file=out_file, verbose=verbose,
                                         scale_factor=scale_factor, period_idx=period_idx)
 
     def rotate_sites(self, azi):
+        """Rotate the locations and every site's data to azimuth ``azi`` (degrees)."""
         if DEBUG:
             print('Rotating site locations and data')
         if azi != self.azimuth:
@@ -1216,6 +1281,7 @@ class Data(object):
             self.azimuth = azi
 
     def center_locs(self):
+        """Recentre ``locations`` on the bounding-box centre; store it as ``_center``."""
         self.locations, self._center = utils.center_locs(self.locations)
         if DEBUG:
             print('Centering site locations')
@@ -1225,18 +1291,21 @@ class Data(object):
                                                       self.locations[ii, 1]))
 
     def get_locs(self, site_list=None, azi=0):
+        """Return an ``(N, 2)`` array of ``[X, Y]`` site positions.
+
+        Parameters
+        ----------
+        site_list : list of str, optional
+            Sites (and order) to return; all sites by default.
+        azi : float, optional
+            If non-zero and different from ``self.azimuth``, rotate the
+            positions by ``azi`` degrees before returning.
+        """
         if site_list is None:
             site_list = self.site_names
-        # if azi % 360 != 0:
-            # idx = [ii for ii in range(self.NS) if self.site_names[ii] in site_list]
-            # locs = np.array([self.locations[ii, :] for ii in idx])
-        # else:
         locs = np.array([[self.sites[name].locations['X'],
                           self.sites[name].locations['Y']]
                          for name in self.site_names])
-        # locs = np.array([[self.sites[name].locations['X'],
-        #                   self.sites[name].locations['Y']]
-        #                  for name in site_list])
         if ((azi % 360) != 0) and ((azi % 360) != self.azimuth):
             print('{}, {}'.format(azi, self.azimuth))
             locs = utils.rotate_locs(locs, azi)
@@ -1247,12 +1316,13 @@ class Data(object):
         return locs
 
     def set_locs(self):
-        # Sets the site object locations to match those in self.locations
+        """Push ``self.locations`` back onto each site's ``locations['X'/'Y']``."""
         for ii, site in enumerate(self.site_names):
             self.sites[site].locations['X'] = self.locations[ii, 0]
             self.sites[site].locations['Y'] = self.locations[ii, 1]
 
     def check_azi(self):
+        """Return the common site azimuth, or ``False`` if the sites disagree."""
         azi = []
         for site in self.sites.values():
             azi.append(site.azimuth)
@@ -1263,14 +1333,16 @@ class Data(object):
             return azi[0]
 
     def add_site(self, site):
-        """
-        Adds a site object to the data dictionary. It also checks to make sure that the
-        periods and components it adds are the same as the existing sites. If not, it
-        attempts to trim off the unnecessary parts. If it still doesn't conform, it won't
-        add the site.
+        """Add a :class:`Site`, trimming it to match the existing periods/components.
 
-        Args:
-            site (TYPE): Description
+        If ``site`` has exactly the same periods and components as the current
+        data it is added directly.  If it is a superset, the extra
+        periods/components are removed and it is added.  Otherwise it is
+        rejected with a message.
+
+        Parameters
+        ----------
+        site : Site
         """
         if self.sites:
             site0 = self.sites[self.site_names[0]]
@@ -1280,9 +1352,9 @@ class Data(object):
             elif set(site0.periods).issubset(set(site.periods)) and \
                     set(site0.components).issubset(site.components):
                 rmcomp = list(set(site.components) - set(site0.components))
-                site.remove_component(rmcomp)
-                rmperiods = list(set(site0.periods) - set(site.periods))
-                site.remove_period(rmperiods)
+                site.remove_components(components=rmcomp)
+                rmperiods = list(set(site.periods) - set(site0.periods))
+                site.remove_periods(periods=rmperiods)
                 self.add_site(site)
             else:
                 print('Site not added, as the data periods and/or components do not match.')
@@ -1292,13 +1364,17 @@ class Data(object):
 
     @utils.enforce_input(sites=list)
     def remove_sites(self, sites):
-        """Summary
+        """Remove the given sites and refresh ``locations``.
 
-        Args:
-            site (TYPE): Description
+        Parameters
+        ----------
+        sites : list
+            Site names or :class:`Site` objects.
 
-        Returns:
-            TYPE: Description
+        Returns
+        -------
+        Data
+            ``self``, for chaining.
         """
         if len(self.sites.keys()) == 0:
             print('This data instance is already empty...')
@@ -1317,29 +1393,25 @@ class Data(object):
         return self
 
     def add_periods(self, sites):
-        """Summary
+        """Add periods to every site from a matching donor-site dict.
 
-        Args:
-            sites (dict): A dictionary of {Name: Site object} where
-            each site object contains the periods and data to be added for that site
-
-        Returns:
-            TYPE: Description
+        Parameters
+        ----------
+        sites : dict
+            ``{site_name: Site}`` providing the periods/data to add for each
+            existing site (see :meth:`Site.add_periods`).
         """
-
         for site in self.sites.values():
             self.sites[site.name].add_periods(site=sites[site.name])
         self.periods = self.sites[self.site_names[0]].periods
 
     @utils.enforce_input(periods=list)
     def remove_periods(self, periods):
-        """Summary
+        """Remove the given periods from ``self.periods`` and from every site.
 
-        Args:
-            periods (TYPE): Description
-
-        Returns:
-            TYPE: Description
+        Parameters
+        ----------
+        periods : list of float
         """
         for site in self.site_names:
             for p in periods:
@@ -1347,32 +1419,30 @@ class Data(object):
             self.sites[site].remove_periods(periods=periods)
 
     def add_component(self, data):
-        """Summary
+        """Not implemented.
 
-        Args:
-            data (TYPE): Description
-
-        Returns:
-            TYPE: Description
+        Raises
+        ------
+        NotImplementedError
         """
         raise(NotImplementedError)
 
     def remove_component(self, component):
-        """Summary
+        """Not implemented.
 
-        Args:
-            component (TYPE): Description
-
-        Returns:
-            TYPE: Description
+        Raises
+        ------
+        NotImplementedError
         """
         raise(NotImplementedError)
 
     def _check_consistency(self):
-        """Summary
+        """Check name/component/period agreement across ``sites``.
 
-        Returns:
-            TYPE: Description
+        Returns
+        -------
+        tuple of bool
+            ``(names_match, components_match, periods_match, per_site_components_match)``.
         """
         name_check = set(self.site_names) == set([site_name for site_name in self.sites.keys()])
         comp_check = set(self.components) == set([comp for site in self.sites.values()
@@ -1384,6 +1454,23 @@ class Data(object):
         return name_check, comp_check, site_per_check, site_comp_check
 
     def check_compromised_data(self, threshold=0.75):
+        """Flag sites whose off-diagonal impedance signs look inverted.
+
+        For each site, if more than ``threshold`` of the ``ZXYR``/``ZYXI``
+        values are negative (or ``ZXYI``/``ZYXR`` positive), the site/components
+        are reported and returned.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Fraction of periods with the "wrong" sign to trigger a flag.
+            Default 0.75.
+
+        Returns
+        -------
+        dict
+            ``{site_name: [flagged components]}``.
+        """
         positive = ('ZXYR', 'ZYXI')
         negative = ('ZXYI', 'ZYXR')
         flagged_sites = {}
@@ -1405,11 +1492,26 @@ class Data(object):
         return flagged_sites
 
     def calculate_PT_errors(self, n_realizations):
+        """Monte-Carlo the phase-tensor errors for every site (:meth:`Site.calculate_PT_errors`)."""
         for site in self.site_names:
             self.sites[site].calculate_PT_errors(n_realizations)
 
     def average_rho(self, comp='ssq'):
-        avg_rho = None
+        """Apparent resistivity per period/site, and its log-mean over sites.
+
+        Parameters
+        ----------
+        comp : str, optional
+            Component/invariant passed to :func:`pyMT.utils.compute_rho`.
+            Default ``'ssq'`` (needs the full impedance tensor).
+
+        Returns
+        -------
+        rho : numpy.ndarray
+            ``(NP, NS)`` apparent resistivity; flagged points are NaN.
+        avg : numpy.ndarray
+            ``(NP,)`` geometric mean of ``rho`` over sites.
+        """
         rho = np.zeros((self.NP, self.NS))
         for ii, site_name in enumerate(self.site_names):
             site = self.sites[site_name]
@@ -1420,7 +1522,35 @@ class Data(object):
         return rho, 10**np.nanmean(np.log10(rho), axis=1)
 
 class Model(object):
-    """Summary
+    """A 3-D resistivity model on a rectilinear mesh.
+
+    The mesh is stored as cell *edges* in ``_dx``/``_dy``/``_dz`` and cell
+    *sizes* in ``_xCS``/``_yCS``/``_zCS``; the public ``dx``/``dy``/``dz`` and
+    ``xCS``/``yCS``/``zCS`` properties keep the two representations in sync.
+    ``vals`` is the ``(nx, ny, nz)`` array of cell resistivities.
+
+    A model can be read from file (``modelfile``), or a dummy mesh can be
+    generated around a :class:`Data` object's site locations (``data=``).
+
+    Attributes
+    ----------
+    vals : numpy.ndarray
+        Cell resistivities, shape ``(nx, ny, nz)``.
+    dx, dy, dz : list of float
+        Cell edge coordinates (metres or km per ``spatial_units``); length
+        ``n* + 1``.
+    xCS, yCS, zCS : list of float
+        Cell sizes; length ``n*``.
+    origin : tuple of float
+        ``(x, y)`` offset of the local mesh origin in the model's CRS.
+    UTM_zone : str or None
+    coord_system : {'local', 'UTM', 'lambert', 'latlong'}
+    background_resistivity : float
+        Fill value for generated meshes and out-of-range interpolation.
+    resolution : numpy.ndarray or list
+        Optional model resolution grid (same shape as ``vals``).
+    cov_exceptions : numpy.ndarray or None
+        Per-cell covariance exception codes (see :meth:`set_exceptions`).
     """
     RHO_AIR = 1e10
     RHO_OCEAN = 0.3
@@ -1428,6 +1558,22 @@ class Model(object):
     OCEAN_EXCEPTION = 9
 
     def __init__(self, modelfile='', covariance_file='', file_format='modem3d', data=None, progress_bar=None):
+        """Read a model file, or generate a dummy mesh around a data object.
+
+        Parameters
+        ----------
+        modelfile : str, optional
+            Model file to read.
+        covariance_file : str, optional
+            ModEM covariance file to read alongside it.
+        file_format : str, optional
+            Model file format.  Default ``'modem3d'``.
+        data : Data, optional
+            If given (and no ``modelfile``), build a 60x60x60 half-space mesh
+            spanning the site locations.
+        progress_bar : optional
+            Qt progress-bar widget for the GUIs.
+        """
         self._xCS = []
         self._yCS = []
         self._zCS = []
@@ -1469,6 +1615,11 @@ class Model(object):
 
     @property
     def elevation(self):
+        """``dz`` edges shifted so 0 is the top of the first non-air layer.
+
+        The air/ground boundary is the shallowest layer with no cell above
+        ``1e8`` ohm-m.
+        """
         for iz in range(self.nz):
             if not np.any(self.vals[:, :, iz] > 1e8):
                 break
@@ -1497,11 +1648,13 @@ class Model(object):
 
     @property
     def center(self):
+        """``(x, y)`` mean of the ``dx`` / ``dy`` edge coordinates (5 d.p.)."""
         x, y = (np.mean(self.dx), np.mean(self.dy))
         x, y = (np.around(x, decimals=5), np.around(y, decimals=5))
         return x, y
 
     def cell_centers(self):
+        """Return ``(x, y, z)`` arrays of cell-centre coordinates (lengths ``nx``/``ny``/``nz``)."""
         x, y, z = [np.zeros(self.nx),
                    np.zeros(self.ny),
                    np.zeros(self.nz)]
@@ -1514,25 +1667,35 @@ class Model(object):
         return x, y, z
 
     def depth_weighted_rho(self, idx_0, idx_1):
+        """Bulk resistivity of the depth slab ``[idx_0:idx_1]`` (total thickness / conductance)."""
         conductance = self.conductance(idx_0, idx_1)
         return (1 / conductance) * np.sum(self.dz[idx_0:idx_1])
 
     def conductance(self, idx_0, idx_1):
+        """Depth-integrated conductance over layers ``idx_0..idx_1``.
+
+        Returns
+        -------
+        numpy.ndarray
+            ``(nx, ny)`` array of ``sum(dz / rho)`` over the layer range.
+        """
         conductance = np.zeros((self.nx, self.ny))
         for ii in range(idx_0, idx_1):
             conductance += self.zCS[ii] * (1 / self.vals[:, :, ii])
         return conductance
 
     def set_exceptions(self):
+        """Build ``cov_exceptions``: 1 everywhere, ``AIR_EXCEPTION`` in air cells, ``OCEAN_EXCEPTION`` in ocean cells."""
         self.cov_exceptions = np.ones(self.vals.shape)
         self.cov_exceptions[self.vals == self.RHO_AIR] = self.AIR_EXCEPTION
         self.cov_exceptions[self.vals == self.RHO_OCEAN] = self.OCEAN_EXCEPTION
 
-
     def generate_half_space(self):
+        """Set ``vals`` to a uniform :attr:`background_resistivity` half-space."""
         self.vals = np.zeros((self.nx, self.ny, self.nz)) + self.background_resistivity
 
     def generate_dummy_model(self):
+        """Set up a 60x60x60 unit-cell half-space as a placeholder mesh."""
         self.isotropic = True
         self._xCS = [1] * 60
         self._yCS = [1] * 60
@@ -1546,13 +1709,27 @@ class Model(object):
         self.zCS = [1] * 60
 
     def import_1D(self, rho_x, dz, rho_y=None):
+        """Overwrite the model with a laterally uniform 1-D profile.
+
+        The 1-D profile ``(dz, rho_x)`` is interpolated onto this model's
+        vertical mesh and broadcast across every column.
+
+        Parameters
+        ----------
+        rho_x : sequence of float
+            1-D resistivity profile.
+        dz : sequence of float
+            Depths for ``rho_x``.
+        rho_y : sequence of float, optional
+            Second resistivity axis for an anisotropic model.
+        """
         new_vals = np.interp(self.dz, dz, rho_x,
                              left=rho_x[0], right=rho_x[-1])
         for zz, val in enumerate(new_vals[:-1]):
             self.vals[:,:,zz] = val
         self.rho_x = self.vals
         if rho_y:
-            new_vals = np.intert(self.dz, dz, rho_y, left=rho_y[0], right=rho_y[-1])
+            new_vals = np.interp(self.dz, dz, rho_y, left=rho_y[0], right=rho_y[-1])
             self.rho_y = self.rho_x
             self.rho_z = self.rho_x
             self.dip, self.slant, self.strike = [np.zeros(shape=self.vals.shape)] * 3
@@ -1561,6 +1738,12 @@ class Model(object):
 
 
     def __read__(self, modelfile='', file_format='modem3d'):
+        """Read a model file (via :func:`pyMT.IO.read_model`) and populate the mesh + ``vals``.
+
+        Anisotropic formats (``em3dani`` / ``mt3dani``, or any file carrying a
+        ``rho_y``) also set ``rho_x``/``rho_y``/``rho_z`` and
+        ``strike``/``dip``/``slant`` and clear ``isotropic``.
+        """
         if modelfile:
             mod, dim = IO.read_model(modelfile=modelfile, file_format=file_format)
             self.file_name = modelfile
@@ -1591,6 +1774,11 @@ class Model(object):
             self.zCS = mod['zCS']
 
     def read_covariance(self, covariance_file=''):
+        """Read a ModEM covariance file, applying it only if its dimensions match this mesh.
+
+        Sets ``sigma_x``/``sigma_y``/``sigma_z``, ``num_smooth`` and
+        ``cov_exceptions``.
+        """
         if covariance_file:
             NX, NY, NZ, sigma_x, sigma_y, sigma_z, num_smooth, cov_exceptions = IO.read_covariance(covariance_file)
             if (NX == self.nx) and (NY == self.ny) and (NZ == self.nz):
@@ -1601,6 +1789,7 @@ class Model(object):
                 self.cov_exceptions = cov_exceptions
 
     def to_vtk(self, outfile=None, sea_level=0, origin=None, UTM=None):
+        """Write the model as a VTK structured grid (:func:`pyMT.IO.model_to_vtk`)."""
         if origin:
             self.origin = origin
         if UTM:
@@ -1611,6 +1800,7 @@ class Model(object):
         IO.model_to_vtk(self, outfile=outfile, sea_level=sea_level)
 
     def to_local(self):
+        """Reset ``dx``/``dy`` to a local frame centred on the mesh (from the cell sizes)."""
         self._dx = np.cumsum([0] + self.xCS)
         self._dx = list(self._dx - self._dx[-1] / 2)
         self._dy = np.cumsum([0] + self.yCS)
@@ -1618,9 +1808,12 @@ class Model(object):
         self.coord_system = 'local'
 
     def project_model(self, system='local', origin=None, utm_zone=None):
-        # Note this doesn't work very well.
-        # To and from latlong is hard because rectangles, plus we'd need to make the UTM zone 
-        # is passed along
+        """Reproject the mesh between ``'local'``, ``'utm'``, ``'lambert'`` and ``'latlong'``.
+
+        Known to be approximate -- rectangular meshes do not map cleanly to and
+        from lat/long.  Prefer :meth:`to_local` / :meth:`to_UTM` /
+        :meth:`to_lambert` / :meth:`to_latlong` for the common cases.
+        """
         def calculate_projection(dx, dy, from_proj, to_proj):
 
                 x_ref = dx[round(len(dx)/2)]
@@ -1726,11 +1919,22 @@ class Model(object):
         # elif self.coord_system == 'lambert':
         # self.coord_sytem = system
     def to_UTM(self, origin=None):
-        '''
-            Convert model coordinates to UTM
-            Usage: model.to_UTM(origin=None) where origin is (Easting, Northing)
-        '''
-        # print('in to_UTM')
+        """Convert the mesh coordinates to UTM.
+
+        From ``'local'`` this shifts by ``origin`` (``(Easting, Northing)``);
+        from ``'latlong'`` it projects into ``UTM_zone``.
+
+        Parameters
+        ----------
+        origin : tuple of float, optional
+            ``(Easting, Northing)``; required from a local mesh if
+            ``self.origin`` is unset.
+
+        Returns
+        -------
+        bool
+            ``True`` on success, ``False`` if it could not convert.
+        """
         if self.coord_system == 'local':
             if origin is not None:
                 self.origin = origin
@@ -1749,7 +1953,13 @@ class Model(object):
         return True
 
     def to_lambert(self, origin=None):
-        # print('in to_lambert')
+        """Convert the mesh coordinates to the Lambert projection (EPSG:3979).
+
+        Returns
+        -------
+        bool
+            ``True`` on success, ``False`` if it could not convert.
+        """
         if self.coord_system == 'local':
             if origin is not None:
                 self.origin = origin
@@ -1763,7 +1973,7 @@ class Model(object):
             self._dy, self._dx = utils.to_lambert(self._dx, self._dy)
         elif self.coord_system == 'UTM':
             if origin is not None:
-                self.origin == origin
+                self.origin = origin
                 self._dx = [x + self.origin[1] for x in self._dx]
                 self._dy = [y + self.origin[0] for y in self._dy]
             else:
@@ -1774,6 +1984,15 @@ class Model(object):
         return True
 
     def to_latlong(self, zone=None):
+        """Convert the mesh coordinates to geographic lat/long.
+
+        Converts via UTM if the mesh is currently local.
+
+        Parameters
+        ----------
+        zone : str, optional
+            UTM zone (e.g. ``'16N'``); used if ``self.UTM_zone`` is unset.
+        """
         if self.coord_system == 'latlong':
             print('Already in latlong')
             return
@@ -1789,7 +2008,7 @@ class Model(object):
             print('UTM zone must be set or given')
             return
         if 'lam' in self.UTM_zone.lower():
-            lam_x, lam_y = utils.to_lambert(self._dy)
+            lam_x, lam_y = utils.to_lambert(self._dx, self._dy)
         if len(self.UTM_zone) == 2:
             number = int(self.UTM_zone[0])
         else:
@@ -1806,9 +2025,26 @@ class Model(object):
         return (lat, lon)
 
     def is_half_space(self):
+        """``True`` if every cell of ``vals`` equals ``vals[0, 0, 0]``."""
         return np.all(np.equal(self.vals.flatten(), self.vals[0, 0, 0]))
 
     def update_vals(self, new_vals=None, axis=None, index=None, mode=None):
+        """Keep ``vals`` (and the ``rho_*`` arrays) consistent after a mesh edit.
+
+        For a half-space, just resizes to a uniform array.  Otherwise inserts
+        or deletes a slice along ``axis`` at ``index``.
+
+        Parameters
+        ----------
+        new_vals : numpy.ndarray, optional
+            Slice to insert (``mode='insert'``).
+        axis : int, optional
+            0/1/2 for x/y/z.
+        index : int, optional
+            Slice position (clamped to the valid range).
+        mode : {'insert', 'delete', None}, optional
+            ``None`` behaves like ``'insert'``.
+        """
         if self.isotropic:
             to_update = ['vals', 'rho_x']
         else:
@@ -1829,6 +2065,22 @@ class Model(object):
                         print('Mode {} not understood'.format(mode))
 
     def generate_zmesh(self, min_depth, max_depth, num_layers=None, decades=None, increase_factor=None):
+        """Build a new vertical mesh and regrid ``vals`` onto it.
+
+        Exactly one of the three sizing options should be given:
+
+        Parameters
+        ----------
+        min_depth, max_depth : float
+            Shallowest / deepest depth (m).
+        num_layers : int, optional
+            That many log-spaced layers over the range.
+        decades : sequence of int, optional
+            One layer count per decade of depth.
+        increase_factor : float or [[factors], [cutoffs]], optional
+            Geometric layer growth: a single ratio, or per-depth ratios with
+            their depth cut-offs.  Ratios below 1.05 are raised to 1.05.
+        """
         def zmesh_by_decade(min_depth=1, max_depth=500000, NZ=None):
             # Specify the vertical mesh using logarithmically spaced layer thicknesses
             num_decade = int(np.ceil(np.log10(max_depth)) - np.floor(np.log10(min_depth)))
@@ -1910,6 +2162,21 @@ class Model(object):
 
     def generate_mesh(self, site_locs, regular=True, min_x=None, min_y=None,
                       max_x=None, max_y=None, num_pads=None, pad_mult=None):
+        """Build new horizontal ``dx``/``dy`` meshes from site locations and regrid ``vals``.
+
+        Delegates to :func:`pyMT.utils.generate_lateral_mesh` per axis.
+
+        Parameters
+        ----------
+        site_locs : numpy.ndarray
+            ``(NS, 2)`` array of ``(x, y)`` positions.
+        regular : bool, optional
+            Even spacing (``True``) or the station-aware mesher.
+        min_x, min_y, max_x, max_y : float, optional
+            Minimum / maximum cell sizes per axis.
+        num_pads, pad_mult : optional
+            Currently unused (padding handled elsewhere).
+        """
         x_mesh = list(utils.generate_lateral_mesh(site_locs[:, 0],
                                                   min_x=min_x, max_x=max_x, regular=regular)[0])
         y_mesh = list(utils.generate_lateral_mesh(site_locs[:, 1],
@@ -1934,6 +2201,7 @@ class Model(object):
         # self.dx = xmesh
 
     def check_new_mesh(self, attr, index, value):
+        """Return ``True`` if inserting ``value`` at ``index`` keeps ``attr`` strictly increasing."""
         mesh = getattr(self, attr)
         if index > 0:
             if value <= mesh[index - 1]:
@@ -1945,14 +2213,10 @@ class Model(object):
                 return False
         return True
 
-    # def insert_mesh(self, dim, index, value):
-    #     ACCEPTED_DIMENSIONS = {'dx': 0, 'dy': 1, 'dz': 2,
-    #                            'xcs': 0, 'ycs': 1, 'zcs': 2}
-    #     if dim.lower() not in ACCEPTED_DIMENSIONS.keys():
-    #         print('Dimension not recognized.')
-    #     else:
-    #         getattr(self,)
+    # dx/dy/dz_delete and dx/dy/dz_insert edit one mesh line (negative indices
+    # count from the end) and call update_vals to keep ``vals`` in sync.
     def dx_delete(self, index):
+        """Delete x mesh line ``index`` and the adjacent cell column."""
         if index < 0:
             index = self.nx + index + 1
         del self._dx[index]
@@ -1960,6 +2224,7 @@ class Model(object):
         self.update_vals(axis=0, index=index, mode='delete')
 
     def dy_delete(self, index):
+        """Delete y mesh line ``index`` and the adjacent cell row."""
         if index < 0:
             index = self.ny + index + 1
         del self._dy[index]
@@ -1967,6 +2232,7 @@ class Model(object):
         self.update_vals(axis=1, index=index, mode='delete')
 
     def dz_delete(self, index):
+        """Delete z mesh line ``index`` and the adjacent cell layer."""
         if index < 0:
             index = self.nz + index + 1
         del self._dz[index]
@@ -1974,6 +2240,7 @@ class Model(object):
         self.update_vals(axis=2, index=index, mode='delete')
 
     def dx_insert(self, index, value):
+        """Insert an x mesh line at ``value`` (position ``index``), splitting that cell column."""
         if index < 0:
             index = self.nx + index + 1
         if self.check_new_mesh('dx', index, value):
@@ -1984,6 +2251,7 @@ class Model(object):
             self.update_vals(axis=0, index=mod_idx, new_vals=new_vals)
 
     def dy_insert(self, index, value):
+        """Insert a y mesh line at ``value`` (position ``index``), splitting that cell row."""
         if index < 0:
             index = self.ny + index + 1
         if self.check_new_mesh('dy', index, value):
@@ -1994,6 +2262,7 @@ class Model(object):
             self.update_vals(axis=1, index=mod_idx, new_vals=new_vals)
 
     def dz_insert(self, index, value):
+        """Insert a z mesh line at ``value`` (position ``index``), splitting that cell layer."""
         if index < 0:
             index = self.nz + index + 1
         if self.check_new_mesh('dz', index, value):
@@ -2003,41 +2272,28 @@ class Model(object):
             self._zCS = list(np.diff(self._dz))
             self.update_vals(axis=2, index=mod_idx, new_vals=new_vals)
 
-    def split_cells(self):
-        dx_orig = deepcopy(self.model.dx)
-        dy_orig = deepcopy(self.model.dy)
-        dx_insert = []
-        dy_insert = []
-        for ii, x in enumerate(self.model.dx[:-1]):
-            dx_insert.append((self.model.dx[ii], self.model.dx[ii + 1]) / 2)
-        for ii, y in enumerate(self.model.dy[:-1]):
-            dy_insert.append((self.model.dy[ii], self.model.dy[ii + 1]) / 2)
-        cc = 0
-        for ii, y in enumerate(dy_orig[:-1]):
-            cc += 1
-            self.model.dy_insert(cc, dy_insert[ii])
-            cc += 1
-        cc = 0
-        for ii, x in enumerate(dx_orig[:-1]):
-            cc += 1
-            self.model.dx_insert(cc, dx_insert[ii])
-            cc += 1
-# start Properties
+    # --- mesh properties -------------------------------------------------- #
+    # ``dx``/``dy``/``dz`` are cell edges; ``xCS``/``yCS``/``zCS`` are cell
+    # sizes.  Setting either kind rebuilds the other and calls update_vals().
 
     @property
     def nx(self):
+        """Number of cells in x."""
         return len(self._xCS)
 
     @property
     def ny(self):
+        """Number of cells in y."""
         return len(self._yCS)
 
     @property
     def nz(self):
+        """Number of cells in z."""
         return len(self._zCS)
 
     @property
     def dx(self):
+        """x cell edges (length ``nx + 1``)."""
         return self._dx
 
     @dx.setter
@@ -2051,6 +2307,7 @@ class Model(object):
 
     @property
     def dy(self):
+        """y cell edges (length ``ny + 1``)."""
         return self._dy
 
     @dy.setter
@@ -2064,6 +2321,7 @@ class Model(object):
 
     @property
     def dz(self):
+        """z cell edges (length ``nz + 1``), depth increasing downward from 0."""
         return self._dz
 
     @dz.setter
@@ -2077,6 +2335,7 @@ class Model(object):
 
     @property
     def xCS(self):
+        """x cell sizes (length ``nx``)."""
         return self._xCS
 
     @xCS.setter
@@ -2087,6 +2346,7 @@ class Model(object):
 
     @property
     def yCS(self):
+        """y cell sizes (length ``ny``)."""
         return self._yCS
 
     @yCS.setter
@@ -2097,6 +2357,7 @@ class Model(object):
 
     @property
     def zCS(self):
+        """z cell sizes (length ``nz``)."""
         return self._zCS
 
     @zCS.setter
@@ -2106,6 +2367,25 @@ class Model(object):
         self.update_vals()
 
     def write(self, outfile, file_format='modem', use_log=True, use_resistivity=True, use_anisotropy=False, n_param=3):
+        """Write the model to ``outfile`` (:func:`pyMT.IO.write_model`).
+
+        The mesh is temporarily converted to metres for writing.
+
+        Parameters
+        ----------
+        outfile : str
+        file_format : str, optional
+            Default ``'modem'``.
+        use_log : bool, optional
+            Write ``log`` resistivity/conductivity.  Default True.
+        use_resistivity : bool, optional
+            Write resistivity rather than conductivity.  Default True.
+        use_anisotropy : bool, optional
+            Write the ``rho_x``/``rho_y``/``rho_z`` + angle arrays (filled from
+            ``rho_x`` where missing).  Default False.
+        n_param : int, optional
+            Number of anisotropy parameters.  Default 3.
+        """
         units = deepcopy(self.spatial_units)
         self.spatial_units = 'm'
         if use_anisotropy:
@@ -2128,6 +2408,7 @@ class Model(object):
         self.spatial_units = units
 
     def write_covariance(self, outfile):
+        """Write the ModEM covariance file (:func:`pyMT.IO.write_covariance`)."""
         IO.write_covariance(outfile,
                                NX=self.nx,
                                NY=self.ny,
@@ -2140,10 +2421,17 @@ class Model(object):
 
 
 class Response(Data):
-    """Summary
+    """Model responses, i.e. the predicted data from an inversion.
+
+    Identical to :class:`Data` except that :meth:`write` always uses the
+    response writer in :mod:`pyMT.IO`.
     """
 
     def write(self, outfile):
+        """Write the response to ``outfile`` (:func:`pyMT.IO.write_response`).
+
+        The data is temporarily converted to metres for writing.
+        """
         units = deepcopy(self.spatial_units)
         self.spatial_units = 'm'
         IO.write_response(self, outfile)
@@ -2151,29 +2439,38 @@ class Response(Data):
 
 
 class Site(object):
-    """Contains data for a given site.
+    """All transfer-function data for a single station.
 
-    Attributes:
-        ACCEPTED_COMPONENTS (TYPE): Description
-        components (TYPE): Description
-        data (TYPE): Description
-        errmap (dict): Description
-        errors (TYPE): Description
-        locations (TYPE): Description
-        name (TYPE): Description
-        pColours (list): Description
-        periods (TYPE): Description
-        used_error (dict): Description
-        name - The name of the site.
-        data - The data recorded at the site. The data attribute is a dictionary whose keys
-               are the data components, and whose values is a numpy array of points
-               corresponding to the periods in self.periods.
-        errors - The error information for the data. the error attribute has the
-                 same structure as the data attribute.
-        errmap - The error map for the data at this site. If the data is raw data,
-                 the map is set to all ones.
-        periods - The periods at which data is available.
-        components - The data components available for this site.
+    ``data``, ``errors``, ``used_error``, ``errmap`` and ``flags`` are
+    parallel dicts keyed by component name (``'ZXYR'``, ``'ZXYI'``, ...);
+    every value is a :class:`numpy.ndarray` aligned to ``periods``.
+
+    Attributes
+    ----------
+    name : str
+    periods : numpy.ndarray
+        Periods at which data is available (truncated to 5 sig. figs.).
+    components : list of str
+        Components present in ``data``.
+    data : dict
+        ``{component: ndarray}`` of measured values.
+    errors : dict
+        As-read errors, same structure as ``data``.
+    used_error : dict
+        Errors actually used (after floors / maps / manual edits); a value of
+        :data:`pyMT.IO.REMOVE_FLAG` marks a point excluded from inversion.
+    errmap : dict
+        Integer error-map multipliers and sentinels; all ones for raw data.
+    flags : dict
+        Per-point status flags.
+    locations : dict
+        ``{'X', 'Y', 'Lat', 'Long', 'elev'}``.
+    azimuth, orig_azimuth : float or None
+        Current and original data rotation, degrees.
+    phase_tensors : list of PhaseTensor
+        One per period, when the full impedance (or phase) tensor is present.
+    active_periods : list of int
+        Per-period active (1) / inactive (0) flags.
     """
     ACCEPTED_COMPONENTS = ('ZXXR', 'ZXXI',
                            'ZXYR', 'ZXYI',
@@ -2291,6 +2588,7 @@ class Site(object):
 
     @property
     def used_errors(self):
+        """Alias for :attr:`used_error` (the errors actually used)."""
         return self.used_error
 
     @spatial_units.setter
@@ -2316,14 +2614,17 @@ class Site(object):
 
     @property
     def real_components(self):
+        """Components that are not entirely flagged for removal."""
         return [component for component in self.components if not np.all(self.errors[component] == self.REMOVE_FLAG)]
 
     @property
     def NP(self):
+        """Number of periods."""
         return len(self.periods)
 
     @property
     def NR(self):
+        """Number of components (data 'responses')."""
         return len(self.components)
 
     @property
@@ -2344,19 +2645,23 @@ class Site(object):
 
     @property
     def swift_skew(self):
-        skew = np.abs(((self.data['ZXXR'] + 1j * self.data['ZXXI'] + self.data['ZYYR'] + 1j * self.data['ZYYI'])) / 
+        """Swift skew ``|Zxx + Zyy| / |Zxy - Zyx|`` per period."""
+        skew = np.abs(((self.data['ZXXR'] + 1j * self.data['ZXXI'] + self.data['ZYYR'] + 1j * self.data['ZYYI'])) /
                         (self.data['ZXYR'] + 1j * self.data['ZXYI'] - self.data['ZYXR'] + 1j * self.data['ZYXI']))
         return skew
 
-    # How long do these take to compute? Should they be stored for later and recalculated as needed?
     @property
     def det_rho(self):
+        """Determinant apparent resistivity per period (:func:`pyMT.utils.compute_rho`)."""
         return utils.compute_rho(self, calc_comp='det', errtype='none')[0]
 
+    @property
     def ssq_rho(self):
+        """Sum-of-squares apparent resistivity per period (:func:`pyMT.utils.compute_rho`)."""
         return utils.compute_rho(self, calc_comp='ssq', errtype='none')[0]
 
     def validate_data(self):
+        """Replace any NaN data values with zero (in place), reporting each fix."""
         for component in self.components:
             if np.any(np.isnan(self.data[component])):
                 print('NaN value detected in site {}, {} component'.format(self.name, component))
@@ -2364,6 +2669,7 @@ class Site(object):
                 self.data[component] = np.nan_to_num(self.data[component])
 
     def validate_errors(self):
+        """Replace any NaN errors with zero, then reset that component to its error floor."""
         for component in self.components:
             if np.any(np.isnan(self.errors[component])):
                 print('NaN value detected in site {}, {} component'.format(self.name, component))
@@ -2373,6 +2679,19 @@ class Site(object):
 
     @utils.enforce_input(components=list)
     def print_lowest_errors(self, components=None):
+        """Print, and return, the smallest relative error per component.
+
+        Parameters
+        ----------
+        components : list of str, optional
+            Components to report; all of them by default.
+
+        Returns
+        -------
+        all_actual, all_used : list of float
+            Minimum ``|errors / data|`` and ``|used_error / data|`` per
+            component, in ``components`` order.
+        """
         all_actual = []
         all_used = []
         if not components:
@@ -2387,6 +2706,7 @@ class Site(object):
         return all_actual, all_used
 
     def check_period_order(self):
+        """Sort ``periods`` ascending and reorder every data/error array to match."""
         sorted_periods = np.sort(self.periods)
         if np.any(sorted_periods != self.periods):
             if np.any(sorted_periods != self.periods[::-1]):
@@ -2400,11 +2720,16 @@ class Site(object):
                 self.errmap[comp] = self.errmap[comp][sort_idx]
 
     def equalize_complex_errors(self):
+        """Give the real and imaginary parts of each Z/T component a common error.
+
+        For every impedance/tipper component the real- and imaginary-part
+        errors (both ``errors`` and ``used_error``) are set to the larger of
+        the two, so the complex datum has an isotropic error.
+        """
         components = set([component[:3] for component in self.components])
         for comp in components:
             if comp.lower().startswith(('t', 'z')):
                 error = np.maximum(self.used_error[comp + 'R'], self.used_error[comp + 'I'])
-                idx = np.where
                 self.used_error[comp + 'R'] = deepcopy(error)
                 self.used_error[comp + 'I'] = deepcopy(error)
                 error = np.maximum(self.errors[comp + 'R'], self.errors[comp + 'I'])
@@ -2412,6 +2737,28 @@ class Site(object):
                 self.errors[comp + 'I'] = deepcopy(error)
 
     def calculate_error_floor(self, error_floor=None, components=None):
+        """Compute the error-floor error array for each component.
+
+        The floor depends on the component group: off-diagonal impedance uses
+        ``0.5 * |Zxy - Zyx| * floor``, diagonal impedance a percentage of the
+        datum, tipper the max of a constant and a percentage, phase tensor
+        ``tan(deg2rad(phase_floor))``, etc.  Values below
+        :attr:`minimum_error` are raised to it.
+
+        Parameters
+        ----------
+        error_floor : dict or float, optional
+            Relative floors per group (keys of :attr:`error_floors`), or one
+            value for all.  Defaults to :attr:`error_floors`.  Note: passing
+            this argument also overwrites :attr:`error_floors`.
+        components : list of str or str, optional
+            Components to compute; all by default.
+
+        Returns
+        -------
+        dict
+            ``{component: ndarray}`` of floor errors (5 sig. figs.).
+        """
         if error_floor is None:
             error_floor = self.error_floors
         if not components:
@@ -2471,6 +2818,15 @@ class Site(object):
         return returned_errors
 
     def reset_errors(self, error_floor=None, components=None):
+        """Set ``errors``, ``used_error`` and ``errmap`` back to the error floor.
+
+        Parameters
+        ----------
+        error_floor : dict or float, optional
+            Passed through to :meth:`calculate_error_floor`.
+        components : list of str or str, optional
+            Components to reset; all by default.
+        """
         if not components:
             components = self.components
         if not isinstance(components, list):
@@ -2484,6 +2840,16 @@ class Site(object):
 
     @utils.enforce_input(noise_level=float, components=list)
     def add_noise(self, noise_level=5, components=None):
+        """Add Gaussian noise to the data in place.
+
+        Parameters
+        ----------
+        noise_level : float, optional
+            Fractional noise standard deviation; values > 1 are treated as a
+            percentage.  Default 5 (i.e. 5%).
+        components : list of str, optional
+            Components to perturb; all by default.
+        """
         if noise_level > 1:
             noise_level /= 100
         if not components:
@@ -2507,6 +2873,16 @@ class Site(object):
             self.data[component] = utils.truncate(self.data[component])
 
     def apply_distortion(self, C):
+        """Apply an element-wise galvanic distortion matrix to the impedance.
+
+        Each impedance element is scaled by the corresponding entry of ``C``
+        (``Z_D[i, j] = Z[i, j] * C[i, j]``), in place, for every period.
+
+        Parameters
+        ----------
+        C : array_like
+            Distortion matrix, ``(2, 2)`` or 4-element (reshaped to ``(2, 2)``).
+        """
         try:
             if C.shape != (2, 2):
                 C = np.reshape(C, [2, 2])
@@ -2538,6 +2914,18 @@ class Site(object):
 
 
     def apply_error_floor(self, error_floors=None, errfloorZ=None, errfloorT=None):
+        """Raise ``used_error`` to the error floor, per component, in place.
+
+        ``used_error`` becomes ``max(calculate_error_floor(), errors * errmap)``
+        while preserving :data:`~pyMT.IO.REMOVE_FLAG` entries.
+
+        Parameters
+        ----------
+        error_floors : dict or float, optional
+            Floors to use; also stored on :attr:`error_floors`.
+        errfloorZ, errfloorT : float, optional
+            Deprecated single-value floors for off-diagonal impedance / tipper.
+        """
         if errfloorZ:
             print('Usage of errfloorZ is depreciated and will be removed in the future.\n')
             print('Please either set the error_floor attribute, or pass a dictionary argument ' +
@@ -2564,7 +2952,19 @@ class Site(object):
             self.used_error[component][idx] = self.REMOVE_FLAG
 
     def rotate_data(self, azi=0):
-        # This function is needlessly long, but I want to make sure it does it's job right...
+        """Rotate the impedance and tipper data (and errors) to azimuth ``azi``.
+
+        Rotation is by ``azi - self.azimuth`` degrees; ``self.azimuth`` is
+        updated and the phase tensors are recomputed.  Impedance rotation uses
+        the double-angle form; tipper rotation is a plane rotation of the
+        ``(TZX, TZY)`` vector.
+
+        Parameters
+        ----------
+        azi : float, optional
+            Target azimuth in degrees (negative values are wrapped to
+            ``[0, 360)``).  Default 0.
+        """
         def rotz(zxx, zxy, zyx, zyy, theta):
             theta = -2 * np.deg2rad(theta)  # Make use of double angle identities
             return ((zxx + zyy) + (zxx - zyy) * np.cos(theta) + (zxy + zyx) * np.sin(theta)) / 2
@@ -2622,28 +3022,30 @@ class Site(object):
                                                     self.data['TZXI'] * np.sin(theta_rad) +
                                                     self.data['TZYI'] * np.cos(theta_rad))
 
-            self.errors['TZXR'], self.errors['TZYR'] = (self.errors['TZXR'] * np.cos(theta) -
-                                                        self.errors['TZYR'] * np.sin(theta),
-                                                        self.errors['TZXR'] * np.sin(theta) +
-                                                        self.errors['TZYR'] * np.cos(theta))
-            self.errors['TZXI'], self.errors['TZYI'] = (self.errors['TZXI'] * np.cos(theta) -
-                                                        self.errors['TZYI'] * np.sin(theta),
-                                                        self.errors['TZXI'] * np.sin(theta) +
-                                                        self.errors['TZYI'] * np.cos(theta))
+            self.errors['TZXR'], self.errors['TZYR'] = (self.errors['TZXR'] * np.cos(theta_rad) -
+                                                        self.errors['TZYR'] * np.sin(theta_rad),
+                                                        self.errors['TZXR'] * np.sin(theta_rad) +
+                                                        self.errors['TZYR'] * np.cos(theta_rad))
+            self.errors['TZXI'], self.errors['TZYI'] = (self.errors['TZXI'] * np.cos(theta_rad) -
+                                                        self.errors['TZYI'] * np.sin(theta_rad),
+                                                        self.errors['TZXI'] * np.sin(theta_rad) +
+                                                        self.errors['TZYI'] * np.cos(theta_rad))
             self.azimuth = azi
         else:
             print('Cannot rotate Tipper data. Required components not available.')
 
     def add_periods(self, site):
-        """
-        Adds data from missing periods in self from site. If only certain periods are needed, use RawData.get_data
-        to generate a Site object with the desired periods.
+        """Merge periods from ``site`` that are missing in this one.
 
-        Args:
-            data (TYPE): Description
-            new_periods (TYPE): Description
-            errors (None, optional): Description
-            errmap (None, optional): Description
+        Data/error/errmap/flag values (and phase tensors) from ``site`` are
+        inserted in period order; :meth:`apply_error_floor` is re-run
+        afterwards.  To pull only specific periods, build ``site`` with
+        :meth:`RawData.get_data` first.
+
+        Parameters
+        ----------
+        site : Site
+            Donor site providing the extra periods.
         """
         shift = 0
         data = site.data
@@ -2694,15 +3096,13 @@ class Site(object):
 
     @utils.enforce_input(periods=list)
     def remove_periods(self, periods):
-        """Summary
+        """Delete the given periods and their data/error/phase-tensor entries.
 
-        Args:
-            periods (TYPE): Description
-
-        Returns:
-            TYPE: Description
+        Parameters
+        ----------
+        periods : list of float
+            Period values to remove (must match ``self.periods`` exactly).
         """
-        # periods = utils.to_list(periods)
         for period in periods:
             # if any(np.isclose(period, self.periods)):
             # ind = [ii for ii, val in enumerate(self.periods) if val >= period][0]
@@ -2720,15 +3120,17 @@ class Site(object):
                 self.flags[comp] = np.delete(self.flags[comp], ind)
 
     def add_component(self, data, errors=0.05, errmap=1):
-        """
-        Adds component data to the site. Data must be in the standard dictionary format
-        of {comp1: data, comp2: data, ...}
-        Data must be given, but error and error maps default to 5% of data, and ones, respectively.
+        """Add one or more components to the site.
 
-        Args:
-            data (TYPE): Description
-            errors (float, optional): Description
-            errmap (int, optional): Description
+        Parameters
+        ----------
+        data : dict
+            ``{component: ndarray}`` aligned to ``self.periods``.
+        errors : dict or float, optional
+            Error dict, or a fraction of ``data`` to use as the error.
+            Default 0.05.
+        errmap : dict or int, optional
+            Error-map dict, or a constant fill value.  Default 1.
         """
         if not isinstance(errors, dict):
             errors = Site.generate_errors(data, errors)
@@ -2745,27 +3147,34 @@ class Site(object):
 
     @staticmethod
     def generate_errors(data, mult=0.05):
-        """Summary
+        """Return an error dict equal to ``mult`` times each data array.
 
-        Args:
-            data (TYPE): Description
-            mult (float, optional): Description
+        Parameters
+        ----------
+        data : dict
+            ``{component: ndarray}``.
+        mult : float, optional
+            Fraction of the data to use as the error.  Default 0.05.
 
-        Returns:
-            TYPE: Description
+        Returns
+        -------
+        dict
         """
         return {comp: val * mult for comp, val in data.items()}
 
     def generate_errmap(self, mult=1):
-        """
-        Returns an error map dictionary with the same structure as the input data.
-        If a single value is entered for 'mult', all error map values are set to that.
-        Alternatively, a dictionary of {comp: val} may be input, and componenets will
-        have their error maps set accordingly.
+        """Return an error-map dict shaped like ``self.data``.
 
-        Args:
-            data (TYPE): Description
-            mult (int, optional): Description
+        Parameters
+        ----------
+        mult : int or dict, optional
+            A single value fills every component's map; a ``{component: value}``
+            dict sets them individually.  Default 1.
+
+        Returns
+        -------
+        dict
+            ``{component: ndarray}``.
         """
         if not isinstance(mult, dict):
             return {comp: mult * np.ones(np.shape(val)) for comp, val in self.data.items()}
@@ -2774,6 +3183,21 @@ class Site(object):
 
     @utils.enforce_input(periods=list, comps=list, mult=int, multiplicative=bool)
     def change_errmap(self, periods, comps, mult, multiplicative=False):
+        """Change the error map (and ``used_error``) at specific periods.
+
+        Parameters
+        ----------
+        periods : list of float
+            Periods to change (nearest match used).
+        comps : list of str
+            Components to change.
+        mult : int
+            ``> 0``: set (or, with ``multiplicative``, scale) the error map to
+            ``mult`` and recompute ``used_error``.  ``< 0``: reset the map to 1
+            and divide the current error by ``|mult|``.
+        multiplicative : bool, optional
+            Treat a positive ``mult`` as a factor rather than an absolute value.
+        """
         for comp in comps:
             for period in periods:
                 ind = np.argmin(abs(self.periods - period))
@@ -2793,15 +3217,13 @@ class Site(object):
 
     @utils.enforce_input(components=list)
     def remove_components(self, components):
-        """Summary
+        """Delete the given components from the site.
 
-        Args:
-            component (TYPE): Description
-
-        Returns:
-            TYPE: Description
+        Parameters
+        ----------
+        components : list of str
+            Component names to remove.
         """
-        # component = utils.to_list(component)
         for comp in components:
             try:
                 del self.data[comp]
@@ -2809,16 +3231,19 @@ class Site(object):
                 del self.errmap[comp]
                 del self.flags[comp]
                 self.components.remove(comp)
-            except AttributeError:
+            except (KeyError, ValueError):
                 print('Component {} doesn\'t exist'.format(comp))
 
     def loosely_equal(self, site):
-        """
-        Compares two sites to check for equality. For this method, equality just means that
-        the sites have the same components and periods
+        """Return ``True`` if two sites share the same components and periods.
 
-        Args:
-            site (TYPE): Description
+        Parameters
+        ----------
+        site : Site
+
+        Returns
+        -------
+        bool
         """
         if set(self.components) == set(site.components) and \
                 all(self.periods == site.periods):
@@ -2827,19 +3252,18 @@ class Site(object):
             return False
 
     def strictly_equal(self, site):
-        """Summary
+        """Compare two sites field by field.
 
-        Args:
-            site (TYPE): Description
+        Parameters
+        ----------
+        site : Site
 
-        Returns:
-            TYPE: Description
+        Returns
+        -------
+        dict
+            ``{'loosely', 'data', 'errors', 'errmap', 'locations', 'names'}``
+            each mapping to a bool that is ``True`` when that aspect matches.
         """
-        # if self.loosely_equal(site):
-        # First check for loose equality
-        # Equality = namedtuple('Equality', ['loosely', 'data',
-        #                                    'errors', 'errmap', 'locations',
-        #                                    'names'])
         retval = {'loosely': True, 'data': True,
                   'errors': True, 'errmap': True,
                   'locations': True, 'names': True}
@@ -2860,6 +3284,28 @@ class Site(object):
 
     @utils.enforce_input(periods=list, components=list, lTol=float, hTol=float)
     def get_data(self, periods=None, components=None, lTol=0.02, hTol=0.10):
+        """Return a new :class:`Site` sampled at the requested periods/components.
+
+        For each requested period the nearest available period is used.  If it
+        is farther away than the tolerance (``lTol`` for periods <= 1 s,
+        ``hTol`` above), the point is flagged with ``NO_PERIOD_FLAG``;
+        impedances more than 1% off are scaled by ``sqrt(p_have / p_want)``.
+        Missing components are filled with ``NO_COMP_FLAG`` / ``REMOVE_FLAG``.
+
+        Parameters
+        ----------
+        periods : list of float, optional
+            Target periods; ``self.periods`` by default.
+        components : list of str, optional
+            Target components; ``self.components`` by default.
+        lTol, hTol : float, optional
+            Fractional period-match tolerance below / above 1 s.
+            Defaults 0.02 / 0.10.
+
+        Returns
+        -------
+        Site
+        """
         if periods is None:
             periods = self.periods
         if components is None:
@@ -2923,6 +3369,18 @@ class Site(object):
                     locations=locations, azimuth=azimuth, name=name, flags=flags)
 
     def detect_outliers(self, outlier_map=10):
+        """Flag points that differ strongly from their period neighbours.
+
+        For each point, compares it to the mean of a small window of
+        neighbouring periods; if ``|diff| > 2 * |mean|`` the component's error
+        map is multiplied by ``outlier_map`` and the flag set to
+        ``OUTLIER_FLAG``.
+
+        Parameters
+        ----------
+        outlier_map : int, optional
+            Error-map multiplier applied to detected outliers.  Default 10.
+        """
         nper = len(self.periods)
         for comp in self.components:
             for idx, per in enumerate(self.periods):
@@ -2939,6 +3397,12 @@ class Site(object):
                     self.flags[comp][idx] = self.OUTLIER_FLAG
 
     def calculate_phase_tensors(self):
+        """(Re)build ``phase_tensors`` and ``CART`` from the impedance data.
+
+        One :class:`PhaseTensor` and one :class:`CART` per period.  Requires
+        the full impedance tensor; prints a message and does nothing otherwise
+        (use :meth:`define_phase_tensor` for phase-tensor input data).
+        """
         self.phase_tensors = []
         self.CART = []
         if set(self.IMPEDANCE_COMPONENTS).issubset(set(self.components)):
@@ -2964,6 +3428,10 @@ class Site(object):
             print('If input data is phase tensors, use "define_phase_tensor" method instead.')
 
     def define_phase_tensor(self):
+        """Build ``phase_tensors`` directly from ``PT**`` component data.
+
+        Used when the site's data *is* phase tensors rather than impedances.
+        """
         self.phase_tensors = []
         if set(self.PHASE_TENSOR_COMPONENTS).issubset(set(self.components)):
             for ii, period in enumerate(self.periods):
@@ -2973,11 +3441,18 @@ class Site(object):
                 self.phase_tensors.append(PhaseTensor(period=period, phi=phi, phi_error=phi_error))
 
     def calculate_PT_errors(self, error_realizations):
-        # This will loop over periods, which is incredibly slow.
-        # for ii in range(self.NP):
-        #     self.phase_tensors[ii].error_realizations = n_realizations
-        #     self.phase_tensors[ii].calculate_errors()
-        # Better to have a site method that bundles all the periods and does it in a fraction of the time.
+        """Monte-Carlo the phase-tensor errors for every period at once.
+
+        Draws ``error_realizations`` noisy impedance realizations from the
+        stored ``Z_errors``, forms the phase tensor for each, and sets each
+        period's ``phi_error`` to the median absolute deviation (floored at
+        ``error_floor``).  Vectorised over periods for speed.
+
+        Parameters
+        ----------
+        error_realizations : int
+            Number of Monte-Carlo draws.
+        """
         X = np.zeros((4, self.NP))
         Y = np.zeros((4, self.NP))
         ZR_errors = np.zeros((4, self.NP))
@@ -3013,16 +3488,35 @@ class Site(object):
 
 
 class RawData(object):
-    """Summary
+    """Raw transfer-function data read from EDI / j-format files.
 
-    Attributes:
-        datpath (TYPE): Description
-        listfile (TYPE): Description
-        master_periods (TYPE): Description
-        narrow_periods (TYPE): Description
-        RAW_COMPONENTS (TYPE): Description
-        site_names (TYPE): Description
-        sites (TYPE): Description
+    Built from a list file naming the station files (``listfile``).  Each
+    station becomes a :class:`Site` at its own native periods (no common
+    period axis, unlike :class:`Data`).  :meth:`get_data` resamples a
+    selection of sites/periods/components onto a common axis to build a
+    :class:`Data` object.
+
+    Attributes
+    ----------
+    sites : dict
+        ``{site_name: Site}``.
+    site_names : list of str
+        Station names in list-file order.
+    listfile, datpath : str
+        The list file and the directory the station files were read from.
+    locations : numpy.ndarray
+        ``(NS, 2)`` array of site positions, ``[X (north), Y (east)]``.
+    initialized : bool
+        ``True`` once a list file has been read.
+    master_periods, narrow_periods : dict
+        Period -> site-count maps: every period present anywhere
+        (``master``) and the subset common to enough sites within tolerance
+        (``narrow``); see :meth:`master_period_list` / :meth:`narrow_period_list`.
+    low_tol, high_tol, count_tol, remove_low_tol, remove_high_tol : float
+        Period-matching tolerances used by :meth:`get_data` and by
+        :class:`Dataset` dummy-period handling.
+    azimuth : float
+        Current data rotation in degrees.
     """
     RAW_COMPONENTS = ('ZXX', 'ZXY',
                       'ZYX', 'ZYY',
@@ -3035,11 +3529,23 @@ class RawData(object):
                            'TZYR', 'TZYI')
 
     def __init__(self, listfile='', datpath='', zero_azimuth=True, edi_locs_from='definemeas', progress_bar=None):
-        """Summary
+        """Read raw station data listed in ``listfile``.
 
-        Args:
-            listfile (TYPE): Description
-            datpath (str, optional): Description
+        Parameters
+        ----------
+        listfile : str, optional
+            File naming the station files (one per line).  With no list file an
+            empty, uninitialised instance is created.
+        datpath : str, optional
+            Directory holding the station files; defaults to the list file's
+            directory.
+        zero_azimuth : bool, optional
+            If ``True`` (default), rotate every site's data to 0 degrees on
+            load; otherwise keep the azimuth found in the files.
+        edi_locs_from : str, optional
+            Which EDI block to take site coordinates from.
+        progress_bar : optional
+            Qt progress-bar widget for the GUIs.
         """
         if not datpath and listfile:
             datpath = os.path.dirname(listfile)
@@ -3086,6 +3592,7 @@ class RawData(object):
 
     @property
     def origin(self):
+        """``(x, y)`` centre of the site bounding box."""
         min_x, max_x = (min(self.locations[:, 1]), max(self.locations[:, 1]))
         min_y, max_y = (min(self.locations[:, 0]), max(self.locations[:, 0]))
         center = (min_x + (max_x - min_x) / 2,
@@ -3093,6 +3600,7 @@ class RawData(object):
         return center
 
     def check_azi(self):
+        """Return the common site azimuth (0 if no sites), or ``False`` if they disagree."""
         azi = []
         for site in self.sites.values():
             azi.append(site.azimuth)
@@ -3103,17 +3611,6 @@ class RawData(object):
             return 0
         else:
             return azi[0]
-
-    # @property
-    # def origin(self):
-    #     return self._origin
-
-    # @origin.setter
-    # def origin(self, value):
-    #     self.locations = self.get_locs(mode='centered')
-    #     self.locations[:, 0] += value[1]
-    #     self.locations[:, 1] += value[0]
-    #     self._origin = value
 
     @property
     def spatial_units(self):
@@ -3140,17 +3637,24 @@ class RawData(object):
 
     @property
     def NS(self):
+        """Number of sites."""
         return len(self.site_names)
 
     def __read__(self, listfile, datpath='', edi_locs_from='definemeas', progress_bar=None):
-        """Summary
+        """Read the list file and every station file it names (via :mod:`pyMT.IO`).
 
-        Args:
-            listfile (TYPE): Description
-            datpath (str, optional): Description
+        Populates ``site_names``, ``sites`` and ``locations``.
 
-        Returns:
-            TYPE: Description
+        Parameters
+        ----------
+        listfile : str
+            File naming the station files, one per line.
+        datpath : str, optional
+            Directory holding the station files.
+        edi_locs_from : str, optional
+            Which EDI block to take site coordinates from.
+        progress_bar : optional
+            Qt progress-bar widget for the GUIs.
         """
         self.site_names = IO.read_sites(listfile)
         all_data = IO.read_raw_data(self.site_names, datpath, 
@@ -3203,7 +3707,7 @@ class RawData(object):
 
 
     def set_remove_flags(self):
-        # Likely some other conditions here for flagging, but this is the one I need to handle now.
+        """Set :data:`~pyMT.IO.REMOVE_FLAG` errors on data points that are -9999 or > 1e5."""
         for site in self.site_names:
             for comp in self.sites[site].components:
                 for ii in range(self.sites[site].NP):
@@ -3213,6 +3717,25 @@ class RawData(object):
 
 
     def average_rho(self, fwidth=0.85, comp='det'):
+        """Smoothed apparent resistivity per site and the geometric mean over sites.
+
+        Parameters
+        ----------
+        fwidth : float, optional
+            :func:`pyMT.utils.geotools_filter` width.  Default 0.85.
+        comp : str, optional
+            Component/invariant for :func:`pyMT.utils.compute_rho`.  Default
+            ``'det'``.
+
+        Returns
+        -------
+        mean : float
+            Geometric mean over sites of the per-site mean smoothed rho.
+        avg : list of float
+            Per-site mean smoothed rho.
+        all_avg : list of numpy.ndarray
+            Per-site smoothed rho curves.
+        """
         avg = []
         all_avg = []
         for site in self.sites.values():
@@ -3225,14 +3748,31 @@ class RawData(object):
         return 10 ** np.nanmean(np.log10(avg)), avg, all_avg
 
     def remove_periods(self, site_dict):
+        """Remove per-site periods.
+
+        Parameters
+        ----------
+        site_dict : dict
+            ``{site_name: [periods to remove]}``.
+        """
         for site, periods in site_dict.items():
             self.sites[site].remove_periods(periods=periods)
 
     def remove_components(self, sites=None, components=None):
+        """Remove ``components`` from each of ``sites``."""
         for site in sites:
             self.sites[site].remove_components(components=components)
 
     def check_dummy_periods(self, threshold=1e-10):
+        """Find periods whose components are all (nearly) equal or huge.
+
+        Such periods are usually infilled placeholders.
+
+        Returns
+        -------
+        dict
+            ``{site_name: [suspect periods]}``.
+        """
         sites = {}
         for site in self.sites.values():
             periods = []
@@ -3251,8 +3791,7 @@ class RawData(object):
         return sites
 
     def check_dummy_data(self, threshold=0.00001):
-        # for comp in ('TZXR', 'TZXI', 'TZYR', 'TZYI'):
-        # Only need to check one, right?
+        """Return the names of sites whose ``TZXR`` is everywhere below ``threshold`` (dummy tipper)."""
         sites = []
         for site in self.sites.values():
             if 'TZXR' in site.components:
@@ -3261,6 +3800,20 @@ class RawData(object):
         return sites
 
     def get_locs(self, sites=None, azi=0, mode=None):
+        """Return an ``(N, 2)`` array of site positions.
+
+        Parameters
+        ----------
+        sites : list of str, optional
+            Sites (and order); all by default.
+        azi : float, optional
+            Rotate the positions by this many degrees if non-zero and
+            different from ``self.azimuth``.
+        mode : {'utm', 'centered', 'latlong', 'lambert'}, optional
+            Coordinate system of the returned positions.  ``'utm'`` (default)
+            and ``'centered'`` use the stored ``X``/``Y``; ``'latlong'`` uses
+            ``Lat``/``Long``; ``'lambert'`` projects lat/long to EPSG:3979.
+        """
         if not mode:
             mode = 'utm'
         if mode.lower() == 'utm' or mode.lower() == 'centered':
@@ -3285,6 +3838,7 @@ class RawData(object):
         return locs
 
     def to_utm(self, zone, letter):
+        """Overwrite ``locations`` with UTM easting/northing for the given ``zone``/``letter``."""
         latlons = self.get_locs(mode='latlong')
         for ii in range(self.NS):
             E, N = utils.project((latlons[ii, 1],
@@ -3293,47 +3847,56 @@ class RawData(object):
             self.locations[ii, 1], self.locations[ii, 0] = E, N
 
     def write_locations(self, out_file, file_format='csv', verbose=0):
+        """Write the site locations (:func:`pyMT.IO.write_locations`); data is written in metres."""
         units = deepcopy(self.spatial_units)
         self.spatial_units = 'm'
         IO.write_locations(self, out_file=out_file, file_format=file_format, verbose=verbose)
         self.spatial_units = units
 
     def write_phase_tensors(self, out_file, verbose=False, scale_factor=1/50, period_idx=None):
+        """Write phase-tensor ellipse data (:func:`pyMT.IO.write_phase_tensors`)."""
         IO.write_phase_tensors(self, out_file=out_file, verbose=verbose,
                                         scale_factor=scale_factor, period_idx=period_idx)
 
     def write_induction_arrows(self, out_file, verbose=False, scale_factor=1/50, period_idx=None):
+        """Write induction-arrow data (:func:`pyMT.IO.write_induction_arrows`)."""
         IO.write_induction_arrows(self, out_file=out_file, verbose=verbose,
                                      scale_factor=scale_factor, period_idx=period_idx)
 
     def master_period_list(self):
-        """Summary
+        """Every period present in any site, mapped to the fraction of sites that have it.
 
-        Returns:
-            TYPE: Description
+        Returns
+        -------
+        dict
+            ``{period: fraction_of_sites}`` (both keys and values truncated to
+            5 sig. figs.).
         """
         periods = []
         for site in self.sites.values():
             periods.append(list(site.periods))
         periods = [utils.truncate(p) for sublist in periods for p in sublist]
         lp = len(self.sites)
-        for period in set(periods):
-            periods.count(period)
         return {utils.truncate(period):
                 utils.truncate(periods.count(period) / lp) for period in set(periods)}
 
     def narrow_period_list(self, periods=None, count_tol=None, low_tol=None, high_tol=None):
-        """Summary
+        """Periods held (within tolerance) by at least ``count_tol`` of the sites.
 
-        Args:
-            periods (None, optional): The list of periods to narrow down.
-            If None, master_periods is used.
-            count_tol (float, optional): Minimum fraction of sites that must contain the period.
-            low_tol (float, optional): Wiggle room on periods less than 1 second.
-            high_tol (float, optional): Wiggle room on periods greater than 1 second.
+        Parameters
+        ----------
+        periods : list of float, optional
+            Candidate periods; the well-populated entries of
+            :attr:`master_periods` by default.
+        count_tol : float, optional
+            Minimum fraction of sites that must have the period.
+        low_tol, high_tol : float, optional
+            Fractional period-match tolerance below / above 1 s.
 
-        Returns:
-            TYPE: Returns a narrowed periods list
+        Returns
+        -------
+        dict
+            ``{period: fraction_of_sites}`` for the surviving periods.
         """
         self.set_tols(hTol=high_tol, lTol=low_tol, cTol=count_tol)
         if periods is None:
@@ -3354,13 +3917,33 @@ class RawData(object):
     @utils.enforce_input(sites=list, periods=list, components=list, lTol=float, hTol=float)
     def get_data(self, sites=None, periods=None, components=None,
                  lTol=None, hTol=None):
+        """Resample a selection of sites onto a common axis, as a ``{name: Site}`` dict.
+
+        This is what a :class:`Data` object is built from.  When ``periods`` is
+        auto-chosen and there are more than 16 of them, it is thinned to 12
+        log-spaced values.
+
+        Parameters
+        ----------
+        sites : list of str, optional
+            Sites to include; all by default.
+        periods : list of float, optional
+            Common periods; the :attr:`narrow_periods` keys by default.
+        components : list of str, optional
+            Default is all real/imaginary parts of :attr:`RAW_COMPONENTS`.
+        lTol, hTol : float, optional
+            Fractional period-match tolerance below / above 1 s.
+
+        Returns
+        -------
+        dict
+            ``{site_name: Site}`` on the common period axis.
+        """
         self.set_tols(hTol=hTol, lTol=lTol, cTol=None)
         auto_periods = False
         if sites is None:
             sites = self.sites
-        # elif isinstance(sites, str):
         else:
-            # sites = {sites: self.sites[sites]}
             sites = {site_name: self.sites[site_name] for site_name in sites}
         if periods is None:
             periods = list(self.narrow_periods.keys())
@@ -3383,6 +3966,7 @@ class RawData(object):
         return ret_sites
 
     def rotate_sites(self, azi=0):
+        """Rotate the locations and every site's data to azimuth ``azi`` (degrees)."""
         if azi != self.azimuth:
             if azi < 0:
                 azi = 360 + azi
@@ -3394,6 +3978,7 @@ class RawData(object):
                 self.sites[site_name].rotate_data(azi)
 
     def set_tols(self, hTol, lTol, cTol):
+        """Update ``high_tol`` / ``low_tol`` / ``count_tol`` from any non-None argument."""
         if hTol is not None:
             self.high_tol = hTol
         if lTol is not None:
@@ -3402,34 +3987,31 @@ class RawData(object):
             self.count_tol = cTol
 
     def remove_sites(self, sites):
-        """Summary
-
-        Args:
-            site (TYPE): Description
-
-        Returns:
-            TYPE: Description
-        """
+        """Remove sites (via :meth:`Data.remove_sites`) and rebuild the period lists."""
         self = Data.remove_sites(self, sites=sites)
         self.master_periods = self.master_period_list()
         self.narrow_periods = self.narrow_period_list()
 
     def add_site(self, site):
+        """Add a :class:`Site` and rebuild ``master_periods`` / ``narrow_periods``."""
         self.sites.update({site.name: site})
         self.site_names.append(site.name)
         self.master_periods = self.master_period_list()
         self.narrow_periods = self.narrow_period_list()
 
     def check_compromised_data(self, threshold=0.75):
+        """See :meth:`Data.check_compromised_data`."""
         return Data.check_compromised_data(self, threshold=threshold)
 
     def to_vtk(self, outfile, UTM, origin=None, sea_level=0, use_elevation=False):
+        """Write the site locations as a VTK point set (:func:`pyMT.IO.sites_to_vtk`)."""
         if not origin:
             origin = self.origin
         Data.to_vtk(self, outfile=outfile, origin=origin,
                     UTM=UTM, sea_level=sea_level, use_elevation=use_elevation)
 
     def write_waldim(self):
+        """Write a WALDIM-style ``list.dat`` of site names and lat/long into the CWD."""
         locs = self.get_locs(mode='latlong')
         with open('list.dat', 'w') as f:
             f.write('INFO\n')
@@ -3440,9 +4022,43 @@ class RawData(object):
 
 
 class PhaseTensor(object):
+    """The MT phase tensor for a single period (Caldwell et al., 2004).
+
+    Constructed either from an impedance tensor (pass ``Z`` as a dict of the
+    eight ``Z**{R,I}`` components) or from a pre-computed phase tensor (pass
+    ``phi``).  :meth:`calculate_phase_parameters` fills in the derived
+    quantities: ``phi_1``/``phi_2``/``phi_3``, ``phi_min``/``phi_max``,
+    ``alpha``, ``beta`` (skew), ``Lambda``, ``azimuth``, ``det_phi``,
+    ``skew_phi`` and ``dimensionality``.
+
+    ``__sub__`` returns a difference phase tensor; the formula is chosen by
+    ``self.difference_definition`` (``'booker'``, ``'heise'``, ``'hill'``,
+    ``'castro'``, ``'roots_1'``, ``'roots_2'``) and the result also carries
+    ``diff_*`` attributes with the per-parameter differences.
+
+    Parameters
+    ----------
+    period : float
+    Z : dict, optional
+        ``{'ZXXR': ..., 'ZXXI': ..., ...}``.
+    Z_errors : dict, optional
+        Same keys as ``Z``; used when ``calculate_errors`` is True.
+    rho, phase : sequence, optional
+        ``(xy, yx, xy_error, yx_error)`` apparent resistivity / phase, stored
+        for reference.
+    phi : dict, optional
+        Pre-computed phase tensor (alternative to ``Z``).
+    phi_error : dict, optional
+    remove_flag : bool, optional
+        Mark this period's tensor as flagged-for-removal.
+    calculate_errors : bool, optional
+        Monte-Carlo the phase-tensor errors from ``Z_errors``.
+    error_realizations : int, optional
+        Number of Monte-Carlo draws.  Default 10000.
+    """
     def __init__(self, period, Z=None, Z_errors=None, rho=None, phase=None, phi=None, phi_error=None, remove_flag=False, calculate_errors=False, error_realizations=10000):
         # Are alpha, beta, azimuth considered clockwise from 'y', or counter-clockwise from 'x'
-        self._rotation_axis = 'x' 
+        self._rotation_axis = 'x'
         self.difference_definition = 'Booker' # Allowable values: Booker, Hill, Castro, Roots_1, Roots_2
         self.X, self.Y, self.phi = np.zeros((2, 2)), np.zeros((2, 2)), np.zeros((2, 2))
         self.error_floor = np.tan(np.deg2rad(3))
@@ -3505,10 +4121,12 @@ class PhaseTensor(object):
 
     @property
     def absbeta(self):
+        """``|beta|`` (skew magnitude, radians)."""
         return abs(self.beta)
 
     @property
     def dimensionality(self):
+        """1, 2 or 3 from the skew (``beta``) and anisotropy (``Lambda``) thresholds."""
         if np.rad2deg(self.beta) > self.skew_threshold:
             return 3
         else:
@@ -3519,6 +4137,10 @@ class PhaseTensor(object):
 
     @property
     def rotation_axis(self):
+        """Reference axis for ``alpha``/``beta`` -- ``'x'`` or ``'y'``.
+
+        Setting it recomputes ``alpha`` and ``beta`` in the new convention.
+        """
         return self._rotation_axis
 
     @rotation_axis.setter
@@ -3531,6 +4153,8 @@ class PhaseTensor(object):
             print('Rotation axis must be x or y')
 
 
+    # PTXX/PTXY/PTYX/PTYY and their *_error variants are named views onto the
+    # elements of ``phi`` / ``phi_error``.
     @property
     def PTXX(self):
         return self.phi[0, 0]
@@ -3596,12 +4220,13 @@ class PhaseTensor(object):
         self.phi_error[1, 1] = value
 
     def form_tensors(self, Z):
+        """Populate ``X`` (real) and ``Y`` (imag) 2x2 tensors from a ``Z`` dict.
+
+        The rows/columns are ordered so that ``phi = X**-1 . Y`` gives the
+        standard phase tensor; ``Y`` carries the ``exp(-i w t)`` sign.  Sets
+        ``valid_data = False`` if a component is missing.
+        """
         try:
-            # self.X = np.array(((Z['ZXXR'], Z['ZXYR']),
-            #                    (Z['ZYXR'], Z['ZYYR'])))
-            # self.Y = np.array(((Z['ZXXI'], Z['ZXYI']),
-            #                    (Z['ZYXI'], Z['ZYYI'])))
-        # try:
             self.X = np.array(((Z['ZYYR'], Z['ZYXR']),
                                (Z['ZXYR'], Z['ZXXR'])))
             self.Y = -1 * np.array(((Z['ZYYI'], Z['ZYXI']),
@@ -3610,6 +4235,12 @@ class PhaseTensor(object):
             self.valid_data = False
 
     def calculate_errors(self):
+        """Monte-Carlo ``phi_error`` for this one period from ``Z_errors``.
+
+        Draws ``error_realizations`` noisy tensors, forms the phase tensor for
+        each, and takes 1.4 times the median absolute deviation.  See
+        :meth:`Site.calculate_PT_errors` for the vectorised all-periods version.
+        """
         pt_r = np.zeros((4, self.error_realizations))
         ZR_errors = np.array([self.Z_errors['ZXXR'], self.Z_errors['ZXYR'],
                               self.Z_errors['ZYXR'], self.Z_errors['ZYYR']])
@@ -3629,13 +4260,26 @@ class PhaseTensor(object):
                                    [errors[2], errors[3]]])
 
     def calculate_phase_tensor(self, X=None, Y=None):
+        """Return ``phi = X**-1 . Y`` (closed-form 2x2 inverse).
+
+        Parameters
+        ----------
+        X, Y : numpy.ndarray, optional
+            Real and imaginary impedance tensors; ``self.X`` / ``self.Y`` by
+            default.  Used with explicit arguments during Monte-Carlo error
+            estimation.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            The ``(2, 2)`` phase tensor, or ``None`` (and ``valid_data`` set
+            False) on a linear-algebra error.
+        """
         try:
             if X is None:
                 X = self.X
             if Y is None:
                 Y = self.Y
-            # Try it the fast way...
-            # self.phi = np.matmul(np.linalg.inv(self.X), self.Y)
             phi = np.zeros((2, 2))
             phi[0, 0] = X[1, 1] * Y[0, 0] - X[0, 1] * Y[1, 0]
             phi[0, 1] = X[1, 1] * Y[0, 1] - X[0, 1] * Y[1, 1]
@@ -3648,12 +4292,18 @@ class PhaseTensor(object):
             self.valid_data = False
 
     def set_phase_tensor(self, phi):
+        """Copy a ``(2, 2)`` array into ``self.phi`` element-wise."""
         self.phi[0, 0] = phi[0, 0]
         self.phi[0, 1] = phi[0, 1]
         self.phi[1, 0] = phi[1, 0]
         self.phi[1, 1] = phi[1, 1]
 
     def calculate_rotation_parameters(self):
+        """Return ``(alpha, beta)`` in radians for the current ``rotation_axis``.
+
+        ``'x'`` measures counter-clockwise from east (Caldwell convention);
+        ``'y'`` measures clockwise from north (typical MT convention).
+        """
         if self.rotation_axis.lower() == 'x':
             alpha = 0.5 * np.arctan2((self.phi[0, 1] + self.phi[1, 0]), (self.phi[0, 0] - self.phi[1, 1]))
             beta = 0.5 * np.arctan2((self.phi[0, 1] - self.phi[1, 0]), (self.phi[0, 0] + self.phi[1, 1]))
@@ -3665,7 +4315,13 @@ class PhaseTensor(object):
         return alpha, beta
 
     def calculate_phase_parameters(self):
-        # det_phi = (np.linalg.det(self.phi))
+        """Derive every scalar phase-tensor parameter from ``self.phi``.
+
+        Sets ``det_phi``, ``skew_phi``, ``phi_1``/``phi_2``/``phi_3``,
+        ``phi_min``/``phi_max``, ``phi_split*``, ``alpha``, ``beta``,
+        ``Lambda``, ``azimuth`` and ``delta``.  ``phi_min``/``phi_max`` follow
+        Moorkamp (2007) (no ``abs`` on the determinant).
+        """
         det_phi = self.phi[0, 0] * self.phi[1, 1] - self.phi[0, 1] * self.phi[1, 0]
         skew_phi = (self.phi[0, 1] - self.phi[1, 0])
         phi_1 = (self.phi[0, 0] + self.phi[1, 1]) / 2
@@ -3720,30 +4376,23 @@ class PhaseTensor(object):
                       # (self.X[0, 0] + 1j * self.Y[0, 0]))
 
     def __add__(self, y):
-        # Nothing fancy here, since I haven't seen any applications of adding phase tensors
+        """Element-wise tensor sum; derived parameters recomputed from it."""
         new_phi = PhaseTensor(self.period, None)
         new_phi.phi = self.phi + y.phi
         new_phi.calculate_phase_parameters()
-        # new_phi.det_phi = self.det_phi + y.det_phi
-        # new_phi.skew_phi = self.skew_phi + y.skew_phi
-        # new_phi.phi_1 = self.phi_1 + y.phi_1
-        # new_phi.phi_2 = self.phi_2 + y.phi_2
-        # new_phi.phi_3 = self.phi_3 + y.phi_3
-        # new_phi.phi_max = self.phi_max + y.phi_max
-        # new_phi.phi_min = self.phi_min + y.phi_min
-        # new_phi.alpha = self.alpha + y.alpha
-        # new_phi.Lambda = self.Lambda + y.Lambda
-        # new_phi.beta = self.beta + y.beta
-        # new_phi.azimuth = self.azimuth + y.azimuth
         return new_phi
 
     def __sub__(self, y):
+        """Return a difference phase tensor ``self`` minus ``y``.
+
+        The tensor formula is selected by ``self.difference_definition``
+        (``'booker'``, ``'heise'``, ``'hill'``, ``'castro'``, ``'roots_1'``,
+        ``'roots_2'`` -- see the inline notes for each).  The result also
+        carries ``diff_*`` attributes holding the per-parameter differences
+        (``diff_phi_1``, ``diff_beta``, ``diff_azimuth``, ``delta``, ...),
+        computed as ``response - data``.
+        """
         new_phi = PhaseTensor(self.period, None)
-        # Need to consider somehow that if one of the data points is flagged (doesn't exist), the subtraction should reduce to whatever the 'no difference' option is
-        # new_phi.phi = np.abs((self.phi - y.phi)) / np.linalg.norm(self.phi)
-        # inv_phi = np.linalg.inv(y.phi)
-        # new_phi.phi = np.identity(2) - 0.5 * (np.matmul(inv_phi, self.phi) + np.matmul(self.phi, inv_phi))
-        ####################################
         if self.difference_definition.lower() == 'booker':
             # Definition proposed by Booker, 2014 - simply one minus the other
             new_phi.phi = self.phi - y.phi
@@ -3796,9 +4445,18 @@ class PhaseTensor(object):
         return new_phi
 
 class CART(PhaseTensor):
+    """Complex apparent-resistivity tensor ("CART"), a phase-tensor variant.
+
+    Subclass of :class:`PhaseTensor` that builds its tensor from a complex
+    apparent-resistivity formulation (:meth:`calculate_CART`, via the response
+    tensors ``Ua``/``Va`` derived from the real and imaginary parts of Z)
+    rather than directly from ``phi = X**-1 . Y``.  Overrides the rotation and
+    phase-parameter calculations and the ``__add__``/``__sub__`` operators
+    accordingly.
+    """
     def __init__(self, period, Z=None, rho=None, phase=None, phi=None, phi_error=None):
         # Are alpha, beta, azimuth considered clockwise from 'y', or counter-clockwise from 'x'
-        self._rotation_axis = 'x' 
+        self._rotation_axis = 'x'
         self.X, self.Y, self.phi = np.zeros((2, 2)), np.zeros((2, 2)), np.zeros((2, 2))
         self.error_floor = np.tan(np.deg2rad(3))
         self.period = period
@@ -3866,14 +4524,13 @@ class CART(PhaseTensor):
             print('Rotation axis must be x or y')
 
     def calculate_rotation_parameters(self, tensor):
-    #         psi_new = atan2d(PTskew,PTtrace);   % eq(19)
-    # if psi_new < -90
-    #     psi_new = psi_new+180;
-    # elseif psi_new> 90
-    #     psi_new = psi_new-180;
-    # end
-    # alpha = theta+0.5*psi_new;
-    # beta=psi_new/2;
+        """Return ``(alpha, beta)`` for an arbitrary 2x2 ``tensor``.
+
+        Unlike :meth:`PhaseTensor.calculate_rotation_parameters` this takes the
+        tensor explicitly (CART rotates ``phi``, ``Ua`` and ``Va`` together)
+        and derives the angle from the eigen-decomposition of the
+        skew-removed tensor.
+        """
         if self.rotation_axis.lower() == 'x':
             x, y = 0, 1
             # alpha = 0.5 * np.arctan2((tensor[0, 1] + tensor[1, 0]), (tensor[0, 0] - tensor[1, 1]))
@@ -3912,6 +4569,13 @@ class CART(PhaseTensor):
         return alpha, beta
 
     def calculate_CART(self):
+        """Build the response tensors ``Ua``/``Va`` and ``phi`` from ``X``/``Y``.
+
+        Implements the complex apparent-resistivity ("CART") formulation:
+        ``Ua``/``Va`` are quadratic combinations of the real (``X``) and
+        imaginary (``Y``) impedance parts scaled by ``-1 / (mu * omega)``, and
+        ``phi = Ua**-1 . Va``.
+        """
         omega = 2 * np.pi / self.period
         MU = 4 * np.pi * 1e-7
         U = deepcopy(self.X)
@@ -3930,17 +4594,8 @@ class CART(PhaseTensor):
         RT_I[0, 1] = -C * (U[0,0] * (U[0,1] - U[1,0]) + V[0,0] * (V[1,0] - V[0,1]))
         RT_I[1, 0] = -C * (U[1,1] * (U[1,0] - U[0,1]) + V[1,1] * (V[0,1] - V[1,0]))
         RT_I[1, 1] = -C * (U[0,0] * U[1,1] - V[0,0] * V[1,1] - U[1,0]**2 + V[1,0]**2)
-        # RT[1, 1] = C * (U[0,0] * V[1,1] + U[1,1] * V[0,0] - 2 * U[0,1] * V[0,1])
-        # RT[1, 0] = C * (U[0,0] * (V[0,1] - V[1,0]) + V[0,0] * (U[0,1] - U[1,0]))
-        # RT[0, 1] = C * (U[1,1] * (V[1,0] - V[0,1]) + V[1,1] * (U[1,0] - U[0,1]))
-        # RT[0, 0] = C * (U[0,0] * V[1,1] + U[1,1] * V[0,0] - 2 * U[1,0] * V[1,0])
-        # RT_I[1, 1] = -C * (U[0,0] * U[1,1] - V[0,0] * V[1,1] - U[0,1]**2 + V[0,1]**2)
-        # RT_I[1, 0] = -C * (U[0,0] * (U[0,1] - U[1,0]) + V[0,0] * (V[1,0] - V[0,1]))
-        # RT_I[0, 1] = -C * (U[1,1] * (U[1,0] - U[0,1]) + V[1,1] * (V[0,1] - V[1,0]))
-        # RT_I[0, 0] = -C * (U[0,0] * U[1,1] - V[0,0] * V[1,1] - U[1,0]**2 + V[1,0]**2)
         self.Ua = RT
         self.Va = RT_I
-        # self.phi = np.linalg.inv(RT) * RT_I
         self.phi[0, 0] = RT[1, 1] * RT_I[0, 0] - RT[0, 1] * RT_I[1, 0]
         self.phi[0, 1] = RT[1, 1] * RT_I[0, 1] - RT[0, 1] * RT_I[1, 1]
         self.phi[1, 0] = -RT[1, 0] * RT_I[0, 0] + RT[0, 0] * RT_I[1, 0]
@@ -3948,7 +4603,12 @@ class CART(PhaseTensor):
         self.phi /= RT[0, 0] * RT[1, 1] - RT[0, 1] * RT[1, 0]
 
     def calculate_phase_parameters(self):
-        # det_phi = (np.linalg.det(self.phi))
+        """Derive the scalar parameters for each of ``phi``, ``Ua`` and ``Va``.
+
+        Same quantities as :meth:`PhaseTensor.calculate_phase_parameters` but
+        computed for all three CART tensors and stored with ``phi_*`` /
+        ``Ua_*`` / ``Va_*`` prefixes.
+        """
         x, y = 0, 1
         for param in ('phi', 'Ua', 'Va'):
             tensor = getattr(self, param)
@@ -4028,12 +4688,19 @@ class CART(PhaseTensor):
                 setattr(self, '_'.join([param, 'delta']), delta)
 
     def __add__(self, y):
+        """Element-wise sum of the ``phi`` tensors; parameters recomputed."""
         new_phi = CART(self.period, None)
         new_phi.phi = self.phi + y.phi
         new_phi.calculate_phase_parameters()
         return new_phi
 
     def __sub__(self, y):
+        """Return a difference CART for ``self`` vs ``y``.
+
+        ``phi``, ``Ua`` and ``Va`` are each reduced to the normalised absolute
+        difference of the two, and ``delta`` / ``Ua_delta`` / ``Va_delta`` hold
+        the percentage change in Frobenius norm.
+        """
         new_phi = CART(self.period, None)
         inv_phi = np.linalg.inv(self.phi)
         new_phi.phi = np.identity(2) - 0.5 * (np.matmul(inv_phi, y.phi) + np.matmul(y.phi, inv_phi))
