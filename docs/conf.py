@@ -21,8 +21,11 @@ project = 'pyMT'
 copyright = '2019, Eric Roots'
 author = 'Eric Roots'
 
-# The full version, including alpha/beta/rc tags
-release = '0.0.1'
+# The full version, including alpha/beta/rc tags, read from pyMT/__init__.py
+import os
+import re
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'pyMT', '__init__.py')) as _f:
+    release = re.search(r"__version__ = '([^']+)'", _f.read()).group(1)
 
 
 # -- General configuration ---------------------------------------------------

@@ -1,5 +1,59 @@
 [build-system]
-requires = [
-    "setuptools"
-]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyMT"
+dynamic = ["version"]
+description = "GUIs and tools for visualising, analysing and preparing magnetotelluric (MT) data for inversion"
+readme = "readme.rst"
+requires-python = ">=3.10"
+authors = [{name = "Eric Roots", email = "eroots087@gmail.com"}]
+keywords = ["magnetotellurics", "geophysics", "inversion", "ModEM", "GoFEM"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+# Lower bounds are the oldest versions tested (Python 3.10); see the README.
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "pyproj>=3.6",
+    "pyshp>=2.3",
+    "PyQt5>=5.15",
+    "vtk>=9.3",
+    "pyvista>=0.43",
+    "pyvistaqt>=0.11",
+    "colorcet>=3.0",
+    "cma>=3.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/eroots/pyMT"
+
+[project.scripts]
+# GUIs
+gateway_mt = "pyMT.GatewayGUI.gateway_main:main"
+data_plot = "pyMT.DataGUI.data_plot:main"
+mesh_designer = "pyMT.ModelGUI.mesh_designer:main"
+model_viewer = "pyMT.ModelGUI.model_viewer:main"
+# Command-line tools
+f2l = "pyMT.scripts.f2l:main"
+plot_edi = "pyMT.scripts.plot_edi:main"
+plot_dataset = "pyMT.scripts.plot_dataset:main"
+autogen_report = "pyMT.scripts.autogen_report:main"
+to_vtk = "pyMT.scripts.to_vtk:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "pyMT.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["pyMT*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.ui"]
+"pyMT.resources" = ["*.jpg"]
