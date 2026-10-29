@@ -1,0 +1,13 @@
+# Oldest dependency versions gateway_mt is tested with (CI job "minimum").
+# Keep in step with the lower bounds in pyproject.toml.
+numpy==1.26.4
+scipy==1.11.4
+matplotlib==3.8.4
+pyproj==3.6.1
+pyshp==2.3.1
+PyQt5==5.15.10
+vtk==9.3.0
+pyvista==0.43.10
+pyvistaqt==0.11.1
+colorcet==3.1.0
+cma==3.3.0

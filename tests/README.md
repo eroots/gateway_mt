@@ -10,6 +10,15 @@ pytest
 The GUI tests use Qt's offscreen platform, so no display is needed. A full
 run takes about half a minute.
 
+GitHub Actions (`.github/workflows/tests.yml`) runs the suite on Windows and
+Ubuntu, with Python 3.10 and the oldest supported dependency versions
+(pinned in `requirements-min.txt`) and with the newest Python and
+dependencies. To reproduce the minimum-versions job locally:
+
+```
+pip install -c tests/requirements-min.txt -e .[test]
+```
+
 | File | What it checks |
 |---|---|
 | `test_physics.py` | Apparent resistivity, phase and phase tensors against known results (a uniform half-space, an independent 1-D recursion); rotation and its invariants; coordinate conversions against pyproj. |

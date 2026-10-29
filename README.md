@@ -1,5 +1,7 @@
 # gateway_mt
 
+[![tests](https://github.com/eroots/gateway_mt/actions/workflows/tests.yml/badge.svg)](https://github.com/eroots/gateway_mt/actions/workflows/tests.yml)
+
 GUIs and command-line tools for visualization, analysis, and preparation of
 magnetotelluric (MT) data for inversion. Reads and writes the data and model
 formats of ModEM, GoFEM, WSINV3DMT, MARE2DEM, MT3DANI and EM3DANI, plus EDI
