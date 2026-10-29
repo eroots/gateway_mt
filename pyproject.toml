@@ -52,7 +52,7 @@ to_vtk = "gateway_mt.scripts.to_vtk:main"
 version = {attr = "gateway_mt.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["gateway_mt*", "pyMT"]   # pyMT: compatibility alias for the old name
+include = ["gateway_mt*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.ui"]
