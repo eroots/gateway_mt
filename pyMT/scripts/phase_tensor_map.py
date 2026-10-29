@@ -198,7 +198,7 @@ if __name__ == '__main__':
     MV.site_locations['all'] = data.locations
     first_time = 0
     # for ii in range(len(data.periods)):
-    for ii in range(0, data.NP, 2):
+    # for ii in range(0, data.NP, 2):
     # for ii in range(0, len(data.periods), freq_skip + 1):
     # for ii in range(data.NP):
     for ii in range(0, data.NP, freq_skip + 1):
