@@ -13,7 +13,7 @@ in the same layout as ``plot_dataset``. Each site shows apparent resistivity
 and phase (default) or the impedance tensor (``--plot impedance``), with the
 tipper underneath when present; with a list file the raw data is added as
 faint points.
-Works with any data format pyMT reads (ModEM, WSINV3DMT, GoFEM, ...); the
+Works with any data format gateway_mt reads (ModEM, WSINV3DMT, GoFEM, ...); the
 format is taken from the file. Installed as the ``autogen_report`` script.
 """
 import argparse
@@ -23,8 +23,8 @@ import sys
 
 import numpy as np
 
-import pyMT.data_structures as WSDS
-from pyMT.scripts import plot_dataset
+import gateway_mt.data_structures as WSDS
+from gateway_mt.scripts import plot_dataset
 
 
 def describe_components(components):
@@ -82,7 +82,7 @@ def write_summary(dataset, outfile, files):
 
 
 def generate_misfit_plots(dataset, outfile, plot_type='rho-phase', include_raw=False):
-    """Write data vs. response for every site to ``outfile`` (see :mod:`pyMT.scripts.plot_dataset`).
+    """Write data vs. response for every site to ``outfile`` (see :mod:`gateway_mt.scripts.plot_dataset`).
 
     Returns the number of pages written.
     """
@@ -96,7 +96,7 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         prog='autogen_report',
         description='Write a misfit report (text summary + a PDF of misfit curves) for an inversion. '
-                    'Any data format pyMT reads is accepted; the format is taken from the file.')
+                    'Any data format gateway_mt reads is accepted; the format is taken from the file.')
     parser.add_argument('-d', '--data', required=True, help='inversion data file')
     parser.add_argument('-r', '--response', required=True, help='inversion response (predicted data) file')
     parser.add_argument('-l', '--list', help='site list; adds the raw data to the plots and names the sites '

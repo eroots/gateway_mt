@@ -1,8 +1,8 @@
-"""Save a PNG swatch of every ``pyMT.e_colours`` colour map.
+"""Save a PNG swatch of every ``gateway_mt.e_colours`` colour map.
 
 Edit ``save_path`` below and run.
 """
-import pyMT.e_colours.colourmaps as cm
+import gateway_mt.e_colours.colourmaps as cm
 import matplotlib.pyplot as plt
 import numpy as np
 

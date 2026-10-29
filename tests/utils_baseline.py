@@ -1,7 +1,7 @@
-"""Before/after verification baseline for ``pyMT.utils``.
+"""Before/after verification baseline for ``gateway_mt.utils``.
 
 This script is part of the ``cleanup/utils`` refactor workflow.  It exercises the
-public functions of :mod:`pyMT.utils` against real sample data (EDI files, a
+public functions of :mod:`gateway_mt.utils` against real sample data (EDI files, a
 ModEM data file, and -- if it loads -- a GoFEM data file) plus a set of frozen
 synthetic inputs, and stores every result.
 
@@ -37,8 +37,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import pyMT.utils as utils
-from pyMT.data_structures import RawData, Data
+import gateway_mt.utils as utils
+from gateway_mt.data_structures import RawData, Data
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -290,7 +290,7 @@ def exercise_regrid(results):
     if not os.path.exists(model_file):
         results['regrid_model'] = 'SKIPPED: no model file'
         return
-    from pyMT.data_structures import Model
+    from gateway_mt.data_structures import Model
     mod = Model(modelfile=model_file)
     new_x = utils.edge2center(np.asarray(mod.dx))[::2]
     new_y = utils.edge2center(np.asarray(mod.dy))[::2]

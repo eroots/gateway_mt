@@ -2,7 +2,7 @@
 
 Personal script -- edit the paths at the top and run.
 """
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 import numpy as np
 
 local_path = 'G:/Other computers/My Computer/sync/Regions/'

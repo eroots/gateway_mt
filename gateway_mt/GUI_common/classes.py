@@ -3,8 +3,8 @@ from matplotlib.lines import Line2D
 from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
 from PyQt5.QtCore import QThread, pyqtSignal, QObject, pyqtSlot, Qt
-import pyMT.utils as utils
-from pyMT.data_structures import RawData, Model, Data
+import gateway_mt.utils as utils
+from gateway_mt.data_structures import RawData, Model, Data
 import re
 import os
 import time

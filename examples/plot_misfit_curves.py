@@ -2,9 +2,9 @@
 
 ``generate_misfit_plots(dataset, save_path, ...)`` is reusable; a good candidate to promote to a CLI or fold into ``data_plot``.
 """
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 import matplotlib.pyplot as plt
-import pyMT.gplot as gplot
+import gateway_mt.gplot as gplot
 
 
 def generate_misfit_plots(dataset, save_path, site_names=None, figure_size=(8, 6), file_format='.png'):

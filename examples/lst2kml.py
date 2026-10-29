@@ -3,13 +3,13 @@
 Personal script -- edit ``transects`` / paths and run.  Needs ``simplekml`` and ``pyshp``.
 """
 import simplekml
-import pyMT.data_structures as WSDS
+import gateway_mt.data_structures as WSDS
 import pandas as pd
 import numpy as np
-import pyMT.utils as utils
+import gateway_mt.utils as utils
 from pyproj import Proj
 import shapefile
-from pyMT.WSExceptions import WSFileError
+from gateway_mt.WSExceptions import WSFileError
 
 # If you have multiple lists / lines that you want to keep seperate, add them all here. Otherwise, just rename the transect (but keep it in brackets as is)
 # transects = ['litho_bb', 'litho_lmt', 'metal_earth', 'usarray']

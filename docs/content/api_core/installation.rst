@@ -16,7 +16,7 @@ Dependencies
 * pyvtk
 * naturalneighbor
 
-Installing pyMT
+Installing gateway_mt
 ---------------
 
 Clone the repository::
@@ -28,7 +28,7 @@ Install the more complicated prerequisites::
 	conda install numpy
 	conda install vtk
 
-Install by navigating to the cloned pyMT directory and entering::
+Install by navigating to the cloned gateway_mt directory and entering::
 
 	python setup.py install
 
@@ -48,7 +48,7 @@ These include:
 * colorcet
 * vtk
 
-The tested method of installation involves installing each of these with Anaconda prior to installing pyMT. As of the last time I tested this (December 2020), the only ones that needed to be manually installed were vtk and numpy.
+The tested method of installation involves installing each of these with Anaconda prior to installing gateway_mt. As of the last time I tested this (December 2020), the only ones that needed to be manually installed were vtk and numpy.
 
 Note, a previously required package 'naturalneighbor' has been removed from the dependency list. :ref:`Data Plot` will now instead offer other interpolation schemes based on scipy. If naturalneighbor is installed (it can be installed through pip, or using the wheel at https://www.lfd.uci.edu/~gohlke/pythonlibs/#naturalneighbor), the natural neighbor scheme will still be available.
 

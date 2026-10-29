@@ -2,7 +2,7 @@
 """Interactive 2-D mesh designer for ModEM / MT3DANI models.
 
 ``mesh_designer`` builds and edits the horizontal and vertical grid of a
-:class:`pyMT.data_structures.Model`.  The plan view shows
+:class:`gateway_mt.data_structures.Model`.  The plan view shows
 :math:`\\log_{10}\\rho` for one depth layer with the station locations
 overlaid; left-click inserts a north-south (Y) mesh line at the cursor,
 right-click an east-west (X) line, and Ctrl+click deletes the nearest.
@@ -18,32 +18,32 @@ ModEM/MT3DANI-only and largely superseded by GoFEM's own meshing.
 Launching
 ---------
 Installed as the ``mesh_designer`` console script (:func:`main`).  Takes
-positional file paths in any order; :func:`pyMT.utils.sort_files`
+positional file paths in any order; :func:`gateway_mt.utils.sort_files`
 classifies them into ``{'model', 'data'}``.  At least one of the two
 must be given -- with only data, a uniform starting model is generated
 from it.
 
-Relation to the rest of pyMT
+Relation to the rest of gateway_mt
 ----------------------------
 Grid edits and file writes go through
-:class:`pyMT.data_structures.Model`; station info and 1-D modelling use
-:class:`pyMT.data_structures.Dataset` and
-:class:`pyMT.GUI_common.windows.Modeling1D`.
+:class:`gateway_mt.data_structures.Model`; station info and 1-D modelling use
+:class:`gateway_mt.data_structures.Dataset` and
+:class:`gateway_mt.GUI_common.windows.Modeling1D`.
 """
 from matplotlib.widgets import Cursor
 import matplotlib.pyplot as plt
-import pyMT.utils as utils
-import pyMT.data_structures as DS
+import gateway_mt.utils as utils
+import gateway_mt.data_structures as DS
 import numpy as np
 import copy
 from PyQt5.uic import loadUiType
 from PyQt5 import QtCore, QtWidgets, QtGui
-from pyMT.GUI_common.common_functions import check_key_presses
-from pyMT.GUI_common.classes import FileDialog
-from pyMT.GUI_common.windows import Modeling1D
+from gateway_mt.GUI_common.common_functions import check_key_presses
+from gateway_mt.GUI_common.classes import FileDialog
+from gateway_mt.GUI_common.windows import Modeling1D
 from scipy.ndimage import gaussian_filter
-from pyMT.e_colours import colourmaps as cm
-from pyMT.IO import debug_print
+from gateway_mt.e_colours import colourmaps as cm
+from gateway_mt.IO import debug_print
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
@@ -54,7 +54,7 @@ try:
     import importlib.resources as pkg_resources
 except ImportError:
     import importlib_resources as pkg_resources
-from pyMT import resources
+from gateway_mt import resources
 
 
 path = os.path.dirname(os.path.realpath(__file__))
@@ -76,7 +76,7 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
     """The mesh-designer window (``mesh_designer.ui``).
 
     Despite the name this is an *editor*, not a viewer: it owns a
-    :class:`pyMT.data_structures.Model` (``self.model``, with
+    :class:`gateway_mt.data_structures.Model` (``self.model``, with
     ``self.revert_model`` as the last saved state) and mutates its
     ``dx`` / ``dy`` / ``dz`` grids and ``vals`` in response to plan-view
     clicks and the side-panel controls, redrawing through
@@ -84,10 +84,10 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
 
     Parameters
     ----------
-    model : pyMT.data_structures.Model or str or None
+    model : gateway_mt.data_structures.Model or str or None
         A model, a path to one, or falsy -- in which case a uniform model
         is generated from ``dataset.data``.
-    dataset : pyMT.data_structures.Dataset or str, optional
+    dataset : gateway_mt.data_structures.Dataset or str, optional
         A dataset (or path) for the station locations and 1-D modelling;
         without it the mesh-from-stations button is disabled.
     path : str, optional
@@ -241,7 +241,7 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
     @property
     def cmap(self):
         """matplotlib.colors.Colormap: ``colourmap`` resolved through
-        :mod:`pyMT.e_colours.colourmaps`."""
+        :mod:`gateway_mt.e_colours.colourmaps`."""
         return cm.get_cmap(self.colourmap)
 
     @property
@@ -949,7 +949,7 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
 
 def main():
     """Console entry point: classify the positional file args with
-    :func:`pyMT.utils.sort_files` (a model and/or data file), build a
+    :func:`gateway_mt.utils.sort_files` (a model and/or data file), build a
     starting model from the data if none was given, and show the
     :class:`model_viewer_2d` window."""
     files = sys.argv[1:]

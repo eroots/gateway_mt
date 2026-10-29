@@ -1,6 +1,6 @@
 """Read a MARE2DEM CSR penalty-matrix file into a scipy sparse matrix.
 
-Does not use ``pyMT``.  Edit ``csr_file`` below to point at your
+Does not use ``gateway_mt``.  Edit ``csr_file`` below to point at your
 ``*.penalty`` file and run.
 """
 from scipy.sparse import csr_matrix as csr

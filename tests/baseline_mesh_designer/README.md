@@ -1,6 +1,6 @@
 # mesh_designer refactor verification baseline
 
-Snapshot of `pyMT.ModelGUI.mesh_designer` behaviour, captured on the
+Snapshot of `gateway_mt.ModelGUI.mesh_designer` behaviour, captured on the
 `cleanup/mesh_designer` branch **before** refactoring.
 
 Unlike `model_viewer`, `mesh_designer` is a pure-matplotlib PyQt GUI and

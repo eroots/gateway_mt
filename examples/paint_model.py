@@ -2,8 +2,8 @@
 
 Personal script -- edit the region blocks at the top and run.
 """
-import pyMT.data_structures as DS
-import pyMT.utils as utils
+import gateway_mt.data_structures as DS
+import gateway_mt.utils as utils
 import numpy as np
 from copy import deepcopy
 from scipy.ndimage import gaussian_filter

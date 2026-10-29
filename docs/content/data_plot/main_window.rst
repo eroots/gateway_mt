@@ -246,7 +246,7 @@ Both tables have an additional column for the 'total misfit' across each row. Fo
 
 The right hand table also contains an additional row at the top that gives the total misfit across all periods and sites for each column. As such, the top left entry of the right table gives the total misfit of the inversion. 
 
-Note, the RMS misfits in this table may differ slightly from what logged by ModEM as pyMT always applies an error floor to any data read in. As ModEM does not explicitly use (or store) an applied error floor, the hard-coded error floors of pyMT may differ from those used in the inversion. As a result, if you used a lower error floor than those coded into pyMT, the misfits shown in this table will be lower.
+Note, the RMS misfits in this table may differ slightly from what logged by ModEM as gateway_mt always applies an error floor to any data read in. As ModEM does not explicitly use (or store) an applied error floor, the hard-coded error floors of gateway_mt may differ from those used in the inversion. As a result, if you used a lower error floor than those coded into gateway_mt, the misfits shown in this table will be lower.
 
 .. _Error Multipliers:
 

@@ -20,10 +20,10 @@ import sys
 
 import pyproj
 
-import pyMT.data_structures as WSDS
-from pyMT.IO import verify_input
-from pyMT.WSExceptions import WSFileError
-from pyMT.utils import project
+import gateway_mt.data_structures as WSDS
+from gateway_mt.IO import verify_input
+from gateway_mt.WSExceptions import WSFileError
+from gateway_mt.utils import project
 
 
 def transform_locations(dataset, UTM):

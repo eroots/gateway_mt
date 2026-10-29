@@ -1,6 +1,6 @@
 # IO refactor verification baseline
 
-Snapshot of `pyMT.IO` reader/writer behaviour, captured on the `cleanup/IO`
+Snapshot of `gateway_mt.IO` reader/writer behaviour, captured on the `cleanup/IO`
 branch **before** refactoring.
 
 ## Files

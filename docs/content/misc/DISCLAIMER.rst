@@ -36,7 +36,7 @@ Data Plot GUI
 
 * Blank items in the :ref:`Data Component Table` are selectable. However, this results in the first available component being plotted instead, and so should not break the GUI.
 
-* The RMS misfits as shown in the :ref:`Misfit Table` may differ slightly from what logged by ModEM as pyMT always applies an error floor to any data read in. ModEM does not explicitly use (or store) an applied error floor, and so the hard-coded error floors of pyMT (see :ref:`Error Floors`) may differ from those used in the inversion. As a result, if you used a lower error floor than those coded into pyMT, the misfits shown in this table will be lower.
+* The RMS misfits as shown in the :ref:`Misfit Table` may differ slightly from what logged by ModEM as gateway_mt always applies an error floor to any data read in. ModEM does not explicitly use (or store) an applied error floor, and so the hard-coded error floors of gateway_mt (see :ref:`Error Floors`) may differ from those used in the inversion. As a result, if you used a lower error floor than those coded into gateway_mt, the misfits shown in this table will be lower.
 
 Model Viewer GUI
 ----------------

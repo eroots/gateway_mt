@@ -1,6 +1,6 @@
 """1-D layered-earth MT forward response.
 
-Functions only (``calculate_response``); no ``pyMT`` dependency, no CLI.
+Functions only (``calculate_response``); no ``gateway_mt`` dependency, no CLI.
 """
 import numpy as np
 import matplotlib.pyplot as plt

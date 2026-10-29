@@ -2,8 +2,8 @@
 
 Not a real test -- not run by any test runner.
 """
-import pyMT.data_structures as DS
-import pyMT.utils as utils
+import gateway_mt.data_structures as DS
+import gateway_mt.utils as utils
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy

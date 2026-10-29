@@ -6,20 +6,20 @@ components / periods / error maps, and writes a ModEM-format data file
 (with ``-i``, in the :mod:`mesh_designer` window).
 
 Superseded by the Data Plot (data) and Mesh Designer (mesh) GUIs; kept
-as an example of driving pyMT from a script.
+as an example of driving gateway_mt from a script.
 
 Usage::
 
     python j2ws3d.py [-data | -mesh] [-i] [-dbg] [-h]
 """
-import pyMT.data_structures as WSDS
-import pyMT.IO as WSIO
-import pyMT.utils as utils
+import gateway_mt.data_structures as WSDS
+import gateway_mt.IO as WSIO
+import gateway_mt.utils as utils
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
-from pyMT.WSExceptions import WSFileError
-from pyMT.ModelGUI import mesh_designer
+from gateway_mt.WSExceptions import WSFileError
+from gateway_mt.ModelGUI import mesh_designer
 
 
 def greetings():

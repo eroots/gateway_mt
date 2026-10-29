@@ -8,10 +8,10 @@ Usage::
     plot_edi SITE.edi --save            # save instead of showing
 
 Installed as the ``plot_edi`` console script.  Self-contained -- does not
-use :mod:`pyMT.gplot`.
+use :mod:`gateway_mt.gplot`.
 """
-import pyMT.utils as utils
-import pyMT.data_structures as DS
+import gateway_mt.utils as utils
+import gateway_mt.data_structures as DS
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import numpy as np

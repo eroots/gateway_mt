@@ -1,7 +1,7 @@
-"""Before/after verification baseline for ``pyMT.IO``.
+"""Before/after verification baseline for ``gateway_mt.IO``.
 
 Part of the ``cleanup/IO`` refactor workflow.  Exercises the reader and
-writer functions of :mod:`pyMT.IO` against the sample datasets (and a few
+writer functions of :mod:`gateway_mt.IO` against the sample datasets (and a few
 generated fixtures), and stores every result for ``numpy.allclose`` /
 text comparison after refactoring.
 
@@ -29,8 +29,8 @@ from collections import OrderedDict
 
 import numpy as np
 
-import pyMT.IO as IO
-from pyMT.data_structures import Data, Model
+import gateway_mt.IO as IO
+from gateway_mt.data_structures import Data, Model
 
 warnings.filterwarnings('ignore')
 
@@ -299,7 +299,7 @@ def exercise_vtk_and_csv(results):
         results.pop('write_locations/_call', None)
 
     # write_edi for one site (from raw data, which carries Lat/Long)
-    from pyMT.data_structures import RawData
+    from gateway_mt.data_structures import RawData
     rd = RawData(listfile=EDI_LIST)
     sname = next((s for s in SAMPLE_SITES if s in rd.sites), rd.site_names[0])
     edi = os.path.join(SCRATCH, sname + '_out.edi')

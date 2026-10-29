@@ -2,16 +2,16 @@
 
 Self-contained (does not use ``gplot``); the installed ``plot_dataset`` command grew out of this.  Edit ``plot_options`` / paths and run.
 """
-import pyMT.utils as utils
+import gateway_mt.utils as utils
 from matplotlib.backends.backend_pdf import PdfPages
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import numpy as np
 import sys
 import os
 from copy import deepcopy
-# from pyMT import gplot
+# from gateway_mt import gplot
 
 
 plot_options = {'marker_dict': {'data': {'Rxy':  'o',

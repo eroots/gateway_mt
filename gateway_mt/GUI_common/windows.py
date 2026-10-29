@@ -5,9 +5,9 @@ from matplotlib.backends.backend_qt5agg import (
 import numpy as np
 from PyQt5.uic import loadUiType
 from PyQt5 import QtWidgets, QtCore
-import pyMT.utils as utils
-from pyMT.GUI_common.classes import TwoInputDialog
-from pyMT.modelling_1D import invert_1DMT
+import gateway_mt.utils as utils
+from gateway_mt.GUI_common.classes import TwoInputDialog
+from gateway_mt.modelling_1D import invert_1DMT
 import os
 from copy import deepcopy
 

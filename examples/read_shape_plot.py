@@ -1,13 +1,13 @@
 """Overlay a shapefile on MT station locations with cartopy.
 
 Personal figure script -- edit ``shp_file_base`` and ``list_file`` below
-and run.  Needs ``cartopy`` and ``pyshp`` (not in pyMT's requirements).
+and run.  Needs ``cartopy`` and ``pyshp`` (not in gateway_mt's requirements).
 """
 import shapefile
 import numpy as np
 import matplotlib.pyplot as plt
-import pyMT.data_structures as WSDS
-import pyMT.utils as utils
+import gateway_mt.data_structures as WSDS
+import gateway_mt.utils as utils
 import cartopy.crs as ccrs
 from cartopy.io import shapereader
 from cartopy.feature import ShapelyFeature

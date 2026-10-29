@@ -2,12 +2,12 @@
 
 Edit the paths / prompts and run.
 """
-import pyMT.data_structures as DS
-from pyMT.IO import verify_input
+import gateway_mt.data_structures as DS
+from gateway_mt.IO import verify_input
 import os
-from pyMT.WSExceptions import WSFileError
-from pyMT.GUI_common.classes import FileInputParser
-from pyMT.utils import project, edge2center
+from gateway_mt.WSExceptions import WSFileError
+from gateway_mt.GUI_common.classes import FileInputParser
+from gateway_mt.utils import project, edge2center
 import pyproj
 import numpy as np
 

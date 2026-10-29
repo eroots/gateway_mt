@@ -3,7 +3,7 @@
 Personal figure script -- the list files, shapefile path and UTM zone
 are hard-coded below.  Needs ``pyshp``.
 """
-import pyMT.data_structures as WSDS
+import gateway_mt.data_structures as WSDS
 import matplotlib.pyplot as plt
 import shapefile
 from pyproj import Proj

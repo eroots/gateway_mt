@@ -3,11 +3,11 @@
 Personal figure script -- edit the paths at the top and run.
 Overlaps ``gplot.MapView.tensor_ellipse_pseudosection``.
 """
-import pyMT.data_structures as WSDS
+import gateway_mt.data_structures as WSDS
 import matplotlib.pyplot as plt
 import numpy as np
-from pyMT.e_colours import colourmaps as cm
-import pyMT.utils as utils
+from gateway_mt.e_colours import colourmaps as cm
+import gateway_mt.utils as utils
 from mpl_toolkits.axes_grid1 import Divider, Size
 from mpl_toolkits.axes_grid1.mpl_axes import Axes
 

@@ -1,6 +1,6 @@
 # utils refactor verification baseline
 
-Snapshot of `pyMT.utils` public behaviour, captured on the `cleanup/utils`
+Snapshot of `gateway_mt.utils` public behaviour, captured on the `cleanup/utils`
 branch **before** any refactoring, for before/after comparison.
 
 ## Files

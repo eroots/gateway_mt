@@ -1,6 +1,6 @@
 # model_viewer refactor verification baseline
 
-Snapshot of `pyMT.ModelGUI.model_viewer` behaviour, captured on the
+Snapshot of `gateway_mt.ModelGUI.model_viewer` behaviour, captured on the
 `cleanup/model_gui` branch **before** refactoring.
 
 ## Why only `model_to_rectgrid`

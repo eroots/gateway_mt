@@ -1,6 +1,6 @@
 # gateway_gui refactor verification baseline
 
-Snapshot of `pyMT.GatewayGUI.gateway_main` behaviour, captured on the
+Snapshot of `gateway_mt.GatewayGUI.gateway_main` behaviour, captured on the
 `cleanup/gateway_gui` branch **before** refactoring.
 
 `gateway_main` is a thin PyQt launcher (a dataset table, save / load of a
@@ -25,7 +25,7 @@ real `NewProject` with the open-project dialog stubbed and freezes:
 ## Notes captured by the baseline (pre-existing, not changed here)
 
 * `sort_files` classifies `.dat` data-vs-response by looking for
-  `"response"` in the first line; pyMT-written ModEM response files do
+  `"response"` in the first line; gateway_mt-written ModEM response files do
   not contain that word, so `synthetic_modem_resp.dat` is filed
   as `data`.
 * `write_project` writes `resolution <path>` lines, but

@@ -10,8 +10,8 @@ import scipy.interpolate
 import matplotlib.pyplot as plt
 # from mpl_toolkits.basemap import Basemap
 import cmocean
-import pyMT.data_structures as DS
-import pyMT.utils as utils
+import gateway_mt.data_structures as DS
+import gateway_mt.utils as utils
 import pickle
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
@@ -20,14 +20,14 @@ from rasterio.warp import calculate_default_transform, reproject, Resampling
 #####################################
 ########## INSTRUCTIONS #############
 # Run script through command line (python bath2model.py) or in ipython (run bath2model) 
-# Also note that this script may have dependencies not required by the rest of pyMT (e.g., urllib, codecs, Basemap).
+# Also note that this script may have dependencies not required by the rest of gateway_mt (e.g., urllib, codecs, Basemap).
 # If you get any 'module not found' errors, use anaconda to install them then try again.
 # I've also run into issues with Basemap. If you get an error 'KeyError: 'PROJ_LIB'', try running 'conda install -c conda-forge proj4'.
 # This script should be the last thing that is run to generate your inversion inputs (I can't guarantee that mesh_designer and data_plot will play nice and preserve the changes made here)
 # Replace file names below with your own file names (Lines 128-135)
 #   - model_file: input model file (the one you want to add topography to). This should be set up as you want it, minus topography.
 #          i.e., it should have the desired resistivities and lateral meshing, as well as the sufficient vertical mesh to support topography at your required resolution.
-#   - list_file: The list file (as used by pyMT) containing the EDI or j-format files to read in.
+#   - list_file: The list file (as used by gateway_mt) containing the EDI or j-format files to read in.
 #   - data_file: The ModEM data file to modify. As with the model file, this should already be set up as you want it for the inversion - this script will only modify the elevations.
 #   - bath_file: The file containing the bathymetry / topography data. If this is the first time running this script, set bath_file = []. The script will generate the bathymetry and save it to bath_out
 #                If your bathymetry is in a Geotiff file, set this to the path. Note that you have to have rasterio installed for this to work.

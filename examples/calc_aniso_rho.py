@@ -4,8 +4,8 @@ Personal script -- edit the model path and indices and run.
 """
 ## Calculate approximate anisotropic resistivities from a slice through an isotropic model
 # Uses equations from Eisel and Haak (1999)
-import pyMT.data_structures as DS
-import pyMT.utils as utils
+import gateway_mt.data_structures as DS
+import gateway_mt.utils as utils
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d

@@ -380,6 +380,6 @@ steps_run                                                                object 
 written/frequencies                                                      text len=234 crc32=3f01fa8f
 written/out_gofem.gdat                                                   text len=5261 crc32=23efee28
 written/out_list.lst                                                     text len=332 crc32=73d89e3a
-written/out_modem.dat                                                    text len=10875 crc32=c2d8a8fd
-written/out_modem_removed.dat                                            text len=10875 crc32=1084b32c
+written/out_modem.dat                                                    text len=10881 crc32=e6431da8
+written/out_modem_removed.dat                                            text len=10881 crc32=2e8323eb
 written/out_wsinv.data                                                   text len=3193 crc32=0a365533

@@ -1,4 +1,4 @@
-"""Before/after verification baseline for ``pyMT.ModelGUI.model_viewer``.
+"""Before/after verification baseline for ``gateway_mt.ModelGUI.model_viewer``.
 
 The GUI itself (``ModelWindow``) needs a live VTK / OpenGL context and
 segfaults when run head-less on this machine, so -- as CLAUDE.md
@@ -28,8 +28,8 @@ from copy import deepcopy
 
 import numpy as np
 
-import pyMT.data_structures as DS
-from pyMT.ModelGUI.model_viewer import model_to_rectgrid
+import gateway_mt.data_structures as DS
+from gateway_mt.ModelGUI.model_viewer import model_to_rectgrid
 
 warnings.filterwarnings('ignore')
 

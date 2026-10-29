@@ -3,9 +3,9 @@
 Personal figure script -- edit the paths at the top and run.
 """
 import numpy as np
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 import matplotlib.pyplot as plt
-import pyMT.utils as utils
+import gateway_mt.utils as utils
 
 
 # listfile = 'E:/phd/NextCloud/data/Regions/MetalEarth/wst/j2/mantle/fullrun/wst_cullmantle.lst'

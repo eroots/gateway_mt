@@ -4,7 +4,7 @@
 PyVista (`pyvistaqt.QtInteractor`) render view with orthogonal slice
 planes, volume clipping, isosurfaces, an optional mesh overlay, and an
 interactively-picked transect, alongside a matplotlib tab that draws the
-plan / X / Y slices (through :class:`pyMT.gplot.MapView`) plus a separate
+plan / X / Y slices (through :class:`gateway_mt.gplot.MapView`) plus a separate
 transect figure.  It can overlay station locations (from a data file)
 and shade the model by a resolution / sensitivity volume.
 
@@ -14,16 +14,16 @@ inspection; kept for the tightly-integrated 2-D slice + transect views.
 Launching
 ---------
 Installed as the ``model_viewer`` console script (:func:`main`).  Takes
-positional file paths in any order; :func:`pyMT.utils.sort_files`
+positional file paths in any order; :func:`gateway_mt.utils.sort_files`
 classifies them by extension into ``{'model', 'data'/'response',
 'list', 'resolution', ...}``.  Only a model file is required.
 
-Relation to the rest of pyMT
+Relation to the rest of gateway_mt
 ----------------------------
-Reads models / data through :mod:`pyMT.data_structures`; reuses
-:class:`pyMT.gplot.MapView` for the 2-D matplotlib panels; colour maps
-from :mod:`pyMT.e_colours.colourmaps`; menus from
-:mod:`pyMT.GUI_common.classes`.
+Reads models / data through :mod:`gateway_mt.data_structures`; reuses
+:class:`gateway_mt.gplot.MapView` for the 2-D matplotlib panels; colour maps
+from :mod:`gateway_mt.e_colours.colourmaps`; menus from
+:mod:`gateway_mt.GUI_common.classes`.
 
 Notes
 -----
@@ -40,14 +40,14 @@ pv.global_theme.allow_empty_mesh = True
 pv.global_theme.font.size = 10
 pv.global_theme.font.family = 'arial'
 from pyvistaqt import QtInteractor
-import pyMT.data_structures as DS
-from pyMT.utils import sort_files, check_file
-import pyMT.e_colours.colourmaps as cm
-from pyMT.GUI_common import classes
-from pyMT import gplot
-from pyMT import resources
+import gateway_mt.data_structures as DS
+from gateway_mt.utils import sort_files, check_file
+import gateway_mt.e_colours.colourmaps as cm
+from gateway_mt.GUI_common import classes
+from gateway_mt import gplot
+from gateway_mt import resources
 from PyQt5.uic import loadUiType
-from pyMT.IO import debug_print
+from gateway_mt.IO import debug_print
 from scipy.interpolate import RegularGridInterpolator as RGI
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
@@ -69,15 +69,15 @@ UI_ModelWindow, QModelWindow = loadUiType(ospath.join(path, 'model_viewer.ui'))
 
 
 def model_to_rectgrid(model, resolution=None, rho_axis='rho_x'):
-    """Convert a :class:`pyMT.data_structures.Model` to a PyVista grid.
+    """Convert a :class:`gateway_mt.data_structures.Model` to a PyVista grid.
 
     Parameters
     ----------
-    model : pyMT.data_structures.Model
+    model : gateway_mt.data_structures.Model
         The model to convert.  Its cell-edge coordinates ``dx`` / ``dy``
         / ``dz`` become the grid axes (``dz`` is negated so depth points
         down).
-    resolution : pyMT.data_structures.Model, optional
+    resolution : gateway_mt.data_structures.Model, optional
         A resolution / sensitivity volume on the same mesh.  When given,
         two extra cell-data arrays are added: ``'RawResolution'``
         (:math:`\\log_{10}` of the raw values) and ``'Resolution'`` (the
@@ -136,7 +136,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
     """Main viewer window (``model_viewer.ui``).
 
     Owns the model / dataset, a :class:`pyvistaqt.QtInteractor` 3-D view
-    (``self.vtk_widget``), and a :class:`pyMT.gplot.MapView` driving the
+    (``self.vtk_widget``), and a :class:`gateway_mt.gplot.MapView` driving the
     2-D matplotlib panels (``self.map``).  The menu actions, sliders and
     text boxes read GUI widgets, update ``self.model`` / ``self.clip_model``
     / ``self.rect_grid`` / colour state, and call one of the redraw
@@ -148,18 +148,18 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
     ----------
     files : dict
         ``{'model': ..., 'data'/'response': ..., 'list': ...,
-        'resolution': ...}`` from :func:`pyMT.utils.sort_files`.  Only
+        'resolution': ...}`` from :func:`gateway_mt.utils.sort_files`.  Only
         ``'model'`` is required.
     parent : QtWidgets.QWidget, optional
 
     Attributes
     ----------
-    dataset : pyMT.data_structures.Dataset
-    model, clip_model : pyMT.data_structures.Model
+    dataset : gateway_mt.data_structures.Dataset
+    model, clip_model : gateway_mt.data_structures.Model
         The full model and the clipped copy actually rendered.
     rect_grid : pyvista.RectilinearGrid
         ``clip_model`` as a PyVista grid (see :func:`model_to_rectgrid`).
-    map : pyMT.gplot.MapView
+    map : gateway_mt.gplot.MapView
         Backs the 2-D plan / X / Y panels.
     x_slice, y_slice, z_slice : int
         Current slice indices (properties; the setter also updates the
@@ -406,7 +406,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
 
     def update_2D_X(self):
         """Redraw the bottom (X / northing) 2-D panel for the current
-        ``x_slice`` via :meth:`pyMT.gplot.MapView.plot_x_slice`.
+        ``x_slice`` via :meth:`gateway_mt.gplot.MapView.plot_x_slice`.
         :meth:`update_2D_Y` is the equivalent for the right-hand panel."""
         self.map.window['axes'][2].clear()
         self.map.plot_x_slice(x_slice=self.x_slice,
@@ -435,7 +435,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
     def update_plan_view(self):
         """Redraw the plan (Z / depth) 2-D panel for the current
         ``z_slice``: the model layer via
-        :meth:`pyMT.gplot.MapView.plot_plan_view`, the X / Y slice
+        :meth:`gateway_mt.gplot.MapView.plot_plan_view`, the X / Y slice
         indicator lines, station markers, the transect line / markers,
         and the depth title.  Full redraw every call."""
         self.map.window['axes'][0].clear()
@@ -1434,7 +1434,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
 
 def main():
     """Console entry point: classify the positional file arguments with
-    :func:`pyMT.utils.sort_files`, require a model file, and show the
+    :func:`gateway_mt.utils.sort_files`, require a model file, and show the
     :class:`ModelWindow`."""
     files = sys.argv[1:]
     for file in files:

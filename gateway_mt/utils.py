@@ -1,8 +1,8 @@
-"""Stateless helper functions shared across :mod:`pyMT`.
+"""Stateless helper functions shared across :mod:`gateway_mt`.
 
 This module is the package's utility layer.  It has no classes and does not
-import any other :mod:`pyMT` module, so everything else -- :mod:`pyMT.data_structures`,
-:mod:`pyMT.IO`, :mod:`pyMT.gplot`, the GUIs and the scripts -- is free to import
+import any other :mod:`gateway_mt` module, so everything else -- :mod:`gateway_mt.data_structures`,
+:mod:`gateway_mt.IO`, :mod:`gateway_mt.gplot`, the GUIs and the scripts -- is free to import
 it.  Roughly, the functions fall into these groups:
 
 ``Container / type coercion``
@@ -27,7 +27,7 @@ it.  Roughly, the functions fall into these groups:
     :func:`generic_projection`, :func:`to_lambert`.
 
 ``MT transfer-function computations`` (operate on a
-:class:`pyMT.data_structures.Site`)
+:class:`gateway_mt.data_structures.Site`)
     :func:`compute_MT_determinant`, :func:`compute_gav`, :func:`compute_aav`,
     :func:`compute_ssq`, :func:`compute_rho`, :func:`compute_phase`,
     :func:`compute_bost1D`, :func:`convert2impedance`, :func:`calculate_misfit`.
@@ -774,7 +774,7 @@ def compute_longorigin(Long=0):
 def geo2utm(Lat, Long, long_origin=999):
     """Convert geographic coordinates to UTM (WGS84), long-hand.
 
-    A self-contained UTM forward transform, kept because :mod:`pyMT.IO` relies
+    A self-contained UTM forward transform, kept because :mod:`gateway_mt.IO` relies
     on its exact numerical behaviour.  For new code prefer :func:`project`.
 
     Parameters
@@ -979,7 +979,7 @@ def to_lambert(x, y):
 # --------------------------------------------------------------------------- #
 # MT transfer-function computations
 #
-# Each of these takes a pyMT.data_structures.Site and reads its ``data`` and
+# Each of these takes a gateway_mt.data_structures.Site and reads its ``data`` and
 # ``used_error`` dictionaries (keys like 'ZXYR', 'ZXYI', ...).
 # --------------------------------------------------------------------------- #
 def compute_gav(site):
@@ -987,7 +987,7 @@ def compute_gav(site):
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Must provide ``ZXY`` and ``ZYX`` data and errors.
 
     Returns
@@ -1019,7 +1019,7 @@ def compute_aav(site):
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Must provide ``ZXY`` and ``ZYX`` data and errors.
 
     Returns
@@ -1051,7 +1051,7 @@ def compute_MT_determinant(site):
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Must provide all four impedance components and their errors.
 
     Returns
@@ -1087,7 +1087,7 @@ def compute_ssq(site):
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Must provide all four impedance components and their errors.
 
     Returns
@@ -1125,14 +1125,14 @@ def compute_rho(site, calc_comp=None, errtype='none'):
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Site holding the impedance data.
     calc_comp : str, optional
         Which apparent resistivity to compute.  One of
         ``{'xx', 'xy', 'yy', 'yx', 'det', 'gav', 'aav', 'ssq'}`` (default
         ``'det'``).  A leading ``'rho'`` is stripped, so ``'rhoxy'`` also works.
     errtype : str, optional
-        Name of the :class:`~pyMT.data_structures.Site` error attribute to
+        Name of the :class:`~gateway_mt.data_structures.Site` error attribute to
         propagate (e.g. ``'used_error'``), or ``'none'`` (default) for no error.
 
     Returns
@@ -1210,14 +1210,14 @@ def compute_phase(site, calc_comp=None, errtype=None, wrap=0):
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Site holding the impedance data.
     calc_comp : str, optional
         Which phase to compute.  One of
         ``{'xx', 'xy', 'yy', 'yx', 'det', 'gav', 'aav', 'ssq'}`` (default
         ``'det'``).  A leading ``'pha'`` is stripped.
     errtype : str, optional
-        Name of the :class:`~pyMT.data_structures.Site` error attribute to
+        Name of the :class:`~gateway_mt.data_structures.Site` error attribute to
         propagate, or ``None``/``'none'`` (default) for no error.
     wrap : int, optional
         If truthy, add 180 degrees to a ``'yx'`` phase so it plots in the first
@@ -1318,7 +1318,7 @@ def compute_bost1D(site, method='phase', comp=None, filter_width=1):
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Site holding the impedance data.
     method : {'phase', 'bostick', 'phase-bostick'}, optional
         Transform variant.  Default ``'phase'``.
@@ -1414,9 +1414,9 @@ def calculate_misfit(data_site, response_site):
 
     Parameters
     ----------
-    data_site : pyMT.data_structures.Site
+    data_site : gateway_mt.data_structures.Site
         The observed data (provides ``used_error``).
-    response_site : pyMT.data_structures.Site
+    response_site : gateway_mt.data_structures.Site
         The model response.  Its ``components`` define which are compared.
 
     Returns
@@ -1462,8 +1462,8 @@ def generate_zmesh(min_depth=1, max_depth=500000, NZ=None):
     """Generate a logarithmically spaced vertical mesh.
 
     .. deprecated::
-        Superseded by :meth:`pyMT.data_structures.Model.generate_zmesh`.  Kept
-        for :mod:`pyMT.scripts.j2ws3d`.
+        Superseded by :meth:`gateway_mt.data_structures.Model.generate_zmesh`.  Kept
+        for :mod:`gateway_mt.scripts.j2ws3d`.
 
     Parameters
     ----------
@@ -1483,7 +1483,7 @@ def generate_zmesh(min_depth=1, max_depth=500000, NZ=None):
         Second difference of ``depths`` (a smoothness diagnostic).
     """
     print('This function is deprecated.\n')
-    print('It functions as it used to, however, the function has been updated and included as a method within the pyMT Model object.')
+    print('It functions as it used to, however, the function has been updated and included as a method within the gateway_mt Model object.')
     num_decade = int(np.ceil(np.log10(max_depth)) - floor(np.log10(min_depth)))
     try:
         if num_decade != len(NZ):
@@ -1647,7 +1647,7 @@ def regrid_model(mod, new_x, new_y, new_z, rho_axis=None):
 
     Parameters
     ----------
-    mod : pyMT.data_structures.Model
+    mod : gateway_mt.data_structures.Model
         Source model.  Provides ``dx``/``dy``/``dz`` edges, ``vals`` (or
         ``rho_x``/``rho_y``/``rho_z``) and ``background_resistivity``.
     new_x, new_y, new_z : array_like
@@ -1760,7 +1760,7 @@ check_extention = check_extension
 
 @enforce_input(files=list)
 def sort_files(files):
-    """Classify a list of files by pyMT role, keyed by extension/content.
+    """Classify a list of files by gateway_mt role, keyed by extension/content.
 
     Parameters
     ----------

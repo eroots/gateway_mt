@@ -3,7 +3,7 @@
 Personal script -- edit the paths at the top and run.
 """
 import numpy as np
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 
 
 csv_file = 'G:/Other computers/My Computer/sync/Regions/nevada/merlin/model6/receivers_projected.csv'

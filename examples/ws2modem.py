@@ -8,10 +8,10 @@ Usage::
 Prompts before overwriting an existing output file.  WSINV3DMT files do
 not store site names, so the ModEM file gets numbered sites (0, 1, ...).
 """
-import pyMT.data_structures as WSDS
+import gateway_mt.data_structures as WSDS
 import sys
-import pyMT.utils as utils
-import pyMT.IO as WSIO
+import gateway_mt.utils as utils
+import gateway_mt.IO as WSIO
 
 
 def main(in_file, out_file):

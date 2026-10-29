@@ -1,7 +1,7 @@
 Scripts
 =======
 
-A number of scripts come with pyMT, although only a few of these are ready for `General Use`_ . Others will need to be manually edited for your particular needs. Only a few will be described here.
+A number of scripts come with gateway_mt, although only a few of these are ready for `General Use`_ . Others will need to be manually edited for your particular needs. Only a few will be described here.
 
 General Use
 -----------
@@ -30,7 +30,7 @@ Usage::
 
 	autogen_report -d <data file> -r <response file> [-l <list file>] [-m <model file>] [-o <report folder>] [--plot rho-phase|impedance]
 
-Any data format pyMT can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). Give the list file to add the raw data to the plots, and to name the sites when the data format doesn't store names (WSINV3DMT).
+Any data format gateway_mt can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). Give the list file to add the raw data to the plots, and to name the sites when the data format doesn't store names (WSINV3DMT).
 
 plot_dataset
 ^^^^^^^^^^^^

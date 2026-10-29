@@ -1,17 +1,17 @@
 # examples
 
-Scripts that use `pyMT` for specific analyses and figures. They are not
+Scripts that use `gateway_mt` for specific analyses and figures. They are not
 installed with the package -- copy one, edit the paths and options at the
 top, and run it. Most were written for a particular survey, so expect to
 adapt them. See each file's module docstring for details.
 
-The installed command-line tools are in [`pyMT/scripts/`](../pyMT/scripts/).
+The installed command-line tools are in [`gateway_mt/scripts/`](../gateway_mt/scripts/).
 
 ## Analysis and figure scripts
 
 "Edit the paths at the top and run" scripts -- a research record, not
 general tools. Most have absolute paths baked in and top-level code with
-no `main()`. Several need packages **not** in `pyMT`'s
+no `main()`. Several need packages **not** in `gateway_mt`'s
 `install_requires`.
 
 | Script | Extra deps | What it does |
@@ -24,7 +24,7 @@ no `main()`. Several need packages **not** in `pyMT`'s
 | `bath2model.py` | `rasterio`, `cmocean` | Add bathymetry / topography to a model from an SRTM raster. |
 | `calc_aniso_rho.py` | -- | Estimate anisotropic resistivities from an isotropic slice (Eisel & Haak 1999). |
 | `calculate_distortion_matrix.py` | -- | Recover the per-site distortion tensor between two data sets. |
-| `castro_ellipse_test.py` | -- | Scratch sketch of a rotated ellipse with axes / arrows (does not use `pyMT`). |
+| `castro_ellipse_test.py` | -- | Scratch sketch of a rotated ellipse with axes / arrows (does not use `gateway_mt`). |
 | `conductance_to_geotiff.py` | `rasterio` | Depth-integrated conductance of a model to GeoTIFF. |
 | `copy_data.py` | -- | Add raw-data tipper to a GoFEM data file, taking tipper errors from two other data files. |
 | `edi_fix_rotation.py` | `mtpy` | Interpolate / de-rotate a folder of EDIs. |
@@ -47,15 +47,15 @@ no `main()`. Several need packages **not** in `pyMT`'s
 | `plot_dataset_rhophatip.py` | -- | Rho / phase / tipper dataset plots (self-contained, does not use `gplot`); basis of the installed `plot_dataset`. |
 | `plot_induction_map.py` | -- | Plan-view induction-arrow map (via `gplot.MapView`). |
 | `plot_misfit_curves.py` | -- | Per-component misfit-curve PDFs (function `generate_misfit_plots`). |
-| `plot_occam.py` | -- | Occam2D data vs response, TE / TM rho and phase (`plot_occam.py DATA RESPONSE`; does not use `pyMT`). |
+| `plot_occam.py` | -- | Occam2D data vs response, TE / TM rho and phase (`plot_occam.py DATA RESPONSE`; does not use `gateway_mt`). |
 | `plot_slice_example.py` | -- | Worked example of interpolating an arbitrary slice through a model. |
 | `plot_transect.py` | `pyshp` | Station locations against a seismic-line shapefile, in UTM. |
 | `pseudosection_gplot.py` | -- | Batch pseudosections via `gplot`. |
 | `pt2csv.py` | `pandas` | Phase-tensor parameters for every site/period to CSV. |
 | `pt_pseudosection.py` | -- | Phase-tensor ellipse pseudosection along a profile. |
-| `read_csr.py` | -- | Read a MARE2DEM CSR penalty-matrix file (does not use `pyMT`). |
+| `read_csr.py` | -- | Read a MARE2DEM CSR penalty-matrix file (does not use `gateway_mt`). |
 | `read_shape_plot.py` | `cartopy`, `pyshp` | Overlay a shapefile on station locations. |
-| `rewrite_edis.py` | -- | Re-write EDI files from pyMT `Site` objects. |
+| `rewrite_edis.py` | -- | Re-write EDI files from gateway_mt `Site` objects. |
 | `rms_histogram.py` | -- | RMS-misfit histograms / difference histograms. |
 | `rms_period_barchart.py` | -- | Per-period RMS-misfit curves comparing several responses. |
 | `scatter_bostick.py` | -- | 3-D scatter of Niblett-Bostick depth vs tipper. |
@@ -85,7 +85,7 @@ its replacement.
   -- superseded by the installed `plot_dataset` command.
 * `conductance_to_geotiff.py` vs `model_to_geotiff.py` -- both note the
   calculation is now a `Model` method.
-* `pyMT/scripts/to_vtk.py` vs `to_vtk_point-cloud.py`.
+* `gateway_mt/scripts/to_vtk.py` vs `to_vtk_point-cloud.py`.
 
 ## Candidates to promote
 

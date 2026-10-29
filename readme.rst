@@ -1,4 +1,4 @@
-pyMT
+gateway_mt
 ====
 
 Codebase for visualization, analysis, and preparation of magnetotelluric data for inversion (compatible with ModEM, MT3DANI, and WSINV3DMT)
@@ -9,7 +9,7 @@ Installation basics (tested method for new users)
 
 2) Open anaconda prompt
 
-3) Create an environment for pyMT, pre-load a few dependencies::
+3) Create an environment for gateway_mt, pre-load a few dependencies::
 
 	conda create -n pymt python conda pip git setuptools
 
@@ -19,7 +19,7 @@ Installation basics (tested method for new users)
 
 5) Add that command to your .bashrc (or whatever login script) so you don't have to enter it every time you open a new anaconda prompt
 
-6) Install pyMT::
+6) Install gateway_mt::
 	
 	pip install git+https://github.com/eroots/pyMT.git
 

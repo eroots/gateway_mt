@@ -1,4 +1,4 @@
-"""Before/after verification baseline for ``pyMT.gplot``.
+"""Before/after verification baseline for ``gateway_mt.gplot``.
 
 Part of the ``cleanup/gplot`` refactor workflow.  ``gplot`` produces
 matplotlib artists rather than numbers, so this harness drives every
@@ -33,8 +33,8 @@ matplotlib.use('Agg')
 import matplotlib.colors
 from matplotlib.figure import Figure
 
-import pyMT.gplot as gplot
-from pyMT.data_structures import Dataset, Data, RawData, Response, Model
+import gateway_mt.gplot as gplot
+from gateway_mt.data_structures import Dataset, Data, RawData, Response, Model
 
 warnings.filterwarnings('ignore')
 

@@ -2,12 +2,12 @@
 
 Documentation example -- the ``/path/to/...`` placeholders are meant to be replaced.
 """
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator as RGI
-import pyMT.utils as utils
+import gateway_mt.utils as utils
 import matplotlib.pyplot as plt
-from pyMT.e_colours import colourmaps as cm
+from gateway_mt.e_colours import colourmaps as cm
 
 # Read in the model
 model = DS.Model('/path/to/model')

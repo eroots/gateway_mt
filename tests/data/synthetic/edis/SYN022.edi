@@ -1,7 +1,7 @@
 >HEAD
 DATAID="SYN022"
 ACQBY="synthetic"
-FILEBY="pyMT make_synthetic.py"
+FILEBY="gateway_mt make_synthetic.py"
 FILEDATE=01/01/26
 LAT=49:03:03.79
 LONG=-84:27:58.41
@@ -11,7 +11,7 @@ EMPTY=1.0E+32
 
 >INFO
 MAXINFO=999
-Synthetic 1-D-based responses for pyMT tests.
+Synthetic 1-D-based responses for gateway_mt tests.
 
 >=DEFINEMEAS
 MAXCHAN=7

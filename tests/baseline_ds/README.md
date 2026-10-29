@@ -1,6 +1,6 @@
 # data_structures refactor verification baseline
 
-Snapshot of `pyMT.data_structures` public behaviour, captured on the
+Snapshot of `gateway_mt.data_structures` public behaviour, captured on the
 `cleanup/data_structures` branch **before** refactoring, for before/after
 comparison.
 
@@ -54,9 +54,9 @@ All from `tests/data/synthetic/`:
 
 ## Known / expected
 
-* `mare/load` records a `ValueError`: pyMT's own MARE2DEM writer puts
+* `mare/load` records a `ValueError`: gateway_mt's own MARE2DEM writer puts
   single spaces between the UTM zone and origin values in the header,
-  but the reader splits that line on two or more spaces, so pyMT cannot
+  but the reader splits that line on two or more spaces, so gateway_mt cannot
   re-read a MARE2DEM file it wrote with a real origin (known bug, not
   fixed here). `compare` matches EXCEPTION == EXCEPTION.
 * `calculate_RMS` is baselined against a deterministically perturbed copy

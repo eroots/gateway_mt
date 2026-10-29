@@ -3,12 +3,12 @@
 Personal figure script -- edit the paths and options at the top and run.
 """
 import numpy as np
-import pyMT.data_structures as WSDS
+import gateway_mt.data_structures as WSDS
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from pyMT.e_colours import colourmaps as cm
-import pyMT.utils as utils
-import pyMT.gplot as gplot
+from gateway_mt.e_colours import colourmaps as cm
+import gateway_mt.utils as utils
+import gateway_mt.gplot as gplot
 from copy import deepcopy
 from scipy.spatial.distance import euclidean
 

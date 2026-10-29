@@ -3,11 +3,11 @@
 Personal figure script -- edit the paths at the top and run.
 Overlaps ``gplot.MapView.plan_pseudosection``.
 """
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 import matplotlib.pyplot as plt
 import numpy as np
-import pyMT.utils as utils
-import pyMT.gplot as gplot
+import gateway_mt.utils as utils
+import gateway_mt.gplot as gplot
 import os
 from copy import deepcopy
 

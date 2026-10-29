@@ -2,7 +2,7 @@
 
 Personal script -- edit the region blocks at the top and run.
 """
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 import numpy as np
 from copy import deepcopy
 from scipy.ndimage import gaussian_filter

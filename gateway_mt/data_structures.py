@@ -1,8 +1,8 @@
 """In-memory data model for magnetotelluric data, responses and models.
 
-This module holds the core container classes used throughout :mod:`pyMT`.
+This module holds the core container classes used throughout :mod:`gateway_mt`.
 It contains no file parsing itself -- every read/write is delegated to
-:mod:`pyMT.IO` -- and no plotting; it is purely representation plus
+:mod:`gateway_mt.IO` -- and no plotting; it is purely representation plus
 manipulation (resampling, rotation, error handling, meshing, phase tensors,
 RMS, coordinate projection).
 
@@ -41,7 +41,7 @@ Shared conventions
 ------------------
 * Components are 4-character strings: impedance ``Z{XX,XY,YX,YY}{R,I}``,
   tipper ``TZ{X,Y}{R,I}``, phase tensor ``PT{XX,XY,YX,YY}``.
-* ``used_error`` entries equal to :data:`pyMT.IO.REMOVE_FLAG` mark points
+* ``used_error`` entries equal to :data:`gateway_mt.IO.REMOVE_FLAG` mark points
   excluded from inversion / RMS.
 * ``errmap`` holds integer multipliers plus sentinel values
   (:attr:`Data.OUTLIER_MAP`, :attr:`Data.NO_PERIOD_MAP`,
@@ -59,9 +59,9 @@ parameters accept an optional Qt progress-bar widget used by the GUIs.
 """
 import numpy as np
 import os
-from pyMT.WSExceptions import WSFileError
-import pyMT.utils as utils
-import pyMT.IO as IO
+from gateway_mt.WSExceptions import WSFileError
+import gateway_mt.utils as utils
+import gateway_mt.IO as IO
 from copy import deepcopy
 
 
@@ -513,8 +513,8 @@ class Dataset(object):
         """Set data errors from the scatter of each component about a smooth curve.
 
         For every component of every site: de-spike the raw curve
-        (:func:`pyMT.utils.remove_outliers`), smooth it
-        (:func:`pyMT.utils.geotools_filter`), and set the used error to
+        (:func:`gateway_mt.utils.remove_outliers`), smooth it
+        (:func:`gateway_mt.utils.geotools_filter`), and set the used error to
         ``multiplier`` times the residual of the data about that curve.  The
         smoothed curves are stored in ``self.smoothed_data``.  Finishes by
         re-applying the error floor, equalising complex errors and the no-data
@@ -525,7 +525,7 @@ class Dataset(object):
         multiplier : float, optional
             Residual-to-error scaling.  Default 2.5.
         fwidth : float, optional
-            :func:`pyMT.utils.geotools_filter` width.  Default 1.
+            :func:`gateway_mt.utils.geotools_filter` width.  Default 1.
         median_window : int, optional
             De-spike median-filter window.  Default 11.
         threshold : float, optional
@@ -770,7 +770,7 @@ class Data(object):
                            'ModEM': '.dat',
                            'EM3DANI': ['.adat', '.resp'],
                            'GoFEM': '.gdat'}
-    #: Component tuple for each numeric inversion type; defined in pyMT.IO.
+    #: Component tuple for each numeric inversion type; defined in gateway_mt.IO.
     INVERSION_TYPES = IO.INVERSION_TYPES
     REMOVE_FLAG = IO.REMOVE_FLAG
     FLOAT_CAP = 1e10
@@ -849,11 +849,11 @@ class Data(object):
         #                                errmap=site.NO_COMP_MAP)
 
     def __read__(self, listfile='', datafile='', invType=None, progress_bar=None):
-        """Read a data file (via :mod:`pyMT.IO`) and populate ``sites``.
+        """Read a data file (via :mod:`gateway_mt.IO`) and populate ``sites``.
 
         Also called by :meth:`Dataset.read_data` as a public re-read entry
         point.  The format is taken from ``self.file_format`` or inferred from
-        the file extension; a :class:`~pyMT.WSExceptions.WSFileError` is raised
+        the file extension; a :class:`~gateway_mt.WSExceptions.WSFileError` is raised
         for an unrecognised extension.
 
         Parameters
@@ -995,7 +995,7 @@ class Data(object):
 
     @property
     def has_flagged_data(self):
-        """``True`` if any component of any site has a :data:`~pyMT.IO.REMOVE_FLAG` error."""
+        """``True`` if any component of any site has a :data:`~gateway_mt.IO.REMOVE_FLAG` error."""
         for site in self.site_names:
             for component in self.components:
                 if np.any(self.sites[site].errors[component] == self.REMOVE_FLAG):
@@ -1216,7 +1216,7 @@ class Data(object):
         self._inv_type = val
 
     def write(self, outfile, to_write=None, file_format='ModEM', use_elevation=False, write_removed=False):
-        """Write the data to ``outfile`` (via :func:`pyMT.IO.write_data`).
+        """Write the data to ``outfile`` (via :func:`gateway_mt.IO.write_data`).
 
         The data is temporarily converted to metres for writing.
 
@@ -1250,11 +1250,11 @@ class Data(object):
         self.spatial_units = units
 
     def write_list(self, outfile):
-        """Write the site-name list to ``outfile`` (:func:`pyMT.IO.write_list`)."""
+        """Write the site-name list to ``outfile`` (:func:`gateway_mt.IO.write_list`)."""
         IO.write_list(data=self, outfile=outfile)
 
     def to_vtk(self, outfile, UTM, origin=None, sea_level=0, use_elevation=False):
-        """Write the site locations as a VTK point set (:func:`pyMT.IO.sites_to_vtk`)."""
+        """Write the site locations as a VTK point set (:func:`gateway_mt.IO.sites_to_vtk`)."""
         if not origin:
             print('Using origin = (0, 0)')
             origin = (0, 0)
@@ -1262,7 +1262,7 @@ class Data(object):
                            UTM=UTM, sea_level=sea_level, use_elevation=use_elevation)
 
     def write_phase_tensors(self, out_file, verbose=False, scale_factor=1/50, period_idx=None):
-        """Write phase-tensor ellipse data (:func:`pyMT.IO.write_phase_tensors`)."""
+        """Write phase-tensor ellipse data (:func:`gateway_mt.IO.write_phase_tensors`)."""
         IO.write_phase_tensors(self, out_file=out_file, verbose=verbose,
                                         scale_factor=scale_factor, period_idx=period_idx)
 
@@ -1502,7 +1502,7 @@ class Data(object):
         Parameters
         ----------
         comp : str, optional
-            Component/invariant passed to :func:`pyMT.utils.compute_rho`.
+            Component/invariant passed to :func:`gateway_mt.utils.compute_rho`.
             Default ``'ssq'`` (needs the full impedance tensor).
 
         Returns
@@ -1738,7 +1738,7 @@ class Model(object):
 
 
     def __read__(self, modelfile='', file_format='modem3d'):
-        """Read a model file (via :func:`pyMT.IO.read_model`) and populate the mesh + ``vals``.
+        """Read a model file (via :func:`gateway_mt.IO.read_model`) and populate the mesh + ``vals``.
 
         Anisotropic formats (``em3dani`` / ``mt3dani``, or any file carrying a
         ``rho_y``) also set ``rho_x``/``rho_y``/``rho_z`` and
@@ -1789,7 +1789,7 @@ class Model(object):
                 self.cov_exceptions = cov_exceptions
 
     def to_vtk(self, outfile=None, sea_level=0, origin=None, UTM=None):
-        """Write the model as a VTK structured grid (:func:`pyMT.IO.model_to_vtk`)."""
+        """Write the model as a VTK structured grid (:func:`gateway_mt.IO.model_to_vtk`)."""
         if origin:
             self.origin = origin
         if UTM:
@@ -2164,7 +2164,7 @@ class Model(object):
                       max_x=None, max_y=None, num_pads=None, pad_mult=None):
         """Build new horizontal ``dx``/``dy`` meshes from site locations and regrid ``vals``.
 
-        Delegates to :func:`pyMT.utils.generate_lateral_mesh` per axis.
+        Delegates to :func:`gateway_mt.utils.generate_lateral_mesh` per axis.
 
         Parameters
         ----------
@@ -2367,7 +2367,7 @@ class Model(object):
         self.update_vals()
 
     def write(self, outfile, file_format='modem', use_log=True, use_resistivity=True, use_anisotropy=False, n_param=3):
-        """Write the model to ``outfile`` (:func:`pyMT.IO.write_model`).
+        """Write the model to ``outfile`` (:func:`gateway_mt.IO.write_model`).
 
         The mesh is temporarily converted to metres for writing.
 
@@ -2408,7 +2408,7 @@ class Model(object):
         self.spatial_units = units
 
     def write_covariance(self, outfile):
-        """Write the ModEM covariance file (:func:`pyMT.IO.write_covariance`)."""
+        """Write the ModEM covariance file (:func:`gateway_mt.IO.write_covariance`)."""
         IO.write_covariance(outfile,
                                NX=self.nx,
                                NY=self.ny,
@@ -2424,11 +2424,11 @@ class Response(Data):
     """Model responses, i.e. the predicted data from an inversion.
 
     Identical to :class:`Data` except that :meth:`write` always uses the
-    response writer in :mod:`pyMT.IO`.
+    response writer in :mod:`gateway_mt.IO`.
     """
 
     def write(self, outfile):
-        """Write the response to ``outfile`` (:func:`pyMT.IO.write_response`).
+        """Write the response to ``outfile`` (:func:`gateway_mt.IO.write_response`).
 
         The data is temporarily converted to metres for writing.
         """
@@ -2458,7 +2458,7 @@ class Site(object):
         As-read errors, same structure as ``data``.
     used_error : dict
         Errors actually used (after floors / maps / manual edits); a value of
-        :data:`pyMT.IO.REMOVE_FLAG` marks a point excluded from inversion.
+        :data:`gateway_mt.IO.REMOVE_FLAG` marks a point excluded from inversion.
     errmap : dict
         Integer error-map multipliers and sentinels; all ones for raw data.
     flags : dict
@@ -2652,12 +2652,12 @@ class Site(object):
 
     @property
     def det_rho(self):
-        """Determinant apparent resistivity per period (:func:`pyMT.utils.compute_rho`)."""
+        """Determinant apparent resistivity per period (:func:`gateway_mt.utils.compute_rho`)."""
         return utils.compute_rho(self, calc_comp='det', errtype='none')[0]
 
     @property
     def ssq_rho(self):
-        """Sum-of-squares apparent resistivity per period (:func:`pyMT.utils.compute_rho`)."""
+        """Sum-of-squares apparent resistivity per period (:func:`gateway_mt.utils.compute_rho`)."""
         return utils.compute_rho(self, calc_comp='ssq', errtype='none')[0]
 
     def validate_data(self):
@@ -2917,7 +2917,7 @@ class Site(object):
         """Raise ``used_error`` to the error floor, per component, in place.
 
         ``used_error`` becomes ``max(calculate_error_floor(), errors * errmap)``
-        while preserving :data:`~pyMT.IO.REMOVE_FLAG` entries.
+        while preserving :data:`~gateway_mt.IO.REMOVE_FLAG` entries.
 
         Parameters
         ----------
@@ -3641,7 +3641,7 @@ class RawData(object):
         return len(self.site_names)
 
     def __read__(self, listfile, datpath='', edi_locs_from='definemeas', progress_bar=None):
-        """Read the list file and every station file it names (via :mod:`pyMT.IO`).
+        """Read the list file and every station file it names (via :mod:`gateway_mt.IO`).
 
         Populates ``site_names``, ``sites`` and ``locations``.
 
@@ -3707,7 +3707,7 @@ class RawData(object):
 
 
     def set_remove_flags(self):
-        """Set :data:`~pyMT.IO.REMOVE_FLAG` errors on data points that are -9999 or > 1e5."""
+        """Set :data:`~gateway_mt.IO.REMOVE_FLAG` errors on data points that are -9999 or > 1e5."""
         for site in self.site_names:
             for comp in self.sites[site].components:
                 for ii in range(self.sites[site].NP):
@@ -3722,9 +3722,9 @@ class RawData(object):
         Parameters
         ----------
         fwidth : float, optional
-            :func:`pyMT.utils.geotools_filter` width.  Default 0.85.
+            :func:`gateway_mt.utils.geotools_filter` width.  Default 0.85.
         comp : str, optional
-            Component/invariant for :func:`pyMT.utils.compute_rho`.  Default
+            Component/invariant for :func:`gateway_mt.utils.compute_rho`.  Default
             ``'det'``.
 
         Returns
@@ -3847,19 +3847,19 @@ class RawData(object):
             self.locations[ii, 1], self.locations[ii, 0] = E, N
 
     def write_locations(self, out_file, file_format='csv', verbose=0):
-        """Write the site locations (:func:`pyMT.IO.write_locations`); data is written in metres."""
+        """Write the site locations (:func:`gateway_mt.IO.write_locations`); data is written in metres."""
         units = deepcopy(self.spatial_units)
         self.spatial_units = 'm'
         IO.write_locations(self, out_file=out_file, file_format=file_format, verbose=verbose)
         self.spatial_units = units
 
     def write_phase_tensors(self, out_file, verbose=False, scale_factor=1/50, period_idx=None):
-        """Write phase-tensor ellipse data (:func:`pyMT.IO.write_phase_tensors`)."""
+        """Write phase-tensor ellipse data (:func:`gateway_mt.IO.write_phase_tensors`)."""
         IO.write_phase_tensors(self, out_file=out_file, verbose=verbose,
                                         scale_factor=scale_factor, period_idx=period_idx)
 
     def write_induction_arrows(self, out_file, verbose=False, scale_factor=1/50, period_idx=None):
-        """Write induction-arrow data (:func:`pyMT.IO.write_induction_arrows`)."""
+        """Write induction-arrow data (:func:`gateway_mt.IO.write_induction_arrows`)."""
         IO.write_induction_arrows(self, out_file=out_file, verbose=verbose,
                                      scale_factor=scale_factor, period_idx=period_idx)
 
@@ -4004,7 +4004,7 @@ class RawData(object):
         return Data.check_compromised_data(self, threshold=threshold)
 
     def to_vtk(self, outfile, UTM, origin=None, sea_level=0, use_elevation=False):
-        """Write the site locations as a VTK point set (:func:`pyMT.IO.sites_to_vtk`)."""
+        """Write the site locations as a VTK point set (:func:`gateway_mt.IO.sites_to_vtk`)."""
         if not origin:
             origin = self.origin
         Data.to_vtk(self, outfile=outfile, origin=origin,

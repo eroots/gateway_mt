@@ -3,11 +3,11 @@
 Personal script -- edit the paths and projection and run.  Needs ``rasterio``.
 The conductance calculation is now also a ``Model`` method.
 """
-import pyMT.data_structures as DS
-import pyMT.IO as IO
-import pyMT.utils as utils
+import gateway_mt.data_structures as DS
+import gateway_mt.IO as IO
+import gateway_mt.utils as utils
 import numpy as np
-import rasterio # Not included in the pyMT isntall; you will have to manually install it
+import rasterio # Not included in the gateway_mt isntall; you will have to manually install it
 import os
 from rasterio.transform import Affine
 from scipy.interpolate import RegularGridInterpolator
@@ -22,7 +22,7 @@ def average_conductance(model, idx_0, idx_1):
 model = DS.Model('E:/phd/NextCloud/data/Regions/MetalEarth/swayze/swz_cull1/norot/mesh/finish/swzFinish_lastIter.rho')
 data = DS.RawData('E:/phd/NextCloud/data/Regions/MetalEarth/swayze/j2/swz_cull1.lst')
 out_tag = 'test_geotiff_lambert'
-output_dir = 'E:/my_modules/pyMT/pyMT/scripts/test_outputs/'
+output_dir = 'E:/my_modules/gateway_mt/gateway_mt/scripts/test_outputs/'
 projection = 'utm' # {lambert, UTM}. If UTM, specify the zone below.
 utm_zone = '17' # Make sure this is the correct UTM zone for your area or it might not project correctly
 rho_axes = ['X'] # Keep as X unless you have an anisotropic model

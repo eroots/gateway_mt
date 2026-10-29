@@ -3,16 +3,16 @@
 Recipes
 =======
 
-All the following recipes assume pyMT modules have been imported as follows::
+All the following recipes assume gateway_mt modules have been imported as follows::
 	
-	import pyMT.data_structures as ds
-	import pyMT.utils as utils
+	import gateway_mt.data_structures as ds
+	import gateway_mt.utils as utils
 
 Adding Data to an Existing Data File
 ------------------------------------
 
 Adding new periods to an existing data file is supported through the :ref:`Data Plot` GUI. However, it is assumed that the list file and data file used are consistent, i.e., that they have the same stations and in the same order.
-Therefore, adding new stations to an existing data file must be done using the pyMT API. 
+Therefore, adding new stations to an existing data file must be done using the gateway_mt API. 
 
 This example uses the :ref:`Data`, and :ref:`RawData` classes as well as the Data.get_data and Data.add_site methods.
 
@@ -27,7 +27,7 @@ Assuming the data file we want to modify is 'demo.dat', and the list file we wan
     data.add_site(to_add['test_1']) # Add the new site to the data object
     data.write('new_data', file_format='modem')  # Write the new data out.
 
-Alternatively, multiple ModEM data files can be combined (e.g., append tipper data from one file into another), so long as resulting file still adheres to pyMT's requirements (i.e., uniform periods and data components for all sites).
+Alternatively, multiple ModEM data files can be combined (e.g., append tipper data from one file into another), so long as resulting file still adheres to gateway_mt's requirements (i.e., uniform periods and data components for all sites).
 
 Working with Inconsistent Periods / Components
 ----------------------------------------------
@@ -52,6 +52,6 @@ Make note of (or intentionally set up) any patterns you can use to distinguish y
 This will create a new data file with the periods to be removed flagged with errors corresponding to the Data.REMOVE_FLAG (at the time of writing, it is 1234567)
 
 Open this file in your text editor of choice. Find all instances of the REMOVE_FLAG, cut and paste the corresponding lines so they are all at the end of the file (this isn't required, it just makes life easier). Save this to 'demo_flagged.dat'. Now remove the corresponding lines. Save this to a new data file (e.g., 'demo_removed.dat')
-You can now invert the 'demo_removed.dat'. When using pyMT, you will still have to use the 'demo_flagged.dat' version which has a uniform period band. Furthermore, when reading in the response file created by inverting 'demo_removed.dat', you will have to copy-paste the removed periods from 'demo_flagged.dat' into it (this is why I moved the flagged lines to the end of the file).
+You can now invert the 'demo_removed.dat'. When using gateway_mt, you will still have to use the 'demo_flagged.dat' version which has a uniform period band. Furthermore, when reading in the response file created by inverting 'demo_removed.dat', you will have to copy-paste the removed periods from 'demo_flagged.dat' into it (this is why I moved the flagged lines to the end of the file).
 
-I apologize for this incredibly roundabout method. Allowing for non-uniform data files in pyMT will require a large re-working of the code, and at this time it is more important to have working tools with some odd quirks than to have fully featured tools with game-breaking bugs.
+I apologize for this incredibly roundabout method. Allowing for non-uniform data files in gateway_mt will require a large re-working of the code, and at this time it is more important to have working tools with some odd quirks than to have fully featured tools with game-breaking bugs.

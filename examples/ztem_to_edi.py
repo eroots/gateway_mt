@@ -30,9 +30,9 @@ import harmonica as hm
 import pyproj
 import numpy as np
 import matplotlib.pyplot as plt
-import pyMT.e_colours.colourmaps as cm
-import pyMT.data_structures as DS
-import pyMT.utils as utils
+import gateway_mt.e_colours.colourmaps as cm
+import gateway_mt.data_structures as DS
+import gateway_mt.utils as utils
 from copy import deepcopy
 from datetime import datetime
 # import pkg_resources
@@ -42,13 +42,13 @@ def to_edi(site, out_file, info=None, header=None, mtsect=None, defs=None):
     lat_deg, lat_min, lat_sec = utils.dd_to_dms(site.locations['Lat'])
     long_deg, long_min, long_sec = utils.dd_to_dms(site.locations['Long'])
     default_header = OrderedDict([('ACQBY', '"eroots"'),
-                                  ('FILEBY',   '"pyMT"'),
+                                  ('FILEBY',   '"gateway_mt"'),
                                   ('FILEDATE', datetime.today().strftime('%m/%d/%y')),
                                   ('LAT', '{:d}:{:d}:{:4.2f}'.format(int(lat_deg), int(lat_min), lat_sec)),
                                   ('LONG', '{:d}:{:d}:{:4.2f}'.format(int(long_deg), int(long_min), long_sec)),
                                   ('ELEV', 0),
                                   ('STDVERS', '"SEG 1.0"'),
-                                  ('PROGVERS', '"pyMT {}"'.format(pkg_resources.get_distribution('pyMT').version)),
+                                  ('PROGVERS', '"gateway_mt {}"'.format(pkg_resources.get_distribution('gateway_mt').version)),
                                   ('COUNTRY', 'CANADA'),
                                   ('EMPTY', 1.0e+32)])
     default_info = OrderedDict([('MAXINFO', 999),

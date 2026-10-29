@@ -1,17 +1,17 @@
-"""Project-manager / launcher window for the pyMT GUI suite.
+"""Project-manager / launcher window for the gateway_mt GUI suite.
 
 This module provides :class:`NewProject`, a small PyQt5 window that sits
 "above" the other GUIs.  It shows a table of named *datasets* -- each a
 bundle of list / data / response / model / resolution file paths -- lets
-that table be saved to and loaded from a pyMT project file (``.pymt``,
+that table be saved to and loaded from a gateway_mt project file (``.pymt``,
 the same pystart format read by
-:meth:`pyMT.GUI_common.classes.FileInputParser.read_pystart`), and offers
+:meth:`gateway_mt.GUI_common.classes.FileInputParser.read_pystart`), and offers
 three buttons that launch the individual GUIs preloaded with the selected
 dataset(s):
 
-* **Data Plot** -> :class:`pyMT.DataGUI.data_plot.DataMain`
-* **Model Viewer** -> :class:`pyMT.ModelGUI.model_viewer.ModelWindow`
-* **Mesh Designer** -> :class:`pyMT.ModelGUI.mesh_designer.model_viewer_2d`
+* **Data Plot** -> :class:`gateway_mt.DataGUI.data_plot.DataMain`
+* **Model Viewer** -> :class:`gateway_mt.ModelGUI.model_viewer.ModelWindow`
+* **Mesh Designer** -> :class:`gateway_mt.ModelGUI.mesh_designer.model_viewer_2d`
 
 The window itself is built from ``new_project.ui`` via
 :func:`PyQt5.uic.loadUiType`; widgets are wired by ``objectName``.  The
@@ -29,18 +29,18 @@ os.environ['QT_SCREEN_SCALE_FACTOR'] = '1'
 os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '1'
 from PyQt5.uic import loadUiType
 from PyQt5 import QtWidgets, QtCore, QtGui
-from pyMT.GUI_common.classes import FileInputParser
-from pyMT.DataGUI.data_plot import DataMain
-from pyMT.ModelGUI.model_viewer import ModelWindow
-from pyMT.ModelGUI.mesh_designer import model_viewer_2d as MeshDesigner
+from gateway_mt.GUI_common.classes import FileInputParser
+from gateway_mt.DataGUI.data_plot import DataMain
+from gateway_mt.ModelGUI.model_viewer import ModelWindow
+from gateway_mt.ModelGUI.mesh_designer import model_viewer_2d as MeshDesigner
 import sys
 
 try:
     import importlib.resources as pkg_resources
 except ImportError:
     import importlib_resources as pkg_resources
-from pyMT import resources
-from pyMT.WSExceptions import WSFileError
+from gateway_mt import resources
+from gateway_mt.WSExceptions import WSFileError
 
 
 path = os.path.dirname(os.path.realpath(__file__))
@@ -223,7 +223,7 @@ class NewProject(QNewProject, Ui_NewProject):
         resolution, ``.resp`` -> response.  For ``.dat`` / ``.data`` /
         ``.adat`` / ``.gdat`` the first line decides data vs response: a
         ``.gdat`` starting with ``#`` (or any file whose first line does
-        not contain ``"response"``) is treated as data.  pyMT-written
+        not contain ``"response"``) is treated as data.  gateway_mt-written
         ModEM response files do not contain the word ``"response"``, so
         they are classified as data unless given a ``.resp`` extension.
         """
@@ -260,7 +260,7 @@ class NewProject(QNewProject, Ui_NewProject):
         ----------
         files_dict : dict, optional
             ``{dataset_name: {role: path, ...}, ...}`` as returned by
-            :meth:`pyMT.GUI_common.classes.FileInputParser.read_pystart`.
+            :meth:`gateway_mt.GUI_common.classes.FileInputParser.read_pystart`.
             If ``None`` (or empty) the table is reset to a single row
             named ``'ds1'`` with blank file cells.
 
@@ -414,7 +414,7 @@ class NewProject(QNewProject, Ui_NewProject):
             elif retval == QtWidgets.QMessageBox.Cancel:
                 return False
         project_file = QtWidgets.QFileDialog.getSaveFileName(self, 'Open Project', self.project_path,
-                                                             'pyMT Project Files (*.pymt);; All Files (*)',
+                                                             'gateway_mt Project Files (*.pymt);; All Files (*)',
                                                              options=QtWidgets.QFileDialog.DontConfirmOverwrite)[0]
         if project_file:
             if os.path.exists(project_file):
@@ -443,7 +443,7 @@ class NewProject(QNewProject, Ui_NewProject):
         <path>`` line per non-empty file.  Blank paths and missing roles
         are skipped.  On success ``table_modified`` is cleared.
         """
-        project_file = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Project', self.project_path + self.project_name, 'pyMT Project Files (*.pymt);; All Files (*)')[0]
+        project_file = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Project', self.project_path + self.project_name, 'gateway_mt Project Files (*.pymt);; All Files (*)')[0]
         if project_file:
             self.current_dir = os.path.abspath(project_file)
             with open(project_file, 'w') as f:
@@ -484,8 +484,8 @@ class NewProject(QNewProject, Ui_NewProject):
 
         Relative paths are resolved against ``project_path`` first.  Any
         number of datasets may be selected.  The new
-        :class:`~pyMT.DataGUI.data_plot.DataMain` is kept in
-        ``dp_windows``; a :class:`~pyMT.WSExceptions.WSFileError` during
+        :class:`~gateway_mt.DataGUI.data_plot.DataMain` is kept in
+        ``dp_windows``; a :class:`~gateway_mt.WSExceptions.WSFileError` during
         load is shown as a warning dialog.  (``launchDataPlot``.)
         """
         if len(self.dataset_index()) == 0:
@@ -512,7 +512,7 @@ class NewProject(QNewProject, Ui_NewProject):
 
         Requires exactly one selected row and a ``model`` file in it.
         Relative paths are resolved against ``project_path``.  The new
-        :class:`~pyMT.ModelGUI.model_viewer.ModelWindow` is kept in
+        :class:`~gateway_mt.ModelGUI.model_viewer.ModelWindow` is kept in
         ``model_windows``.  (``launchModelViewer``.)
         """
         if len(self.dataset_index()) == 0:
@@ -553,7 +553,7 @@ class NewProject(QNewProject, Ui_NewProject):
 
         Requires exactly one selected row with a ``model`` and/or
         ``data`` file.  The new
-        :class:`~pyMT.ModelGUI.mesh_designer.model_viewer_2d` is kept in
+        :class:`~gateway_mt.ModelGUI.mesh_designer.model_viewer_2d` is kept in
         ``md_windows``.  (``launchMeshDesigner``.)
         """
         if len(self.dataset_index()) == 0:
@@ -585,7 +585,7 @@ class NewProject(QNewProject, Ui_NewProject):
 
         The current text of the ``ediLocs`` combo box, lower-cased
         (e.g. ``'definemeas'``); passed as ``edi_locs_from`` to
-        :class:`~pyMT.DataGUI.data_plot.DataMain`.
+        :class:`~gateway_mt.DataGUI.data_plot.DataMain`.
         """
         return self.ediLocs.currentText().lower()
 

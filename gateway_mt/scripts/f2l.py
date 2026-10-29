@@ -24,7 +24,7 @@ def search_dir(path, name_filter=''):
     for file in os.listdir(path):
         name, ext = os.path.splitext(file)
         if ext in EXTENSIONS and name_filter.lower() in file.lower():
-            if name not in sites:   # SITE.edi + SITE.dat -> one entry (pyMT reads the .dat)
+            if name not in sites:   # SITE.edi + SITE.dat -> one entry (gateway_mt reads the .dat)
                 sites.append(name)
     return sorted(sites)
 
@@ -39,7 +39,7 @@ def write_list(sites, outfile):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         prog='f2l',
-        description='Write a pyMT site list (.lst) of the EDI / j-format (.dat) files in a folder.',
+        description='Write a gateway_mt site list (.lst) of the EDI / j-format (.dat) files in a folder.',
         epilog='Note: every .dat file counts as a site, so keep inversion data files '
                '(e.g. ModEM .dat) out of the folder or use a FILTER.')
     parser.add_argument('filter', nargs='?', default='',

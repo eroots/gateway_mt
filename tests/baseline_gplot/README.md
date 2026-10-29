@@ -1,6 +1,6 @@
 # gplot refactor verification baseline
 
-Snapshot of `pyMT.gplot` rendering behaviour, captured on the
+Snapshot of `gateway_mt.gplot` rendering behaviour, captured on the
 `cleanup/gplot` branch **before** refactoring.
 
 `gplot` returns matplotlib artists, not numbers, so the harness drives

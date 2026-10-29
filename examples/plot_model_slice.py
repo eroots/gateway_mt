@@ -3,8 +3,8 @@
 Personal figure script -- edit ``local_path`` and the transect below and run.
 One of three overlapping crooked-slice scripts (see also ``integrated_crooked_slice.py``, ``crooked_model_slice_commented.py``); ``model_viewer``'s transect tab now does this interactively.
 """
-import pyMT.data_structures as WSDS
-from pyMT.utils import edge2center
+import gateway_mt.data_structures as WSDS
+from gateway_mt.utils import edge2center
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from matplotlib.image import PcolorImage
@@ -16,7 +16,7 @@ import matplotlib.gridspec as gridspec
 import copy
 # import colorcet as cc
 import colorsys
-from pyMT.e_colours import colourmaps
+from gateway_mt.e_colours import colourmaps
 
 
 local_path = 'E:/phd/Nextcloud/'

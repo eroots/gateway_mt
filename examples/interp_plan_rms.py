@@ -3,12 +3,12 @@
 Personal script -- edit the paths at the top and run.  Needs ``naturalneighbor``.
 Overlaps ``gplot.MapView`` RMS plotting and ``data_plot``'s map tab.
 """
-import pyMT.data_structures as WSDS
-import pyMT.utils as utils
+import gateway_mt.data_structures as WSDS
+import gateway_mt.utils as utils
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 import numpy as np
-from pyMT.e_colours import colourmaps as cm
+from gateway_mt.e_colours import colourmaps as cm
 import naturalneighbor as nn
 
 

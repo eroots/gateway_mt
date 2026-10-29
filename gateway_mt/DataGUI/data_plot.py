@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """Interactive GUI for inspecting and editing MT inversion data.
 
-``data_plot`` is the main pyMT window for working with an inversion data
+``data_plot`` is the main gateway_mt window for working with an inversion data
 set before running an inversion: it loads one or more ``Dataset``\\ s
 (inversion data, forward responses, raw EDIs, model), draws the MT
 response curves one site per subplot (via
-:class:`pyMT.gplot.DataPlotManager`), and lets you edit periods, flag
+:class:`gateway_mt.gplot.DataPlotManager`), and lets you edit periods, flag
 data, adjust the error tree / error floors, rotate azimuth, sort / add /
 remove sites, and write the result back out as WSINV3DMT / ModEM /
 GoFEM.  A companion window (:class:`MapMain`, wrapping
-:class:`pyMT.gplot.MapView`) shows the plan-view map -- locations,
+:class:`gateway_mt.gplot.MapView`) shows the plan-view map -- locations,
 induction arrows, phase-tensor ellipses / bars, plan pseudosections, RMS
 maps and model slices.
 
@@ -34,7 +34,7 @@ a file-picker dialog is shown; otherwise:
 Start-file (``pystart``) format
 -------------------------------
 A plain-text file; parsed by
-:meth:`pyMT.GUI_common.classes.FileInputParser.read_pystart`.  Each
+:meth:`gateway_mt.GUI_common.classes.FileInputParser.read_pystart`.  Each
 dataset begins with a ``% name`` line, followed by ``keyword value``
 lines:
 
@@ -68,11 +68,11 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar)
 import sys
 import os
-from pyMT import gplot, utils, data_structures
-from pyMT import resources
-from pyMT.GUI_common.classes import FileDialog, ColourMenu, TwoInputDialog, FileInputParser, MyPopupDialog
-from pyMT.GUI_common.windows import Modeling1D
-from pyMT.IO import debug_print
+from gateway_mt import gplot, utils, data_structures
+from gateway_mt import resources
+from gateway_mt.GUI_common.classes import FileDialog, ColourMenu, TwoInputDialog, FileInputParser, MyPopupDialog
+from gateway_mt.GUI_common.windows import Modeling1D
+from gateway_mt.IO import debug_print
 try:
     import importlib.resources as pkg_resources
 except ImportError:
@@ -90,7 +90,7 @@ UI_MapViewWindow, QMapViewMain = loadUiType(os.path.join(path, 'map_viewer.ui'))
 class MapMain(QMapViewMain, UI_MapViewWindow):
     """Plan-view map window (``map_viewer.ui``).
 
-    Thin controller around a :class:`pyMT.gplot.MapView` (``self.map``):
+    Thin controller around a :class:`gateway_mt.gplot.MapView` (``self.map``):
     the menu actions and toggles read GUI widgets, set attributes on
     ``self.map``, and call :meth:`update_map`, which clears the axis and
     re-plots every enabled layer (background image, model plan slice,
@@ -105,7 +105,7 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
 
     Parameters
     ----------
-    dataset : pyMT.data_structures.Dataset
+    dataset : gateway_mt.data_structures.Dataset
         The dataset to map.
     sites : list of str
         All site names, in plot order.
@@ -983,9 +983,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
     """Main data-plotting / editing window (``data_plot.ui``).
 
     Loads every dataset named in ``dataset_dict`` into a
-    :class:`pyMT.data_structures.Dataset`, keeps them in
+    :class:`gateway_mt.data_structures.Dataset`, keeps them in
     ``self.stored_datasets`` (the active one is ``self.dataset``), and
-    drives a :class:`pyMT.gplot.DataPlotManager` (``self.dpm``) that draws
+    drives a :class:`gateway_mt.gplot.DataPlotManager` (``self.dpm``) that draws
     the response curves one site per subplot.  Also owns a
     :class:`MapMain` (``self.map_view``) and, on demand, a 1-D modelling
     window.
@@ -1010,11 +1010,11 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
     Attributes
     ----------
-    dataset : pyMT.data_structures.Dataset
+    dataset : gateway_mt.data_structures.Dataset
         The active dataset.
     stored_datasets : dict
         ``{name: Dataset}`` for every dataset loaded.
-    dpm : pyMT.gplot.DataPlotManager
+    dpm : gateway_mt.gplot.DataPlotManager
     map_view : MapMain
     site_names : list of str
         The sites currently plotted (property; also drives the subplot
@@ -1456,7 +1456,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
                             'smoothed_data' * bool(self.toggleSmoothedData.checkState())]))
 
     def init_dpm(self):
-        """Create the :class:`~pyMT.gplot.DataPlotManager`, load the
+        """Create the :class:`~gateway_mt.gplot.DataPlotManager`, load the
         initial sites / data types, and set the period scaling from the
         menu."""
         self.dpm = gplot.DataPlotManager(fig=self.fig)
@@ -2446,12 +2446,12 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
         Only redraws the axes whose station appears in both
         ``updated_sites`` and the currently-plotted set; each is refreshed
-        with :meth:`~pyMT.gplot.DataPlotManager.redraw_single_axis` after
+        with :meth:`~gateway_mt.gplot.DataPlotManager.redraw_single_axis` after
         pointing ``dpm.sites['data']`` at the current ``Dataset`` site.
         To swap one station for another, call
-        :meth:`~pyMT.gplot.DataPlotManager.replace_sites` first.  Takes
+        :meth:`~gateway_mt.gplot.DataPlotManager.replace_sites` first.  Takes
         keyword arguments (``@utils.enforce_input`` -- see the note in
-        :mod:`pyMT.gplot`).
+        :mod:`gateway_mt.gplot`).
 
         Parameters
         ----------

@@ -419,7 +419,7 @@ roundtrip/modem/SYN001/ZYYI_err                                    shape=(18,) d
 roundtrip/modem/SYN001/ZYYR                                        shape=(18,) dtype=float64 head=[0.00737984, 0.0139401, -0.00466649, 0.00360701]
 roundtrip/modem/SYN001/ZYYR_err                                    shape=(18,) dtype=float64 head=[0.0279505, 0.018935, 0.011796, 0.0086704]
 roundtrip/modem/periods                                            shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
-roundtrip/modem/written_text                                       text len=479895 crc32=c404e7bc
+roundtrip/modem/written_text                                       text len=479907 crc32=b8617b22
 roundtrip/ws/0/TZXI                                                shape=(18,) dtype=float64 head=[0.0464448, -0.00475072, 0.00115709, -0.0346597]
 roundtrip/ws/0/TZXI_err                                            shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
 roundtrip/ws/0/TZXR                                                shape=(18,) dtype=float64 head=[0.0127218, 0.0244842, -0.0244402, -0.0252524]
@@ -486,6 +486,6 @@ sites_to_vtk/text                                                  text len=1154
 write_phase_tensors/text                                           text len=156078 crc32=50244ea5
 write_induction_arrows/text                                        text len=119553 crc32=08e865d8
 write_locations/text                                               text len=2116 crc32=b97b32b8
-write_edi/text                                                     text len=15397 crc32=85bed8db
+write_edi/text                                                     text len=15403 crc32=94092eab
 write_response/text                                                text len=105303 crc32=7e0d0772
 write_list/text                                                    text len=332 crc32=73d89e3a

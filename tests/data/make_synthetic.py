@@ -27,8 +27,8 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, os.pardir, os.pardir)))
 
-import pyMT.data_structures as DS          # noqa: E402
-from pyMT.modelling_1D import wait_1D       # noqa: E402
+import gateway_mt.data_structures as DS          # noqa: E402
+from gateway_mt.modelling_1D import wait_1D       # noqa: E402
 
 OUT = os.path.join(HERE, 'synthetic')
 EDI_DIR = os.path.join(OUT, 'edis')
@@ -153,10 +153,10 @@ def write_edi(path, site, periods, Z, T, z_err, t_err, with_tipper=True):
     lat, lon = dms(site['lat']), dms(site['lon'])
     zf, ef = Z * FIELD_UNITS, z_err * FIELD_UNITS
     with open(path, 'w', newline='\n') as f:
-        f.write('>HEAD\nDATAID="{}"\nACQBY="synthetic"\nFILEBY="pyMT make_synthetic.py"\n'
+        f.write('>HEAD\nDATAID="{}"\nACQBY="synthetic"\nFILEBY="gateway_mt make_synthetic.py"\n'
                 'FILEDATE=01/01/26\nLAT={}\nLONG={}\nELEV={:.1f}\nSTDVERS="SEG 1.0"\n'
                 'EMPTY=1.0E+32\n\n'.format(site['name'], lat, lon, site['elev']))
-        f.write('>INFO\nMAXINFO=999\nSynthetic 1-D-based responses for pyMT tests.\n\n')
+        f.write('>INFO\nMAXINFO=999\nSynthetic 1-D-based responses for gateway_mt tests.\n\n')
         f.write('>=DEFINEMEAS\nMAXCHAN=7\nMAXRUN=999\nMAXMEAS=9999\nUNITS=M\nREFTYPE=CART\n'
                 'REFLAT={}\nREFLONG={}\nREFELEV={:.1f}\n\n'.format(lat, lon, site['elev']))
         f.write('>=MTSECT\nSECTID="{}"\nNFREQ={}\n\n'.format(site['name'], len(periods)))
@@ -229,7 +229,7 @@ def main():
         f.write('{}\n'.format(len(sites)))
         f.write('\n'.join(s['name'] for s in sites) + '\n')
 
-    # Inversion-format data files, built with pyMT itself from the EDIs
+    # Inversion-format data files, built with gateway_mt itself from the EDIs
     ds = DS.Dataset(listfile=list_file, datpath=EDI_DIR)
     ds.get_data_from_raw(periods=list(PERIODS[DATA_PERIOD_IDX]))
     ds.reset_dummy_periods()      # flag data periods outside a site's recorded band

@@ -2,8 +2,8 @@
 
 Personal script -- edit ``datafile`` and run.
 """
-import pyMT.data_structures as WSDS
-import pyMT.utils as utils
+import gateway_mt.data_structures as WSDS
+import gateway_mt.utils as utils
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt

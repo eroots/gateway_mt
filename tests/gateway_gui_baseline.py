@@ -1,4 +1,4 @@
-"""Before/after verification baseline for ``pyMT.GatewayGUI.gateway_main``.
+"""Before/after verification baseline for ``gateway_mt.GatewayGUI.gateway_main``.
 
 ``gateway_main`` is a thin PyQt launcher: a table of named datasets, a
 save / load of that table as a ``.pymt`` project file, and three buttons
@@ -129,8 +129,8 @@ def _fill_table(w, files_dict):
 
 # --------------------------------------------------------------------------- #
 def _run(results):
-    import pyMT.GatewayGUI.gateway_main as gm
-    from pyMT.GUI_common.classes import FileInputParser
+    import gateway_mt.GatewayGUI.gateway_main as gm
+    from gateway_mt.GUI_common.classes import FileInputParser
 
     os.makedirs(SCRATCH, exist_ok=True)
     for f in os.listdir(SCRATCH):

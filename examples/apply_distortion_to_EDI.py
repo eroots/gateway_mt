@@ -2,12 +2,12 @@
 
 Personal script -- edit the paths at the top and run.  Needs ``mtpy``.
 """
-# import pyMT.data_structures as DS
+# import gateway_mt.data_structures as DS
 import mtpy.core.mt as mt
 import numpy as np
 from copy import deepcopy
 import os
-import pyMT.IO
+import gateway_mt.IO
 
 
 local_path = 'E:'
@@ -15,7 +15,7 @@ base_path = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/CART_test/j2/'
 # data_file = 'study14_real-locs.dat'
 list_file = 'allsites.lst'
 # dummy_site_path = local_path + '/phd/Nextcloud/data/Regions/MetalEarth/CART_test/j2/'
-# dummy_sites = pyMT.IO.read_sites(dummy_site_path+'wst_cullmantle.lst')
+# dummy_sites = gateway_mt.IO.read_sites(dummy_site_path+'wst_cullmantle.lst')
 
 # edi_path = 'E:/phd/NextCloud/data/Regions/snorcle/j2/2020-collation-ian/fixrot/'
 # save_path = 'E:/phd/NextCloud/data/Regions/snorcle/j2/2020-collation-ian/fixrot/Edi_RotationFix/'
@@ -60,7 +60,7 @@ for ii, file in enumerate(edi_files):
 
 
 
-# Using pyMT
+# Using gateway_mt
 # outfile = 'study14_real-locs_fulldistorted.dat'
 # outfile2 = 'study14_real-locs_staticdistorted.dat'
 # data = DS.Data(base_path + data_file)

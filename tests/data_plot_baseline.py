@@ -1,4 +1,4 @@
-"""Before/after verification harness for ``pyMT.DataGUI.data_plot``.
+"""Before/after verification harness for ``gateway_mt.DataGUI.data_plot``.
 
 A GUI has no natural numeric output, so this harness runs it head-less
 (``QT_QPA_PLATFORM=offscreen``): it builds a real ``DataMain`` from the
@@ -144,7 +144,7 @@ class _Patches:
         setattr(obj, name, fn)
 
     def __enter__(self):
-        from pyMT.GUI_common import classes as gc
+        from gateway_mt.GUI_common import classes as gc
         QID = QtWidgets.QInputDialog
         QMB = QtWidgets.QMessageBox
         QFD = QtWidgets.QFileDialog
@@ -242,8 +242,8 @@ def _snapshot(results, prefix, gui):
 # the driven script
 # --------------------------------------------------------------------------- #
 def _run(results):
-    from pyMT.GUI_common.classes import FileInputParser
-    import pyMT.DataGUI.data_plot as dp
+    from gateway_mt.GUI_common.classes import FileInputParser
+    import gateway_mt.DataGUI.data_plot as dp
 
     os.makedirs(SCRATCH, exist_ok=True)
     for f in os.listdir(SCRATCH):

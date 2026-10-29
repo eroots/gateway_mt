@@ -1,4 +1,4 @@
-"""Before/after verification baseline for ``pyMT.ModelGUI.mesh_designer``.
+"""Before/after verification baseline for ``gateway_mt.ModelGUI.mesh_designer``.
 
 ``mesh_designer`` is a matplotlib (not VTK) PyQt GUI, so it *can* run
 head-less (``QT_QPA_PLATFORM=offscreen`` + Agg).  This harness builds a
@@ -160,8 +160,8 @@ def _snapshot(results, prefix, gui):
 
 # --------------------------------------------------------------------------- #
 def _run(results):
-    import pyMT.data_structures as DS
-    import pyMT.ModelGUI.mesh_designer as md
+    import gateway_mt.data_structures as DS
+    import gateway_mt.ModelGUI.mesh_designer as md
 
     os.makedirs(SCRATCH, exist_ok=True)
     for f in os.listdir(SCRATCH):

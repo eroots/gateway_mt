@@ -1,7 +1,7 @@
-# pyMT/scripts
+# gateway_mt/scripts
 
-Command-line tools installed with `pyMT` (via `setup.py`). Nothing in
-`pyMT` imports from this folder.
+Command-line tools installed with `gateway_mt` (via `setup.py`). Nothing in
+`gateway_mt` imports from this folder.
 
 Personal analysis and figure scripts that used to live here are now in
 [`examples/`](../../examples/) at the top of the repository.
@@ -17,5 +17,5 @@ be run as-is.
 | `f2l.py` | `console_scripts: f2l` | Write a site list (`all_sites.lst`, or `<FILTER>_sites.lst`) of the EDI / `.dat` files in a folder. Run `f2l -h` for options. |
 | `to_vtk.py` | `console_scripts: to_vtk` + `scripts` | Write a model and / or site locations to VTK for ParaView (ModEM / WSINV3DMT-style inputs). Interactive with no arguments, or `to_vtk -h` for the command-line options. |
 | `plot_edi.py` | `console_scripts: plot_edi` | Plot apparent resistivity / phase / tipper curves from EDI files: shown on screen, or saved as PNG / PDF (`plot_edi all`, `--save`). See `plot_edi -h`. |
-| `autogen_report.py` | `scripts` | Misfit report for an inversion (any data format pyMT reads): `summary.txt` with RMS by component and worst sites, plus `misfit_curves.pdf` (rho / phase or impedance, with tipper; four sites per page). See `autogen_report -h`. |
+| `autogen_report.py` | `scripts` | Misfit report for an inversion (any data format gateway_mt reads): `summary.txt` with RMS by component and worst sites, plus `misfit_curves.pdf` (rho / phase or impedance, with tipper; four sites per page). See `autogen_report -h`. |
 | `plot_dataset.py` | `scripts` | Plot raw data, inversion data and / or a response (any combination) to a multi-page PDF; rho / phase or impedance, with tipper. See `plot_dataset -h`. Its page layout is shared with `autogen_report`. |

@@ -1,6 +1,6 @@
 """Sketch of a rotated phase-tensor-style ellipse with axes and arrows.
 
-Scratch figure script; does not use ``pyMT``.
+Scratch figure script; does not use ``gateway_mt``.
 """
 import numpy as np
 import matplotlib.pyplot as plt

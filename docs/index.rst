@@ -1,4 +1,4 @@
-.. pyMT documentation master file, created by Eric Roots
+.. gateway_mt documentation master file, created by Eric Roots
 
 
 Getting Started

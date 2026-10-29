@@ -1,13 +1,13 @@
-"""Matplotlib rendering layer for pyMT.
+"""Matplotlib rendering layer for gateway_mt.
 
 ``gplot`` owns no data of its own.  It takes the in-memory objects built
-by :mod:`pyMT.data_structures` (``Data``, ``RawData``, ``Response``,
+by :mod:`gateway_mt.data_structures` (``Data``, ``RawData``, ``Response``,
 ``Model``, ``Site``, ``PhaseTensor``, ``CART``) plus a bare
 :class:`matplotlib.figure.Figure` and draws onto it, calling *down* into
-:mod:`pyMT.utils` (``compute_rho`` / ``compute_phase`` / ``compute_bost1D``,
+:mod:`gateway_mt.utils` (``compute_rho`` / ``compute_phase`` / ``compute_bost1D``,
 ``normalize*``, ``remove_outliers``, ``rotate_locs`` …) and
-:mod:`pyMT.e_colours.colourmaps` for its colour maps.  It is driven *up*
-by the GUIs (:mod:`pyMT.DataGUI.data_plot`, :mod:`pyMT.ModelGUI.model_viewer`)
+:mod:`gateway_mt.e_colours.colourmaps` for its colour maps.  It is driven *up*
+by the GUIs (:mod:`gateway_mt.DataGUI.data_plot`, :mod:`gateway_mt.ModelGUI.model_viewer`)
 and by several plotting scripts.
 
 Two rendering classes, plus two small coordinate-formatter helpers:
@@ -52,8 +52,8 @@ from scipy.interpolate import griddata
 import matplotlib.patches as patches
 from matplotlib.path import Path
 from scipy.interpolate import RBFInterpolator
-import pyMT.utils as utils
-from pyMT.e_colours import colourmaps as cm
+import gateway_mt.utils as utils
+from gateway_mt.e_colours import colourmaps as cm
 from copy import deepcopy
 try:
     import naturalneighbor as nn
@@ -175,7 +175,7 @@ class DataPlotManager(object):
     curves onto it -- apparent resistivity, phase, impedance, tipper,
     phase-tensor components or 1-D Bostick depth, plotted against
     :math:`\\log_{10}` period, with one subplot per site.  Used by
-    :mod:`pyMT.DataGUI.data_plot` and by the ``plot_dataset`` /
+    :mod:`gateway_mt.DataGUI.data_plot` and by the ``plot_dataset`` /
     ``plot_misfit_curves`` / ``autogen_report`` scripts.
 
     Typical use: create with a figure, set the configuration attributes
@@ -214,12 +214,12 @@ class DataPlotManager(object):
         ``'oo'`` (points with an edge), ``'-'`` / ``'--'`` (lines).
     show_outliers : bool
         If ``False``, y-limits are computed from an outlier-filtered copy
-        of the data (:func:`pyMT.utils.remove_outliers`).
+        of the data (:func:`gateway_mt.utils.remove_outliers`).
     plot_flagged_data : bool
         If ``False``, points whose error equals ``Site.REMOVE_FLAG`` are
         dropped before plotting.
     wrap_phase : int
-        Passed through to :func:`pyMT.utils.compute_phase`.
+        Passed through to :func:`gateway_mt.utils.compute_phase`.
     outlier_thresh : float
         Threshold for the outlier filter used when ``show_outliers`` is
         ``False``.
@@ -666,17 +666,17 @@ class DataPlotManager(object):
 
         For each entry in :attr:`components` the y-values are derived from
         ``site`` according to the component family -- apparent resistivity
-        (:func:`pyMT.utils.compute_rho`), phase
-        (:func:`pyMT.utils.compute_phase`), phase-tensor / invariant
+        (:func:`gateway_mt.utils.compute_rho`), phase
+        (:func:`gateway_mt.utils.compute_phase`), phase-tensor / invariant
         quantities (from ``site.phase_tensors`` / ``site.CART``), Bostick
-        depth (:func:`pyMT.utils.compute_bost1D`) or a raw data component
+        depth (:func:`gateway_mt.utils.compute_bost1D`) or a raw data component
         scaled by :attr:`scale` -- and drawn with ``ax.errorbar``.
         Imaginary components use a triangle marker.  A component with no
         usable data is annotated ``'No Data'``.
 
         Parameters
         ----------
-        site : pyMT.data_structures.Site
+        site : gateway_mt.data_structures.Site
             Station to plot.
         dType : str, optional
             Data type key (``'data'``, ``'raw_data'``, ``'response'``,
@@ -898,15 +898,15 @@ class MapView(object):
     Renders station-located quantities onto a single map axis: site
     markers, induction arrows, phase-tensor ellipses and bars,
     interpolated plan pseudosections, RMS maps, and model plan / cross
-    sections.  Used by :mod:`pyMT.DataGUI.data_plot`,
-    :mod:`pyMT.ModelGUI.model_viewer` and the ``phase_tensor_map`` /
+    sections.  Used by :mod:`gateway_mt.DataGUI.data_plot`,
+    :mod:`gateway_mt.ModelGUI.model_viewer` and the ``phase_tensor_map`` /
     ``plot_induction_map`` scripts.
 
     Like :class:`DataPlotManager` it is configured by setting attributes
     and then calling a ``plot_*`` method.  The data objects are supplied
     through :attr:`site_data`; several methods also expect the caller to
     have assigned :attr:`dataset` (a
-    :class:`pyMT.data_structures.Dataset`), which ``__init__`` does *not*
+    :class:`gateway_mt.data_structures.Dataset`), which ``__init__`` does *not*
     create.
 
     Parameters
@@ -930,7 +930,7 @@ class MapView(object):
         ``{'raw_data', 'data', 'response'}`` -> ``Data`` / ``RawData`` /
         ``Response`` objects.  Also reachable through the :attr:`data`,
         :attr:`raw_data` and :attr:`response` properties.
-    dataset : pyMT.data_structures.Dataset
+    dataset : gateway_mt.data_structures.Dataset
         Assigned by the caller; required by :meth:`set_spatial_units` and
         the RMS branch of :meth:`plot_locations`.
     site_names : list of str
@@ -944,7 +944,7 @@ class MapView(object):
     coordinate_system : str
         One of :attr:`COORD_SYSTEMS`; the setter reprojects the site
         locations (and :attr:`model`, if set).
-    model : pyMT.data_structures.Model
+    model : gateway_mt.data_structures.Model
         Model for :meth:`plot_plan_view` / :meth:`plot_x_slice` /
         :meth:`plot_y_slice`.
     interpolant : str
@@ -1102,7 +1102,7 @@ class MapView(object):
     @property
     def cmap(self):
         """matplotlib.colors.Colormap: :attr:`colourmap` resolved through
-        :func:`pyMT.e_colours.colourmaps.get_cmap` with :attr:`lut` levels
+        :func:`gateway_mt.e_colours.colourmaps.get_cmap` with :attr:`lut` levels
         and :attr:`invert_cmap`."""
         return cm.get_cmap(self.colourmap, N=self.lut, invert=self.invert_cmap)
 
@@ -1114,7 +1114,7 @@ class MapView(object):
 
     @property
     def data(self):
-        """pyMT.data_structures.Data: shortcut for
+        """gateway_mt.data_structures.Data: shortcut for
         ``site_data['data']``."""
         return self.site_data['data']
 
@@ -1124,7 +1124,7 @@ class MapView(object):
 
     @property
     def raw_data(self):
-        """pyMT.data_structures.RawData: shortcut for
+        """gateway_mt.data_structures.RawData: shortcut for
         ``site_data['raw_data']``."""
         return self.site_data['raw_data']
 
@@ -1134,7 +1134,7 @@ class MapView(object):
 
     @property
     def response(self):
-        """pyMT.data_structures.Response: shortcut for
+        """gateway_mt.data_structures.Response: shortcut for
         ``site_data['response']``."""
         return self.site_data['response']
 
@@ -1853,7 +1853,7 @@ class MapView(object):
             prefixed with ``pt_type``.
         fill_param : str
             Attribute to return as the fill value.
-        site : pyMT.data_structures.Site, optional
+        site : gateway_mt.data_structures.Site, optional
             Source of the tensor when ``tensor`` is not given.
         tensor : object, optional
             An explicit tensor (e.g. a residual) to read instead.

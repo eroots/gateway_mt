@@ -4,16 +4,16 @@ Personal script -- edit the paths and run.  Needs ``rasterio``.  The conductance
 """
 # This script needs to be run in the 'rasterio' environment.
 # Rasterio has dependency issues with other packages used in my main environment.
-import pyMT.data_structures as DS
-import pyMT.IO as IO
-import pyMT.utils as utils
+import gateway_mt.data_structures as DS
+import gateway_mt.IO as IO
+import gateway_mt.utils as utils
 import numpy as np
 import rasterio
 from rasterio.transform import Affine
 from scipy.interpolate import RegularGridInterpolator
 
 
-# These functions are defined as methods within the Model object, but that requires an up-to-date pyMT installment
+# These functions are defined as methods within the Model object, but that requires an up-to-date gateway_mt installment
 def conductance(model, idx_0, idx_1):
     conductance = np.zeros((model.nx, model.ny))
     for ii in range(idx_0, idx_1):

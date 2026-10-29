@@ -1,8 +1,8 @@
-"""File-format I/O for :mod:`pyMT`.
+"""File-format I/O for :mod:`gateway_mt`.
 
 This is the read/write layer.  It has no classes -- just module-level
 functions -- and holds all knowledge of the on-disk formats.
-:mod:`pyMT.data_structures` delegates every file operation here; it does no
+:mod:`gateway_mt.data_structures` delegates every file operation here; it does no
 parsing of its own.
 
 Supported formats
@@ -29,7 +29,7 @@ Conventions
 * :data:`REMOVE_FLAG` (``1234567``) marks a data point excluded from
   inversion; it is written into error columns.
 * :data:`INVERSION_TYPES` maps the numeric inversion type (1-19) to its
-  ordered component tuple; :mod:`pyMT.data_structures` imports this.
+  ordered component tuple; :mod:`gateway_mt.data_structures` imports this.
 * :func:`read_data` returns ``(sites, other_info)`` where ``sites`` is
   ``{name: {'data', 'errors', 'periods', 'locations', 'azimuth', ...}}`` and
   ``other_info`` carries ``inversion_type``, ``site_names``, ``origin``,
@@ -37,8 +37,8 @@ Conventions
 * Several interactive helpers (:func:`verify_input`) prompt on stdin -- used
   by the command-line scripts, not the GUIs.
 """
-from pyMT.WSExceptions import WSFileError
-import pyMT.utils as utils
+from gateway_mt.WSExceptions import WSFileError
+import gateway_mt.utils as utils
 import numpy as np
 import os
 import copy
@@ -169,7 +169,7 @@ def get_components(invType=None, NR=None):
 
 
 def model_to_vtk(model, outfile=None, origin=None, UTM=None, azi=0, sea_level=0):
-    """Write a :class:`~pyMT.data_structures.Model` to a VTK ASCII structured grid.
+    """Write a :class:`~gateway_mt.data_structures.Model` to a VTK ASCII structured grid.
 
     VTK has X running west-east and Y south-north (the opposite of the model),
     and positive Z upward, so the array is transposed and flipped in Z on the
@@ -179,7 +179,7 @@ def model_to_vtk(model, outfile=None, origin=None, UTM=None, azi=0, sea_level=0)
 
     Parameters
     ----------
-    model : pyMT.data_structures.Model
+    model : gateway_mt.data_structures.Model
     outfile : str, optional
         Base name; ``'_model.vtk'`` is appended.  Defaults to the model's own
         file name.
@@ -385,7 +385,7 @@ def read_model(modelfile='', file_format='modem3d'):
 
     Raises
     ------
-    pyMT.WSExceptions.WSFileError
+    gateway_mt.WSExceptions.WSFileError
         If the file is not found.
     """
 
@@ -610,7 +610,7 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
 
     Raises
     ------
-    pyMT.WSExceptions.WSFileError
+    gateway_mt.WSExceptions.WSFileError
         On a missing file, or inconsistent period counts within a file.
     """
     RAW_COMPONENTS = ('ZXX', 'ZXY',
@@ -621,9 +621,9 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
         """Read one j-format (``.dat``) station file.
 
         Header ``>`` lines give azimuth / lat / long / elevation; lat/long are
-        converted to UTM (:func:`pyMT.utils.geo2utm`).  Each ``ZXX``/``TZX``...
+        converted to UTM (:func:`gateway_mt.utils.geo2utm`).  Each ``ZXX``/``TZX``...
         block is followed by its point count and ``period real imag error``
-        rows; the imaginary part is negated for the pyMT sign convention.
+        rows; the imaginary part is negated for the gateway_mt sign convention.
         Returns ``(site_dict, long_origin)``.
         """
         try:
@@ -677,7 +677,7 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
             assert len(set(ns_cache)) == 1
         except AssertionError:
             msg = 'Number of periods in {} is not equal for all components'.format(file)
-            print('Fatal error in pyMT.IO.read_dat')
+            print('Fatal error in gateway_mt.IO.read_dat')
             raise(WSFileError(ID='int', offender=file, extra=msg))
         site_dict = {'data': siteData_dict,
                      'errors': siteError_dict,
@@ -1031,7 +1031,7 @@ def read_sites(listfile):
 
     Raises
     ------
-    pyMT.WSExceptions.WSFileError
+    gateway_mt.WSExceptions.WSFileError
         If ``listfile`` does not exist.
     """
     # If the given file is just a single EDI, set the list to just that file
@@ -1102,7 +1102,7 @@ def read_data_header(datafile=None, file_format=None):
 
     Raises
     ------
-    pyMT.WSExceptions.WSFileError
+    gateway_mt.WSExceptions.WSFileError
         If the format is not recognised.
     """
     def read_ws_header(datafile):
@@ -1210,7 +1210,7 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
 
     Raises
     ------
-    pyMT.WSExceptions.WSFileError
+    gateway_mt.WSExceptions.WSFileError
         On a missing file or an unsupported component set.
     """
     def read_ws_data(datafile='', site_names='', invType=None):
@@ -1582,7 +1582,7 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
         Parses the ``MT Frequencies`` / ``MT Receivers`` / ``Data`` sections;
         numeric data-type codes (101-126) map to ``Rho``/``Phs`` component
         names, which are converted to impedance via
-        :func:`pyMT.utils.convert2impedance`.
+        :func:`gateway_mt.utils.convert2impedance`.
         """
         data_type_lookup = {101: 'RhoZXX',
                             102: 'PhsZXX',
@@ -1888,7 +1888,7 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
 
         Falls back through ``receivers.csv`` / ``receivers_projected.csv`` in
         ``backup_path`` and its parent before raising
-        :class:`~pyMT.WSExceptions.WSFileError`.
+        :class:`~gateway_mt.WSExceptions.WSFileError`.
         """
         def read_file(receiver_file):
             with open(receiver_file, 'r') as f:
@@ -1925,8 +1925,8 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
         """Read a GoFEM ``.gdat`` data file.
 
         Each line is ``DataType Frequency Source Receiver Value Error``.
-        Component names (``RealZxy``, ``ImagTzx`` ...) map to the pyMT names;
-        imaginary parts are negated for the pyMT sign convention.  Locations
+        Component names (``RealZxy``, ``ImagTzx`` ...) map to the gateway_mt names;
+        imaginary parts are negated for the gateway_mt sign convention.  Locations
         come from a receiver file (see :func:`read_gofem_locations`).  Phase
         tensor data is not yet handled.
         """
@@ -2084,7 +2084,7 @@ def write_locations(data, out_file=None, file_format='csv', verbose=0):
 
     Parameters
     ----------
-    data : pyMT.data_structures.Data or RawData
+    data : gateway_mt.data_structures.Data or RawData
     out_file : str
     file_format : {'csv', 'shp', 'kml'}, optional
         ``'kml'`` is not implemented.  Default ``'csv'``.
@@ -2145,7 +2145,7 @@ def sites_to_vtk(data, origin=None, outfile=None, UTM=None, sea_level=0, use_ele
 
     Parameters
     ----------
-    data : pyMT.data_structures.Data
+    data : gateway_mt.data_structures.Data
     origin : tuple of float
         ``(x, y)`` offset added to the locations.
     outfile : str
@@ -2267,11 +2267,11 @@ def verify_input(message, expected, default=None):
                     print('Format error. Try again')
 
 def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=None):
-    """Write one :class:`~pyMT.data_structures.Site` to an SEG EDI file.
+    """Write one :class:`~gateway_mt.data_structures.Site` to an SEG EDI file.
 
     Parameters
     ----------
-    site : pyMT.data_structures.Site
+    site : gateway_mt.data_structures.Site
         Must carry ``locations['Lat'/'Long']``.
     out_file : str
     info, header, mtsect, definemeas : dict, optional
@@ -2283,7 +2283,7 @@ def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=No
     lat_deg, lat_min, lat_sec = utils.dd2dms(site.locations['Lat'])
     long_deg, long_min, long_sec = utils.dd2dms(site.locations['Long'])
     default_header = OrderedDict([('ACQBY', '"eroots"'),
-                                  ('FILEBY',   '"pyMT"'),
+                                  ('FILEBY',   '"gateway_mt"'),
                                   ('FILEDATE', datetime.datetime.today().strftime('%m/%d/%y')),
                                   ('LAT', '{:d}:{:d}:{:4.2f}'.format(int(lat_deg), int(lat_min), lat_sec)),
                                   ('LONG', '{:d}:{:d}:{:4.2f}'.format(int(long_deg), int(long_min), long_sec)),
@@ -2518,7 +2518,7 @@ def write_covariance(file_name, NX, NY, NZ, exceptions=None, sigma_x=0.3, sigma_
 
 
 def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_elevation=False, include_flagged=True):
-    """Write a :class:`~pyMT.data_structures.Data` object to file.
+    """Write a :class:`~gateway_mt.data_structures.Data` object to file.
 
     Dispatches to a nested per-format writer (``write_ws``, ``write_ModEM3D``,
     ``write_ModEM2D``, ``write_MARE2DEM``, ``write_occam``, ``write_em3dani``,
@@ -2527,7 +2527,7 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
 
     Parameters
     ----------
-    data : pyMT.data_structures.Data
+    data : gateway_mt.data_structures.Data
     outfile : str
     to_write : {'all', 'DATA', 'ERROR', 'ERMAP'}, optional
         Which fields to write (WSINV3DMT).  Default all.
@@ -2546,7 +2546,7 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
             outfile += '.adat'
         with open(outfile, 'w') as f:
             f.write('# Format:       MT3DData_1.0\n')
-            f.write('# Description:  written by pyMT\n')
+            f.write('# Description:  written by gateway_mt\n')
             f.write('Phase Convention:  lag\n')
             f.write('Receiver Location (m):    {}\n'.format(data.NS))
             f.write('#         X          Y           Z\n')
@@ -2689,10 +2689,10 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
         temp_inv_type = []
         actual_inv_type = copy.deepcopy(data.inv_type)
         with open(out_file, 'w') as f:
-            z_title = ('# Written using pyMT. UTM Zone: {}\n'
+            z_title = ('# Written using gateway_mt. UTM Zone: {}\n'
                        '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) '
                        'Component Real Imag Error\n').format(data.UTM_zone)
-            pt_title = ('# Written using pyMT. UTM Zone: {}\n'
+            pt_title = ('# Written using gateway_mt. UTM Zone: {}\n'
                         '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) '
                         'Component Value Error\n').format(data.UTM_zone)
             if data.inv_type == 1:
@@ -3004,7 +3004,7 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
         temp_inv_type = []
         actual_inv_type = copy.deepcopy(data.inv_type)
         with open(out_file, 'w') as f:
-            z_title = ('# Written using pyMT. UTM Zone: {}\n'
+            z_title = ('# Written using gateway_mt. UTM Zone: {}\n'
                        '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) '
                        'Component Real Imag Error\n').format(data.UTM_zone)
             if data.inv_type == 10:
@@ -3169,14 +3169,14 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
 
 
 def write_response(data, outfile=None):
-    """Write a :class:`~pyMT.data_structures.Response` in the legacy WSINV response format.
+    """Write a :class:`~gateway_mt.data_structures.Response` in the legacy WSINV response format.
 
     Header (``NS NP NR azi``), N-S then E-W station locations, then one
     ``DATA_Period`` block per period.
 
     Parameters
     ----------
-    data : pyMT.data_structures.Response
+    data : gateway_mt.data_structures.Response
     outfile : str
     """
     NP = data.NP
@@ -3220,11 +3220,11 @@ def write_list(data, outfile):
 
 
 def write_model(model, outfile, file_format='modem', use_anisotropy=False, use_log=True, use_resistivity=True, n_param=3):
-    """Write a :class:`~pyMT.data_structures.Model` to file.
+    """Write a :class:`~gateway_mt.data_structures.Model` to file.
 
     Parameters
     ----------
-    model : pyMT.data_structures.Model
+    model : gateway_mt.data_structures.Model
     outfile : str
     file_format : {'modem', 'modem2d', 'em3dani', 'mt3dani'}, optional
         Default ``'modem'``.
@@ -3246,7 +3246,7 @@ def write_model(model, outfile, file_format='modem', use_anisotropy=False, use_l
             outfile += '.mod'
         with open(outfile, 'w') as f:
             f.write('# Format:      EM3DModelFile_1.0\n')
-            f.write('# Description:     Written from pyMT\n')
+            f.write('# Description:     Written from gateway_mt\n')
             f.write('NX:     {}\n'.format(model.nx))
             for xx in model.xCS:
                 f.write('{:<14.0f} '.format(xx))
@@ -3504,7 +3504,7 @@ def write_phase_tensors(data, out_file, verbose=False, scale_factor=1/50, period
 
     Parameters
     ----------
-    data : pyMT.data_structures.Data or RawData
+    data : gateway_mt.data_structures.Data or RawData
     out_file : str
         ``.csv`` is appended if missing.
     verbose : bool, optional
@@ -3573,7 +3573,7 @@ def write_induction_arrows(data, out_file, period_idx=None, verbose=False, scale
 
     Parameters
     ----------
-    data : pyMT.data_structures.Data or RawData
+    data : gateway_mt.data_structures.Data or RawData
     out_file : str
         ``.csv`` is appended if missing.
     period_idx : array_like, optional

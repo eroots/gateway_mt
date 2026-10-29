@@ -3,7 +3,7 @@
 Template -- set ``listfile`` / ``outfile`` near the top and run.
 A good candidate to promote to a CLI.
 """
-import pyMT.data_structures as DS
+import gateway_mt.data_structures as DS
 
 # listfile = r'E:\phd\Nextcloud\data\Regions\MetalEarth\rouyn\j2\ROUBB.lst' # List file containing sites to write out
 listfile = 'E:/my_modules/FFMT/Data/AG/FFMT/allsites.lst'

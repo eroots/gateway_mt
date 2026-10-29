@@ -2,7 +2,7 @@
 
 Personal script -- edit ``data_file`` / ``list_file`` and run.  Needs ``pandas``.
 """
-import pyMT.data_structures as WSDS
+import gateway_mt.data_structures as WSDS
 import pandas as pd
 import numpy as np
 

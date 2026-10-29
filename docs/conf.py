@@ -17,14 +17,14 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'pyMT'
+project = 'gateway_mt'
 copyright = '2019, Eric Roots'
 author = 'Eric Roots'
 
-# The full version, including alpha/beta/rc tags, read from pyMT/__init__.py
+# The full version, including alpha/beta/rc tags, read from gateway_mt/__init__.py
 import os
 import re
-with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'pyMT', '__init__.py')) as _f:
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gateway_mt', '__init__.py')) as _f:
     release = re.search(r"__version__ = '([^']+)'", _f.read()).group(1)
 
 

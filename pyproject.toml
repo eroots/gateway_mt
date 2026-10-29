@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyMT"
+name = "gateway_mt"
 dynamic = ["version"]
 description = "GUIs and tools for visualising, analysing and preparing magnetotelluric (MT) data for inversion"
 readme = "readme.rst"
@@ -37,23 +37,23 @@ Homepage = "https://github.com/eroots/pyMT"
 
 [project.scripts]
 # GUIs
-gateway_mt = "pyMT.GatewayGUI.gateway_main:main"
-data_plot = "pyMT.DataGUI.data_plot:main"
-mesh_designer = "pyMT.ModelGUI.mesh_designer:main"
-model_viewer = "pyMT.ModelGUI.model_viewer:main"
+gateway_mt = "gateway_mt.GatewayGUI.gateway_main:main"
+data_plot = "gateway_mt.DataGUI.data_plot:main"
+mesh_designer = "gateway_mt.ModelGUI.mesh_designer:main"
+model_viewer = "gateway_mt.ModelGUI.model_viewer:main"
 # Command-line tools
-f2l = "pyMT.scripts.f2l:main"
-plot_edi = "pyMT.scripts.plot_edi:main"
-plot_dataset = "pyMT.scripts.plot_dataset:main"
-autogen_report = "pyMT.scripts.autogen_report:main"
-to_vtk = "pyMT.scripts.to_vtk:main"
+f2l = "gateway_mt.scripts.f2l:main"
+plot_edi = "gateway_mt.scripts.plot_edi:main"
+plot_dataset = "gateway_mt.scripts.plot_dataset:main"
+autogen_report = "gateway_mt.scripts.autogen_report:main"
+to_vtk = "gateway_mt.scripts.to_vtk:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "pyMT.__version__"}
+version = {attr = "gateway_mt.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["pyMT*"]
+include = ["gateway_mt*", "pyMT"]   # pyMT: compatibility alias for the old name
 
 [tool.setuptools.package-data]
 "*" = ["*.ui"]
-"pyMT.resources" = ["*.jpg"]
+"gateway_mt.resources" = ["*.jpg"]

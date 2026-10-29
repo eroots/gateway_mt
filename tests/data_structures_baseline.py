@@ -1,4 +1,4 @@
-"""Before/after verification baseline for ``pyMT.data_structures``.
+"""Before/after verification baseline for ``gateway_mt.data_structures``.
 
 Part of the ``cleanup/data_structures`` refactor workflow.  Loads the sample
 datasets through every ``data_structures`` read path, exercises the public API
@@ -27,8 +27,8 @@ from copy import deepcopy
 
 import numpy as np
 
-import pyMT.data_structures as ds
-from pyMT.data_structures import RawData, Data, Model, Dataset
+import gateway_mt.data_structures as ds
+from gateway_mt.data_structures import RawData, Data, Model, Dataset
 
 warnings.filterwarnings('ignore')
 

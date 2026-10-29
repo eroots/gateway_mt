@@ -1,6 +1,6 @@
 # data_plot refactor verification baseline
 
-Snapshot of `pyMT.DataGUI.data_plot` behaviour, captured on the
+Snapshot of `gateway_mt.DataGUI.data_plot` behaviour, captured on the
 `cleanup/data_plot` branch **before** refactoring.
 
 `data_plot` is a PyQt GUI, so `tests/data_plot_baseline.py` runs it

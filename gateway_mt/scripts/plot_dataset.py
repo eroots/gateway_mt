@@ -11,7 +11,7 @@ three. Four sites per page; each site shows apparent resistivity and phase
 (default) or the impedance tensor (``--plot impedance``), with the tipper
 underneath when present. Inversion data is drawn as points with error bars,
 the response as lines, and raw data as small faint points (or as the main
-points when it is the only input). Any data format pyMT reads is accepted;
+points when it is the only input). Any data format gateway_mt reads is accepted;
 the format is taken from the file. Installed as the ``plot_dataset`` script.
 
 The page layout is shared with ``autogen_report``.
@@ -26,8 +26,8 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pyMT.data_structures as WSDS
-import pyMT.utils as utils
+import gateway_mt.data_structures as WSDS
+import gateway_mt.utils as utils
 
 SITES_PER_PAGE = 4
 COLOURS = {'xy': 'b', 'yx': 'r', 'xx': 'b', 'yy': 'r', 'zx': 'b', 'zy': 'r'}

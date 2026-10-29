@@ -3,8 +3,8 @@
 Personal figure script -- edit the paths at the top and run.
 One of three overlapping crooked-slice scripts (see also ``plot_model_slice.py``, ``crooked_model_slice_commented.py``); ``model_viewer``'s transect tab now does this interactively.
 """
-import pyMT.data_structures as WSDS
-import pyMT.utils as utils
+import gateway_mt.data_structures as WSDS
+import gateway_mt.utils as utils
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from matplotlib.image import PcolorImage
@@ -20,7 +20,7 @@ from mpl_toolkits.axes_grid1.mpl_axes import Axes
 import copy
 # import colorcet as cc
 import colorsys
-from pyMT.e_colours import colourmaps
+from gateway_mt.e_colours import colourmaps
 import sys
 import pyproj
 

@@ -1,15 +1,15 @@
 """Plot a whole dataset (data / response / raw) to multi-page PDFs via
-:class:`pyMT.gplot.DataPlotManager`, one PDF per component group.
+:class:`gateway_mt.gplot.DataPlotManager`, one PDF per component group.
 
 Edit the list / data / response paths near the top and run. Older,
 gplot-based version of ``plot_dataset_rhophatip.py``; the installed
 ``plot_dataset`` command now covers this.
 """
-import pyMT.utils as utils
-import pyMT.data_structures as WSDS
+import gateway_mt.utils as utils
+import gateway_mt.data_structures as WSDS
 import matplotlib.pyplot as plt
 import numpy as np
-from pyMT import gplot
+from gateway_mt import gplot
 from matplotlib.backends.backend_pdf import PdfPages
 
 

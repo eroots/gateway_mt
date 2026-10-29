@@ -1,6 +1,6 @@
 import numpy as np
 import cma
-from pyMT.utils import compute_ssq, compute_MT_determinant
+from gateway_mt.utils import compute_ssq, compute_MT_determinant
 
 
 mu = 4 * np.pi * 1e-7
@@ -97,7 +97,7 @@ def invert_1DMT(data, rho_initial, dz,
                 model_norm=2, rho_min=1e-2, rho_max=1e6,
                 maxiter=100, target_misfit=1.0, mantle_transition=False):
     """
-        Wraps _invert_1DMT to take a pyMT Data structure as its input
+        Wraps _invert_1DMT to take a gateway_mt Data structure as its input
     """
     _, rhoa_obs = data.average_rho(comp=mode)
     rhoa_obs = np.log10(rhoa_obs)
