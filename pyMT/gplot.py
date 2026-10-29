@@ -1,14 +1,58 @@
+"""Matplotlib rendering layer for pyMT.
+
+``gplot`` owns no data of its own.  It takes the in-memory objects built
+by :mod:`pyMT.data_structures` (``Data``, ``RawData``, ``Response``,
+``Model``, ``Site``, ``PhaseTensor``, ``CART``) plus a bare
+:class:`matplotlib.figure.Figure` and draws onto it, calling *down* into
+:mod:`pyMT.utils` (``compute_rho`` / ``compute_phase`` / ``compute_bost1D``,
+``normalize*``, ``remove_outliers``, ``rotate_locs`` …) and
+:mod:`pyMT.e_colours.colourmaps` for its colour maps.  It is driven *up*
+by the GUIs (:mod:`pyMT.DataGUI.data_plot`, :mod:`pyMT.ModelGUI.model_viewer`)
+and by several plotting scripts.
+
+Two rendering classes, plus two small coordinate-formatter helpers:
+
+``format_data_coords`` / ``format_model_coords``
+    Callables assigned to ``ax.format_coord`` so the interactive toolbar
+    shows period / frequency (sounding axes) or the value under the
+    cursor (image / pcolor axes).
+
+:class:`DataPlotManager`
+    The multi-panel *sounding-curve* figure used by ``data_plot`` -- one
+    subplot per site, plotting apparent resistivity / phase / impedance /
+    tipper / phase-tensor components against period.  Behaviour is
+    controlled by setting plain attributes (``components``, ``scale``,
+    ``errors``, ``toggles`` …) then calling :meth:`~DataPlotManager.plot_data`;
+    see the class docstring for the full list.
+
+:class:`MapView`
+    The plan-view *map* figure used by ``data_plot`` and ``model_viewer``
+    -- site locations, induction arrows, phase-tensor ellipses / bars,
+    interpolated pseudosections, RMS maps, and model plan / cross
+    sections.  Also attribute-driven; ``self.dataset`` is expected to be
+    assigned by the caller (it is not created in ``__init__``).
+
+Notes
+-----
+* Methods decorated with ``@utils.enforce_input(...)``
+  (``plot_phase_tensor``, ``plot_phase_bar``, ``plan_pseudosection``,
+  ``plot_induction_arrows``, ``link_axes``, ``tensor_*_pseudosection``)
+  coerce the listed arguments to the declared types but must be called
+  with **keyword** arguments -- positional args past ``self`` break the
+  wrapper, and any keyword not named in the decorator is dropped.
+* Redrawing is coarse: most update paths clear whole axes and re-plot
+  rather than mutating existing artists.
+* Rotation of raw vs. inverted data through the plotting path has not
+  been rigorously verified.
+"""
+
 import numpy as np
 from matplotlib.figure import Figure
-from matplotlib.colorbar import ColorbarBase
 from scipy.interpolate import griddata
 import matplotlib.patches as patches
-import matplotlib.colorbar as colorbar
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.path import Path
 from scipy.interpolate import RBFInterpolator
 import pyMT.utils as utils
-from pyMT.IO import debug_print
 from pyMT.e_colours import colourmaps as cm
 from copy import deepcopy
 try:
@@ -19,45 +63,25 @@ except ModuleNotFoundError:
     print('Natural Neighbor not found and will not be available')
 
 
-
-# import matplotlib.pyplot as plt
-
-
-# ==========TODO=========== #
-# This needs to be changed to help speed up re-drawing
-# Need to factor out a lot of things so each function does less on its own
-# I.E. plot_site should just be responsible for setting data.
-# Things like axes.clear() should only be called when they absolutely
-# need to. This slows things down a lot.
-# Only re-draw / plot what you need to. For changing error bars,
-# only the one plot needs to be changed, and only the y-data needs to
-# be changed. For adding a period selection, only y-data needs changing.
-# The main time that the whole figure would need to be updated is if
-# all the plots are being changed (to new sites), or if the number of
-# subplots are changing. Even plotting new components can probably be
-# handled without clearing all the axes. #
-# Also (way in the future) I could consider replacing some groupings of
-# attributes with named tuples. E.G. group things like 'mec', 'markersize',
-# etc into a 'plot_options' named tuple attribute, so they can be retrieved
-# and set all together
-# Can simplify the plotting mechanism and remove the need to return max and mins
-# Data plotted on an axis can be retrieved after the fact with axes[#].line[#].get_ydata()
-# However right now, for some reason each axis has 6 things plotted on it in my testruns
-# example, when there should only be 2 (One for each component plotted in the raw data)
-# What is happening is that the ax.errorbar method creates 3 lines: The actual plot,
-# plus x and y errorbars (even though X is empty). What I need to do then, is find a way
-# to differentiate these, and then I can just set ydata on the appropriate ones when
-# redrawing axes, rather than having to call plot_site all over again. This should speed
-# things up, however I may need a dictionary or something to hold each axes lines (also,
-# does errorbar always return the lines in the same order?)
-#
-# The plotter (or maybe more importantly the data structures) need to be tested for rotation. Generate
-# a test dataset using j2ws3d and make sure that the data points are the same when data is chosen and
-# rotated. It looks like this is not the case (raw data rotated and plotted is noticeably different)
-# from the data that is plotted.
-# ========================= #
-
 def format_data_coords(x, y):
+    """Cursor readout for a sounding-curve axis.
+
+    Assigned to ``ax.format_coord``.  The x-axis carries
+    :math:`\\log_{10}` period, so both the log value and the linear
+    period / frequency are shown.
+
+    Parameters
+    ----------
+    x, y : float
+        Cursor position in axis (data) coordinates; ``x`` is
+        :math:`\\log_{10}` period in seconds.
+
+    Returns
+    -------
+    str
+        Two-line string with the log-scale values and the linear
+        period / frequency.
+    """
     freq = np.log10(1 / 10**x)
     return '\n'.join(['Log10: period={}, frequency={}, y={}',
                       'period={}, frequency={}']).format(utils.truncate(x),
@@ -68,23 +92,41 @@ def format_data_coords(x, y):
 
 
 class format_model_coords(object):
+    """Cursor readout for an image / ``pcolor`` axis.
+
+    An instance is assigned to ``ax.format_coord``; calling it with the
+    cursor position returns the label string, having looked up the cell
+    the cursor falls in and the value stored there.
+
+    Parameters
+    ----------
+    im : matplotlib.cm.ScalarMappable
+        The image / mesh whose array holds the plotted values.
+    X, Y : array_like
+        1-D cell-edge (or cell-centre) coordinates along the x and y
+        axes.  A model passes edges, so ``im`` has one fewer value per
+        axis than ``X`` / ``Y``; a pseudosection passes centres and the
+        sizes match.  Both cases are handled.
+    x_label, y_label : str, optional
+        Axis names used in the readout (default ``'y'``).
+    use_log : bool, optional
+        If ``True`` (default) the stored value is treated as
+        :math:`\\log_{10}` and raised to the power of 10 before display.
+    data_label : str, optional
+        Name of the plotted quantity (``'Resistivity'`` by default);
+        also selects the unit string shown.
+    """
+
     def __init__(self, im, X, Y, x_label='y', y_label='y', use_log=True, data_label='Resistivity'):
         self.im = im
         self.x_label = x_label
         self.y_label = y_label
-        # if self.spatial_units == 'km':
-        #     X *= 1000
-        #     Y *= 1000
         self.X = X
         self.Y = Y
         self.use_log = use_log
         self.data_label = data_label
 
     def __call__(self, x, y):
-        # col = int(x + 0.5)
-        # row = int(y + 0.5)
-        # if col >=0 and col < numcols and row >=0 and row < numrows:
-        # val = X[row, col]
         for ix, xx in enumerate(self.X):
             if xx > x:
                 x_idx = min(ix, len(self.X) - 1) - 1
@@ -95,12 +137,9 @@ class format_model_coords(object):
                 y_idx = min(iy, len(self.Y) - 1) - 1
                 break
             y_idx = len(self.Y) - 2
-        # x_idx = (np.abs(self.X - x + 0.05)).argmin() - 1
-        # y_idx = (np.abs(self.Y - y + 0.05)).argmin() - 1
-        # vals = np.reshape(self.im.get_array(), [len(self.X), len(self.Y)])
         vals = np.array(self.im.get_array())
-        # Image data coming from pseudosections may be a different shape than model data
-        # As model data passes cell edge locations, it will have +1 sizes
+        # Pseudosection images pass cell centres (sizes match X / Y); model
+        # images pass cell edges, so the array is one smaller on each axis.
         if vals.size == self.X.size * self.Y.size:
             nx = self.X.size
             ny = self.Y.size
@@ -120,12 +159,7 @@ class format_model_coords(object):
             self.data_units = 'km'
         else:
             self.data_units = ''
-        
-        # z = vals[x_idx, y_idx]
-        # z = self.im.get_array()[x_idx * len(self.X) + y_idx]
-        # z = self.im.get_array()[x_idx * len(self.Y) + y_idx]
-        # z = self.im.get_array()[y_idx * len(self.X) + x_idx]
-        # z = self.im.get_array()[y_idx * len(self.Y) + x_idx]
+
         return '\t'.join(['{}: {:>4.4g} {}',
                           '{}: {:>4.4g} {}\n',
                           '{}: {} {}']).format(self.x_label, utils.truncate(self.X[x_idx]), 'km',
@@ -135,6 +169,85 @@ class format_model_coords(object):
 
 
 class DataPlotManager(object):
+    """Multi-panel sounding-curve figure: one subplot per site.
+
+    Holds a :class:`matplotlib.figure.Figure` and renders MT response
+    curves onto it -- apparent resistivity, phase, impedance, tipper,
+    phase-tensor components or 1-D Bostick depth, plotted against
+    :math:`\\log_{10}` period, with one subplot per site.  Used by
+    :mod:`pyMT.DataGUI.data_plot` and by the ``plot_dataset`` /
+    ``plot_misfit_curves`` / ``autogen_report`` scripts.
+
+    Typical use: create with a figure, set the configuration attributes
+    below, assign ``sites``, then call :meth:`plot_data`.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure, optional
+        Figure to draw on.  If omitted a new one is created
+        (:meth:`new_figure`).
+
+    Attributes
+    ----------
+    sites : dict
+        ``{data_type: [Site, ...]}`` for ``data_type`` in
+        ``'raw_data'``, ``'data'``, ``'response'``, ``'smoothed_data'``
+        -- typically the output of ``Dataset.get_sites(..., dTypes='all')``.
+        The lists are parallel: index ``i`` is the same station in each.
+    site1D : list
+        Site objects for the optional 1-D overlay (``'1d'`` toggle).
+    components : list of str
+        Components to plot, e.g. ``['ZXYR', 'ZXYI']``, ``['RHOXY']``,
+        ``['PHAXY']``, ``['TZXR']``, ``['PTXY']``, ``['BOSTXY']``,
+        ``['BETA']``.  The first entry drives the axis labels / units.
+    scale : {'sqrt(periods)', 'periods', 'log10', 'none'}
+        Period weighting applied to impedance components before plotting.
+    errors : {'mapped', 'raw', 'none'}
+        Which error to draw as error bars (``used_error`` vs ``errors``).
+    which_errors : list of str
+        Data types for which error bars are drawn at all.
+    toggles : dict
+        ``{data_type: bool}`` -- whether each data type is drawn
+        (includes the ``'1d'`` key).
+    marker : dict
+        ``{data_type: spec}`` where ``spec`` is ``'o'`` (points),
+        ``'oo'`` (points with an edge), ``'-'`` / ``'--'`` (lines).
+    show_outliers : bool
+        If ``False``, y-limits are computed from an outlier-filtered copy
+        of the data (:func:`pyMT.utils.remove_outliers`).
+    plot_flagged_data : bool
+        If ``False``, points whose error equals ``Site.REMOVE_FLAG`` are
+        dropped before plotting.
+    wrap_phase : int
+        Passed through to :func:`pyMT.utils.compute_phase`.
+    outlier_thresh : float
+        Threshold for the outlier filter used when ``show_outliers`` is
+        ``False``.
+    min_ylim, max_ylim : float or None
+        Hard y-limit overrides (``None`` = auto).
+    pt_units : {'degrees', 'radians'}
+        Units for phase-tensor components.
+    tiling : list of int
+        ``[nrows, ncols]`` subplot grid, recomputed by :meth:`gen_tiling`.
+    use_designated_colours : bool
+        If ``True``, colour each component by :attr:`designated_colours`
+        rather than cycling :attr:`colour`.
+    designated_colours, colour, y_labels, ax_lim_dict : dict / list
+        Colour and label lookup tables.
+    mec, markersize, edgewidth, edge_scale, linestyle, label_fontsize
+        Matplotlib styling knobs.
+    link_axes_bounds : bool
+        If ``True``, :meth:`link_axes` shares one set of bounds across
+        every subplot.
+    artist_ref : dict
+        ``{data_type: [artist, ...]}`` -- the artist returned for each
+        axis by the most recent :meth:`plot_site`, kept for incremental
+        redraws.
+    fig : matplotlib.figure.Figure
+    axes : list of matplotlib.axes.Axes
+        The current subplots (populated by :meth:`new_figure` /
+        :meth:`redraw_axes`).
+    """
 
     def __init__(self, fig=None):
         self.link_axes_bounds = False
@@ -154,7 +267,6 @@ class DataPlotManager(object):
         self.sites = {'raw_data': [], 'data': [], 'response': [], 'smoothed_data': []}
         self.toggles = {'raw_data': True, 'data': True, 'response': True, '1d': False, 'smoothed_data': False}
         self.site1D = []
-        ## Modify so real and imaginary use different markers?
         self.marker = {'raw_data': 'o', 'data': 'oo', 'response': '-', '1d': '--', 'smoothed_data': '--'}
         self.errors = 'mapped'
         self.which_errors = ['data', 'raw_data']
@@ -166,7 +278,6 @@ class DataPlotManager(object):
         self.edgewidth = 2
         self.edge_scale = 0.25
         self.label_fontsize = 14
-        # self.sites = None
         self.tiling = [0, 0]
         self.show_outliers = True
         self.plot_flagged_data = True
@@ -192,19 +303,24 @@ class DataPlotManager(object):
 
     @property
     def site_names(self):
+        """list of str: Station names, taken from the first non-empty
+        ``sites`` list."""
         site_containers = self.sites.values()
         sites = next(site for site in site_containers if site != [])
         return [site.name for site in sites]
 
     @property
     def num_sites(self):
+        """int: Largest ``sites`` list length -- i.e. the subplot count."""
         return max([len(data) for data in self.sites.values()])
 
     @property
     def units(self):
-        # Might have to add a setter later if I want some way to plot RMS or something
+        """str: Unit string for the current component / scale, for axis
+        labels (impedance in :math:`\\Omega`, optionally period-weighted;
+        tipper unitless; resistivity in :math:`\\Omega`-m; phase / skew /
+        azimuth in degrees)."""
         if self.components[0][0].upper() == 'Z':
-            # units = 'mV/nT'
             units = 'Ω'
             if self.scale.lower() == 'periods':
                 units = ''.join(['s*', units])
@@ -222,31 +338,49 @@ class DataPlotManager(object):
         return units
 
     def get_designated_colour(self, component, ii):
+        """Colour for a component.
+
+        Parameters
+        ----------
+        component : str
+            Component name; matched case-insensitively against the keys
+            of :attr:`designated_colours` (``'xy'``, ``'yx'``, ``'det'``,
+            ``'ssq'`` …).
+        ii : int
+            Index into :attr:`colour`, used as the fallback.
+
+        Returns
+        -------
+        str
+            The designated colour if :attr:`use_designated_colours` is
+            set and a key matches, otherwise ``colour[ii]``.
+        """
         component = component.lower()
         if self.use_designated_colours:
             for key in self.designated_colours.keys():
                 if key in component:
                     return self.designated_colours[key]
-            else:
-                return self.colour[ii]
-        
+        return self.colour[ii]
+
     def new_figure(self):
-        # self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+        """Replace :attr:`fig` with a fresh empty ``Figure`` and clear
+        :attr:`axes`."""
         self.fig = Figure()
         self.axes = []
 
     def redraw_axes(self):
+        """Clear the figure and rebuild the subplot grid for the current
+        :attr:`num_sites` (via :meth:`gen_tiling`)."""
         self.fig.clear()
         self.axes = []
         self.tiling = self.gen_tiling()
         for ii in range(self.num_sites):
-            # if ii > 0 and self.link_axes_bounds:
-            #     self.axes.append(self.fig.add_subplot(self.tiling[0], self.tiling[1], ii + 1,
-            #                                           sharex=self.axes[0], sharey=self.axes[0]))
-            # else:
             self.axes.append(self.fig.add_subplot(self.tiling[0], self.tiling[1], ii + 1))
 
     def gen_tiling(self):
+        """Return ``[nrows, ncols]`` for :attr:`num_sites` subplots -- a
+        single column for one or two sites, otherwise a near-square
+        grid."""
         if self.num_sites < 3:
             tiling = [self.num_sites, 1]
         else:
@@ -256,17 +390,24 @@ class DataPlotManager(object):
         return tiling
 
     def refresh(self):
-        # The sites loaded in are the basis for the rest of the attributes,
-        # so load them based on that list.
+        """Placeholder -- currently a no-op."""
         pass
 
     def replace_sites(self, sites_in, sites_out):
-        """
-        Replace sites_out (which are currently plotted) with sites_in.
-        Arg:
-            sites_in (dict): A dictionary of the data types and site objects to be plotted.
-                             Format is {data_type: {site_name: site object}}
-            sites_out (list): List of strings indicating the sites to be replaced.
+        """Swap plotted sites in place and redraw only the affected axes.
+
+        Parameters
+        ----------
+        sites_in : dict
+            ``{data_type: [Site, ...]}`` of replacement sites.
+        sites_out : list of str
+            Names of the currently-plotted sites to replace.
+
+        Notes
+        -----
+        If the two collections differ in length the longer is truncated.
+        Each changed axis is redrawn via :meth:`redraw_single_axis`
+        rather than replotting the whole figure.
         """
         snames = self.site_names
         idx = []
@@ -275,14 +416,12 @@ class DataPlotManager(object):
             sites_in = sites_in[:len(sites_out)]
         elif len(sites_out) > ns_in:
             sites_out = sites_out[:len(sites_in)]
-        # debug_print([sites_out, sites_in], 'debug.log')
         for dType, site_list in sites_in.items():
             jj = 0
             if sites_in[dType]:
                 for ii, site in enumerate(snames):
                     if site in sites_out:
                         try:
-                            # debug_print([ii, jj, dType], 'debug.log')
                             self.sites[dType][ii] = sites_in[dType][jj]
                         except IndexError:
                             self.sites[dType].append(sites_in[dType][jj])
@@ -291,22 +430,33 @@ class DataPlotManager(object):
             else:
                 self.sites[dType] = []
 
-        # if jj >= len(snames):
-        #     self.plot_data()
-        # else:
         idx = list(set(idx))
         for ii in idx:
             self.redraw_single_axis(axnum=ii)
 
     def draw_all(self, sites=None):
-        # Refactor plot_data into here. Take out Max and Min stuff and just call
-        # set_maxmin() where it will get the data from ydata of the given axes.
+        """Placeholder for a future incremental full redraw -- currently
+        only stores ``sites`` if none are set."""
         if self.sites is None:
             self.sites = sites
-        # Max = np.zeros([tiling[1] * tiling[0]])
-        # Min = np.zeros([tiling[1] * tiling[0]])
 
     def redraw_single_axis(self, site_name='', axnum=None):
+        """Clear and replot one subplot.
+
+        Parameters
+        ----------
+        site_name : str, optional
+            Station to redraw; its axis index is looked up in
+            :attr:`site_names`.
+        axnum : int, optional
+            Axis index to redraw.  One of ``site_name`` / ``axnum`` must
+            be given; ``axnum`` wins if both are.
+
+        Notes
+        -----
+        Replots every enabled data type for that station, refreshes the
+        legend (axis 0 only), bounds, labels and scales.
+        """
         if (site_name == '' and axnum is None):
             print('You have to specify either the axis number or site name...')
             return
@@ -317,8 +467,7 @@ class DataPlotManager(object):
         Max = -99999
         Min = 99999
         for ii, dType in enumerate(['raw_data', 'data', 'response', '1d', 'smoothed_data']):
-            if self.sites[dType] != []:
-                # site = next(s for s in self.sites[dType] if s.name == self.site_names[axnum])
+            if self.sites.get(dType):
                 try:
                     site = self.sites[dType][axnum]
                 except IndexError:
@@ -339,12 +488,12 @@ class DataPlotManager(object):
         if axnum == 0:
             self.set_legend()
         self.set_bounds(Max=Max, Min=Min, axnum=axnum)
-        # self.set_bounds(axnum=axnum)
         self.set_labels(axnum, site_name)
         self.set_axis_scales()
-        # self.fig.canvas.draw()
 
     def set_legend(self):
+        """Draw the component legend on axis 0 (imaginary components get a
+        triangle marker, everything else a circle)."""
         for ii, comp in enumerate(self.components):
             if 'i' in comp.lower():
                 marker = 'v'
@@ -355,6 +504,9 @@ class DataPlotManager(object):
         leg.get_frame().set_alpha(0.4)
 
     def set_labels(self, axnum, site_name):
+        """Title one subplot with the station name, and add a y-label on
+        the leftmost column and an x-label on the bottom row (period, or
+        depth for Bostick components)."""
         self.axes[axnum].set_title(site_name)
         rows = self.tiling[0]
         cols = self.tiling[1]
@@ -368,7 +520,19 @@ class DataPlotManager(object):
                 self.axes[axnum].set_xlabel(r'$Log_{10}$ Period (s)', fontsize=self.label_fontsize)
 
     def plot_data(self, sites=None):
-        # print('Don''t use this method anymore, use draw_all instead')
+        """Render the whole figure -- the main entry point.
+
+        Rebuilds the subplot grid if the site count changed, then for
+        each data type (``raw_data`` first, so it plots underneath) calls
+        :meth:`plot_site` for every station, and finally sets the bounds,
+        legend and axis scales.
+
+        Parameters
+        ----------
+        sites : dict, optional
+            ``{data_type: [Site, ...]}``; only used if :attr:`sites` has
+            not already been assigned.
+        """
         if self.sites is None:
             self.sites = sites
         tiling = self.gen_tiling()
@@ -384,12 +548,13 @@ class DataPlotManager(object):
         Min = np.zeros([tiling[1] * tiling[0]])
         if not self.components:
             self.components = ['ZXYR']
+        last_ii = -1
         for jj, dType in enumerate(['raw_data', 'data', 'response', '1d', 'smoothed_data']):  # plot raw first, if avail
             if dType == '1d':
                 pass
             else:
                 for ii, site in enumerate(self.sites[dType]):
-                    # xi is the row, yi is the column of the current axis.
+                    last_ii = max(last_ii, ii)
                     if site is not None and self.toggles[dType]:
                         self.axes[ii], ma, mi, artist = self.plot_site(site,
                                                                        dType=dType, ax=self.axes[ii])
@@ -401,14 +566,15 @@ class DataPlotManager(object):
                             self.artist_ref[dType][ii] = artist
                     if jj == 0:
                         self.set_labels(axnum=ii, site_name=site.name)
-        self.set_bounds(Max=Max, Min=Min, axnum=list(range(ii + 1)))
-        # self.set_bounds(axnum=list(range(ii + 1)))
+        self.set_bounds(Max=Max, Min=Min, axnum=list(range(last_ii + 1)))
         self.set_legend()
         self.set_axis_scales()
-        # plt.show()
 
     @property
     def log10_yscale(self):
+        """bool: Whether the y-axis should be log-scaled -- true for
+        log10-scaled impedance and for any resistivity / Bostick
+        component."""
         if (self.scale.lower() == 'log10' and self.components[0].lower().startswith('z')) or \
            (any(map(self.components[0].lower().__contains__, ('rho', 'bost')))):
            return True
@@ -416,6 +582,18 @@ class DataPlotManager(object):
            return False
 
     def set_bounds(self, Max, Min, axnum=None):
+        """Set y-limits from the data range (padded by a quarter range,
+        or a decade each side when log-scaled), honouring
+        :attr:`min_ylim` / :attr:`max_ylim`.
+
+        Parameters
+        ----------
+        Max, Min : float or sequence of float
+            Data extremes -- per-axis sequences when ``axnum`` is a list,
+            otherwise scalars.
+        axnum : int or list of int, optional
+            Axis / axes to bound.
+        """
         try:
             for ax in axnum:
                 if not self.min_ylim:
@@ -450,21 +628,23 @@ class DataPlotManager(object):
                 self.axes[axnum].set_ylim([-1, 1])
             except TypeError:
                 self.axes[0].set_ylim([y1, y2])
-        # if axnum is None:
-        #         axnum = range(0, len(self.axes))
-        # if self.link_axes_bounds:
-        #     self.link_axes(axnum=axnum)
-        # else:
-        # try:
-        #     for ax in axnum:
-        #         self.axes[ax].set_ymargin(self.axis_padding)
-        #         self.axes[ax].autoscale(self.axis_padding)
-        # except TypeError:
-        #     self.axes[axnum].set_ymargin(self.axis_padding)
-        #     self.axes[axnum].autoscale()
 
     @utils.enforce_input(axnum=list, x_bounds=list, y_bounds=list)
     def link_axes(self, axnum, x_bounds=None, y_bounds=None):
+        """Give every listed axis the same x / y limits.
+
+        Call with keyword arguments (see the module note on
+        ``enforce_input``).
+
+        Parameters
+        ----------
+        axnum : list of int
+            Axes to link; ``None`` means all.
+        x_bounds, y_bounds : list of float, optional
+            ``[low, high]`` limits; each defaults to the union of the
+            current bounds across all axes.  ``y_bounds`` is raised to
+            powers of 10 when the y-axis is log-scaled.
+        """
         if axnum is None:
             axnum = range(0, len(self.axes))
         if not x_bounds:
@@ -473,8 +653,6 @@ class DataPlotManager(object):
         if not y_bounds:
             y_bounds = (min([ax.get_ybound()[0] for ax in self.axes]),
                         max([ax.get_ybound()[1] for ax in self.axes]))
-        # x_axrange = x_bounds[1] - x_bounds[0]
-        # y_axrange = y_bounds[1] - y_bounds[0]
         if self.log10_yscale:
                 y_bounds = [10**x for x in y_bounds]
         for ax in axnum:
@@ -484,20 +662,39 @@ class DataPlotManager(object):
             self.axes[ax].set_xlim([x_bounds[0], x_bounds[1]])
 
     def plot_site(self, site, dType='Data', ax=None, ):
-        """Summary
+        """Plot every configured component of one station onto one axis.
 
-        Args:
-            errors (str, optional): Description
-            ax (None, optional): Description
-            components (list, optional): Description
-            scale (str, optional): Description
-            marker (str, optional): Description
-            linestyle (str, optional): Description
+        For each entry in :attr:`components` the y-values are derived from
+        ``site`` according to the component family -- apparent resistivity
+        (:func:`pyMT.utils.compute_rho`), phase
+        (:func:`pyMT.utils.compute_phase`), phase-tensor / invariant
+        quantities (from ``site.phase_tensors`` / ``site.CART``), Bostick
+        depth (:func:`pyMT.utils.compute_bost1D`) or a raw data component
+        scaled by :attr:`scale` -- and drawn with ``ax.errorbar``.
+        Imaginary components use a triangle marker.  A component with no
+        usable data is annotated ``'No Data'``.
 
-        Returns:
-            dTYPE: Description
+        Parameters
+        ----------
+        site : pyMT.data_structures.Site
+            Station to plot.
+        dType : str, optional
+            Data type key (``'data'``, ``'raw_data'``, ``'response'``,
+            ``'1d'``, ``'smoothed_data'``) -- selects the marker / line
+            style from :attr:`marker` and whether error bars are drawn.
+        ax : matplotlib.axes.Axes, optional
+            Target axis.
+
+        Returns
+        -------
+        ax : matplotlib.axes.Axes
+            The same axis.
+        max, min : float
+            Data extremes across the plotted components (outlier-filtered
+            when :attr:`show_outliers` is ``False``), used for y-limits.
+        artist : matplotlib artist
+            The artist from the last component drawn.
         """
-        # Can I pass other keyword args through directly to plt?
         def pop_flagged_data(x, y, toplotErr, site, component):
             if component in site.components:
                 e = site.used_error[component]
@@ -507,15 +704,12 @@ class DataPlotManager(object):
             for ii, ie in enumerate(e):
                 if ie == site.REMOVE_FLAG:
                     idx.append(ii)
-                    # x_popped.append(x.pop(0))
-                    # y_popped.append(y.pop(0))
-                    # e_popped.append(e.pop(0))
             if idx:
                 x = np.delete(x, idx)
                 y = np.delete(y, idx)
                 if toplotErr is not None:
                     toplotErr = np.delete(toplotErr, idx)
-            return x, y, toplotErr  #, x_popped, y_popped, e_popped
+            return x, y, toplotErr
         response_types = ('response', '1d')
         ma = []
         mi = []
@@ -676,7 +870,6 @@ class DataPlotManager(object):
                 else:
                     if ((self.toggles['raw_data'] and dType.lower() == 'raw_data') or \
                        (not self.toggles['raw_data'])) and (toplot.size != 0):
-                        # showdata = self.remove_outliers(site.periods, toplot)
                         showdata = utils.remove_outliers(toplot, threshold=self.outlier_thresh)
                         ma.append(max(showdata))
                         mi.append(min(showdata))
@@ -684,46 +877,113 @@ class DataPlotManager(object):
                         ma.append(0)
                         mi.append(0)
             except KeyError:
-                # raise(e)
                 artist = ax.text(0, 0, 'No Data')
                 ma.append(0)
                 mi.append(0)
-            # if dType == 'data':
-            #     ax.aname = 'data'
-            # elif dType == 'raw_data':
-            #     ax.aname = 'raw_data'
         self.set_axis_scales()
         ax.format_coord = format_data_coords
-        # ax.set_title(site.name)
         return ax, max(ma), min(mi), artist
 
     def set_axis_scales(self):
+        """Switch every subplot's y-axis to log scale when
+        :attr:`log10_yscale` is true (no-op otherwise)."""
         if self.log10_yscale:
             for axnum in range(len(self.site_names)):
                 self.axes[axnum].set_yscale('log')
 
-    def remove_outliers(self, periods, data):
-        expected = utils.geotools_filter(periods, data, fwidth=self.outlier_thresh)
-        return expected
-        nper = len(data)
-        inds = []
-        # for idx, datum in enumerate(data):
-        #     ratio = abs((expected[idx] - datum) / expected[idx])
-        #     if ratio >= self.outlier_thresh:
-        #         inds.append(idx)
-        for idx, datum in enumerate(data):
-            expected = 0
-            for jj in range(max(1, idx - 2), min(nper, idx + 2)):
-                expected += data[jj]
-            expected /= jj
-            # tol = abs(self.outlier_thresh * expected)
-            diff = (datum - expected) / expected
-            if abs(diff) > self.outlier_thresh:
-                inds.append(idx)
-        return np.array([x for (idx, x) in enumerate(data) if idx not in inds])
-
 
 class MapView(object):
+    """Plan-view map / pseudosection / model-slice figure.
+
+    Renders station-located quantities onto a single map axis: site
+    markers, induction arrows, phase-tensor ellipses and bars,
+    interpolated plan pseudosections, RMS maps, and model plan / cross
+    sections.  Used by :mod:`pyMT.DataGUI.data_plot`,
+    :mod:`pyMT.ModelGUI.model_viewer` and the ``phase_tensor_map`` /
+    ``plot_induction_map`` scripts.
+
+    Like :class:`DataPlotManager` it is configured by setting attributes
+    and then calling a ``plot_*`` method.  The data objects are supplied
+    through :attr:`site_data`; several methods also expect the caller to
+    have assigned :attr:`dataset` (a
+    :class:`pyMT.data_structures.Dataset`), which ``__init__`` does *not*
+    create.
+
+    Parameters
+    ----------
+    figure : matplotlib.figure.Figure, optional
+        Figure to draw on.  If omitted a new one is created.
+    **kwargs
+        Accepted for signature compatibility but ignored; use
+        :meth:`set_kwargs` to bulk-set attributes.
+
+    Attributes
+    ----------
+    COORD_SYSTEMS : tuple of str
+        The recognised coordinate systems: ``'local'``, ``'utm'``,
+        ``'latlong'``, ``'lambert'``.
+    window : dict
+        ``{'figure', 'axes', 'canvas', 'colorbar', 'colorbar_twin'}`` --
+        the drawing surface.  ``window['axes']`` is a *list*; plotting
+        methods use ``window['axes'][0]``.
+    site_data : dict
+        ``{'raw_data', 'data', 'response'}`` -> ``Data`` / ``RawData`` /
+        ``Response`` objects.  Also reachable through the :attr:`data`,
+        :attr:`raw_data` and :attr:`response` properties.
+    dataset : pyMT.data_structures.Dataset
+        Assigned by the caller; required by :meth:`set_spatial_units` and
+        the RMS branch of :meth:`plot_locations`.
+    site_names : list of str
+        Stations to consider, in plot order.
+    active_sites : list of str
+        Highlighted subset; the rest are :attr:`generic_sites`.
+    site_locations : dict
+        ``{'generic', 'active', 'all'}`` -> ``(N, 2)`` arrays of
+        ``[northing, easting]`` in the current coordinate system, filled
+        by :meth:`set_locations` / :meth:`get_locations`.
+    coordinate_system : str
+        One of :attr:`COORD_SYSTEMS`; the setter reprojects the site
+        locations (and :attr:`model`, if set).
+    model : pyMT.data_structures.Model
+        Model for :meth:`plot_plan_view` / :meth:`plot_x_slice` /
+        :meth:`plot_y_slice`.
+    interpolant : str
+        Grid interpolant for :meth:`interpolate` -- ``'nearest'``,
+        ``'linear'``, ``'cubic'``, ``'natural'`` (needs the optional
+        ``naturalneighbor`` package; falls back to ``'linear'``), or
+        ``'rbf-<kernel>'``.
+    colourmap, invert_cmap, lut : str, bool, int
+        Colour-map name, inversion flag and number of quantisation
+        levels; combined by the :attr:`cmap` property.
+    rho_cax, phase_cax, phase_split_cax, delta_cax, diff_cax, tipper_cax,
+    skew_cax, model_cax, aniso_cax, depth_cax, rms_cax : list of float
+        ``[min, max]`` colour-axis ranges per quantity.
+    plot_rms, rms_plot_style : bool, list of str
+        Whether :meth:`plot_locations` encodes station RMS, and how
+        (``'size'``, ``'colour'``, ``'labels'``).
+    min_pt_ratio, pt_ratio_cutoff, pt_scale, arc_scale, ellipse_VE,
+    ellipse_linewidth, pt_delta_scale, pt_difference_definition,
+    pt_rotation_axis
+        Phase-tensor ellipse shape / scaling / differencing controls.
+    induction_scale, induction_cutoff, induction_error_tol
+        Induction-arrow scaling and rejection thresholds.
+    padding_scale : float
+        Fraction of the data extent added as a margin by
+        :meth:`set_axis_limits` / :meth:`interpolate`.
+    spatial_units : {'m', 'km'}
+        Units for axis labels / readouts.
+    site_marker, site_fill, site_interior, site_exterior, markersize,
+    edgewidth, edge_scale, image_opacity, mesh, linewidth : misc
+        Marker / mesh styling.
+    cb_params : dict
+        Colour-bar label / tick / rotation parameters used by
+        :meth:`set_colorbar`.
+    use_colourbar : bool
+        Master switch for drawing colour bars.
+    actors : dict
+        Lists of artists added by each plot method, for later removal.
+    """
+
     COORD_SYSTEMS = ('local', 'utm', 'latlong', 'lambert')
 
     def __init__(self, figure=None, **kwargs):
@@ -818,6 +1078,8 @@ class MapView(object):
 
     @property
     def facecolour(self):
+        """str: Marker fill -- :attr:`site_interior` when
+        :attr:`site_fill`, otherwise ``'none'``."""
         if self.site_fill:
             return self.site_interior
         else:
@@ -825,6 +1087,9 @@ class MapView(object):
 
     @property
     def interpolant(self):
+        """str: Grid interpolant name.  Setting ``'natural'`` when the
+        optional ``naturalneighbor`` package is missing silently
+        downgrades to ``'linear'``."""
         return self._interpolant
 
     @interpolant.setter
@@ -836,14 +1101,21 @@ class MapView(object):
 
     @property
     def cmap(self):
+        """matplotlib.colors.Colormap: :attr:`colourmap` resolved through
+        :func:`pyMT.e_colours.colourmaps.get_cmap` with :attr:`lut` levels
+        and :attr:`invert_cmap`."""
         return cm.get_cmap(self.colourmap, N=self.lut, invert=self.invert_cmap)
 
     @property
     def generic_sites(self):
+        """list of str: Sites in :attr:`site_names` but not
+        :attr:`active_sites` (unordered -- it is a set difference)."""
         return list(set(self.site_names) - set(self.active_sites))
 
     @property
     def data(self):
+        """pyMT.data_structures.Data: shortcut for
+        ``site_data['data']``."""
         return self.site_data['data']
 
     @data.setter
@@ -852,6 +1124,8 @@ class MapView(object):
 
     @property
     def raw_data(self):
+        """pyMT.data_structures.RawData: shortcut for
+        ``site_data['raw_data']``."""
         return self.site_data['raw_data']
 
     @raw_data.setter
@@ -860,6 +1134,8 @@ class MapView(object):
 
     @property
     def response(self):
+        """pyMT.data_structures.Response: shortcut for
+        ``site_data['response']``."""
         return self.site_data['response']
 
     @response.setter
@@ -868,6 +1144,9 @@ class MapView(object):
 
     @property
     def active_sites(self):
+        """list of str: Highlighted stations.  Assigning also refreshes
+        :attr:`site_locations` via :meth:`set_locations`; a bare string
+        is wrapped in a list."""
         return self._active_sites
 
     @active_sites.setter
@@ -878,10 +1157,17 @@ class MapView(object):
             sites = [sites]
         self._active_sites = sites
         self.set_locations()
-        # self.plot_locations()
 
     @property
     def coordinate_system(self):
+        """str: Active coordinate system (one of :attr:`COORD_SYSTEMS`).
+
+        Assigning a new value re-derives every :attr:`site_locations`
+        entry in that system and, if :attr:`model` is set, reprojects it
+        too (``'latlong'`` model reprojection is not implemented and is
+        skipped with a message).  A non-local system requires an
+        initialised ``raw_data`` (see :meth:`verify_coordinate_system`).
+        """
         return self._coordinate_system
 
     @coordinate_system.setter
@@ -900,20 +1186,18 @@ class MapView(object):
                 self.site_locations['all'] = self.get_locations(sites=self.site_names)
                 if self.model != []:
                     print('Correction factor is: {}'.format(correction))
-                    
-                    # print('Station center at: {}'.format(station_center))
                     station_center = np.array(utils.center_locs(np.fliplr(self.site_locations['all']))[1])
-                    # if coordinate_system.lower() in ('utm', 'lambert'):
-                        # self.model.project_model(system='local')
                     if coordinate_system == 'latlong':
                         print('Model to latlong not implemented')
                         return
-                        # station_center = np.array(utils.center_locs((self.get_locations(sites=self.site_names,
-                                                                                                 # coordinate_system='lambert',
-                                                                                                 # inquire_only=True)))[1])
                     self.model.project_model(system=coordinate_system, origin=station_center - correction)
 
     def verify_coordinate_system(self, coordinate_system):
+        """Return ``True`` if ``coordinate_system`` can be used now.
+
+        ``'local'`` is always fine; ``'utm'`` / ``'latlong'`` /
+        ``'lambert'`` need an initialised ``raw_data`` (EDI locations).
+        """
         if coordinate_system.lower() == 'local':
             return True
         elif coordinate_system.lower() in ('utm', 'latlong', 'lambert'):
@@ -923,28 +1207,38 @@ class MapView(object):
                 return False
 
     def set_kwargs(self, kwargs):
+        """Set any attribute already defined on the instance from
+        ``kwargs``; unknown keys are ignored."""
         for key, value in kwargs.items():
             if key in self.__dict__.keys():
                 setattr(self, key, value)
 
     def new_figure(self):
+        """Create a fresh ``Figure`` and axis if ``window['figure']`` is
+        empty."""
         if not self.window['figure']:
             self.window['figure'] = Figure()
             self.create_axes()
 
     def create_axes(self):
+        """Populate ``window['axes']`` -- add a single ``111`` subplot,
+        or adopt the figure's existing axes."""
         if not self.window['figure'].axes:
             self.window['axes'] = self.window['figure'].add_subplot(111)
         else:
             self.window['axes'] = self.window['figure'].axes
 
     def set_locations(self):
+        """Recompute the ``'generic'`` / ``'active'`` / ``'all'`` entries
+        of :attr:`site_locations` in the current coordinate system."""
         self.site_locations['generic'] = self.get_locations(sites=self.generic_sites)
         self.site_locations['active'] = self.get_locations(sites=self.active_sites)
         self.site_locations['all'] = self.get_locations(sites=self.site_names)
 
     def set_spatial_units(self, units):
-        # This should be refactored - spatial units don't need to be set across 4 different objects?
+        """Propagate ``'m'`` / ``'km'`` to :attr:`spatial_units`,
+        :attr:`dataset` and the loaded ``raw_data`` / ``data`` objects
+        (other values are ignored)."""
         if units.lower() in ('m', 'km'):
             self.spatial_units = units
             self.dataset.spatial_units = units
@@ -953,8 +1247,29 @@ class MapView(object):
             if self.site_data['data']:
                 self.site_data['data'].spatial_units = units
 
-
     def get_locations(self, sites=None, coordinate_system=None, inquire_only=False):
+        """Return station locations as an ``(N, 2)`` ``[northing, easting]``
+        array.
+
+        Parameters
+        ----------
+        sites : list of str, optional
+            Stations to return (default: all).
+        coordinate_system : str, optional
+            System to return them in; defaults to
+            :attr:`coordinate_system`.  If given and ``inquire_only`` is
+            ``False`` this also *sets* :attr:`coordinate_system` (which
+            triggers reprojection).
+        inquire_only : bool, optional
+            If ``True``, use ``coordinate_system`` for this call only
+            without changing the instance state.
+
+        Returns
+        -------
+        numpy.ndarray
+            Locations, rotated by the data azimuth if it differs from the
+            stored one.
+        """
         if not coordinate_system:
             coordinate_system = self.coordinate_system
         else:
@@ -964,7 +1279,6 @@ class MapView(object):
             azi = self.site_data['data'].azimuth
             check_azi = self.site_data['data'].check_azi()
             locs = self.site_data['data'].get_locs(site_list=sites, azi=azi)
-            # print('{}, {}'.format(azi, check_azi))
         elif coordinate_system.lower() == 'utm':
             azi = self.site_data['raw_data'].azimuth
             check_azi = self.site_data['raw_data'].check_azi()
@@ -983,6 +1297,10 @@ class MapView(object):
         return locs
 
     def set_axis_labels(self, ax=None, xlabel=None, ylabel=None):
+        """Label the map axes.  Explicit ``xlabel`` / ``ylabel`` win;
+        otherwise Easting / Northing (projected systems) or Longitude /
+        Latitude (``latlong``) are used, with the current spatial
+        units."""
         if ax is None:
             ax = self.window['axes'][0]
         if xlabel:
@@ -1002,6 +1320,16 @@ class MapView(object):
         ax.tick_params(axis='both', which='major', labelsize=self.tick_fontsize)
         
     def set_axis_limits(self, bounds=None, ax=None):
+        """Set the map extent.
+
+        Parameters
+        ----------
+        bounds : sequence of float, optional
+            ``[xmin, xmax, ymin, ymax]``.  If omitted, the extent of
+            ``site_locations['all']`` plus a ``1 / padding_scale``
+            margin is used.
+        ax : matplotlib.axes.Axes, optional
+        """
         if ax is None:
             ax = self.window['axes'][0]
         if bounds is None:
@@ -1018,14 +1346,29 @@ class MapView(object):
             ax.set_ylim(bounds[2:])
 
     def set_colorbar(self, mappable, label='None', cb_slot=1):
+        """Attach (or extend) the figure colour bar.
+
+        Parameters
+        ----------
+        mappable : matplotlib.cm.ScalarMappable
+            Mappable to draw the colour bar from.
+        label : str, optional
+            Colour-bar label.
+        cb_slot : {1, 2}, optional
+            ``1`` creates the primary colour bar; ``2`` adds a second
+            scale -- a shared label if the two mappables span the same
+            range, otherwise a twinned secondary axis.  ``> 2`` is not
+            implemented.
+
+        Notes
+        -----
+        The ``cb_slot == 2`` twin-axis branch has a known off-by-one in
+        its tick labels.
+        """
         if cb_slot == 1:
             self.cb_params['label_1'] = label
             self.cb_params['mappable_1'] = mappable
-            # divider = make_axes_locatable(self.window['axes'][0])
-            # cax = divider.append_axes('right', size='3.5%', pad=0.05)
             self.window['colorbar'] = self.window['figure'].colorbar(mappable)
-                                                                     # ax=self.window['axes'][0],
-                                                                     # cax=cax)
             self.window['colorbar'].set_label(label,
                                               rotation=self.cb_params['rotation'],
                                               labelpad=self.cb_params['labelpad'],
@@ -1091,6 +1434,36 @@ class MapView(object):
 
 
     def interpolate(self, points, vals, n_interp):
+        """Interpolate scattered station values onto a regular grid.
+
+        Parameters
+        ----------
+        points : ndarray, shape (N, >=2)
+            Station coordinates; only the first two columns are used
+            (a third is passed to the natural-neighbour backend).
+        vals : ndarray, shape (N,)
+            Value at each station.
+        n_interp : int
+            Grid size per axis.
+
+        Returns
+        -------
+        grid_vals : ndarray, shape (n_interp, n_interp)
+        grid_x, grid_y : ndarray
+            Meshgrid coordinates.
+        x_flat, y_flat : ndarray
+            The 1-D grid axes.
+
+        Notes
+        -----
+        The grid spans the data extent plus a ``1 / padding_scale``
+        margin.  The method follows :attr:`interpolant`:
+        ``linear`` / ``cubic`` / ``nearest`` via
+        :func:`scipy.interpolate.griddata`, ``natural`` via
+        ``naturalneighbor`` when available, or ``rbf-<kernel>`` via
+        :class:`scipy.interpolate.RBFInterpolator` (duplicate points are
+        nudged apart first).
+        """
         min_x = np.min(points[:, 0])
         max_x = np.max(points[:, 0])
         min_y = np.min(points[:, 1])
@@ -1127,14 +1500,27 @@ class MapView(object):
         return grid_vals, grid_x, grid_y, x_flat, y_flat
 
     def plot_locations(self, cb_slot=1):
+        """Scatter the station markers onto the map.
+
+        Generic and active stations are drawn separately.  When
+        :attr:`plot_rms` is set, per-station total RMS (from
+        ``dataset.rms``) is encoded according to :attr:`rms_plot_style`:
+        ``'size'`` scales the markers, ``'colour'`` colour-maps them (and
+        adds a colour bar in ``cb_slot``), ``'labels'`` annotates the
+        value.
+
+        Parameters
+        ----------
+        cb_slot : int, optional
+            Colour-bar slot for the RMS colour scale (see
+            :meth:`set_colorbar`).
+        """
         marker_size = {'generic': [self.markersize ** 2], 'active': [self.markersize ** 2]}
         facecolour = {'generic': 'None', 'active': 'None'}
         edgecolour = deepcopy(self.site_exterior)
-        # edgewidth = deepcopy(self.edgewidth)
         edgewidth = self.markersize * self.edge_scale
         cmin, cmax = 1, 1
         if self.plot_rms:
-            # marker = 'o'
             marker = self.site_marker
             generic_rms = np.array([self.dataset.rms['Station'][site]['Total']
                                     for site in self.generic_sites])
@@ -1224,7 +1610,9 @@ class MapView(object):
                                                                                      xytext=(10, -4), textcoords='offset points'))
         self.set_axis_labels()
 
-    def plot_annotate(self):    
+    def plot_annotate(self):
+        """Label station markers with their names -- the active subset for
+        ``annotate_sites == 'active'``, every station for ``'all'``."""
         if self.annotate_sites == 'active':
             for ii, (xx, yy) in enumerate(self.site_locations['active']):
                 self.actors['annotation'].append(self.window['axes'][0].annotate(self.active_sites[ii],
@@ -1243,10 +1631,31 @@ class MapView(object):
 
     @utils.enforce_input(data_type=list, normalize=bool, period_idx=int, arrow_type=list, arrow_convention=str)
     def plot_induction_arrows(self, data_type='data', normalize=True, period_idx=1, arrow_type=['R'], arrow_convention='parkinson'):
-        # max_length = np.sqrt((np.max(self.site_locations['all'][:, 0]) -
-        #                       np.min(self.site_locations['all'][:, 0])) ** 2 +
-        #                      (np.max(self.site_locations['all'][:, 1]) -
-        #                       np.min(self.site_locations['all'][:, 1])) ** 2) / 10
+        """Draw tipper (induction) arrows at one period.
+
+        Call with keyword arguments (see the module note on
+        ``enforce_input``).
+
+        Parameters
+        ----------
+        data_type : list of str
+            Any of ``'data'``, ``'raw_data'``, ``'response'``; each is
+            drawn in its :attr:`arrow_colours` colour.
+        normalize : bool
+            If ``True``, all arrows are drawn the same length.
+        period_idx : int
+            Period index.
+        arrow_type : list of {'R', 'I'}
+            Real and/or imaginary parts.
+        arrow_convention : {'parkinson', 'weise'}
+            Real-arrow sign convention (``'weise'`` reverses it).
+
+        Notes
+        -----
+        Stations whose tipper is flagged at this period are skipped;
+        arrows longer than :attr:`induction_cutoff` are zeroed.  A
+        quiver key is added per drawn set.
+        """
         x_max, x_min = (np.max(self.site_locations['all'][:, 0]), np.min(self.site_locations['all'][:, 0]))
         y_max, y_min = (np.max(self.site_locations['all'][:, 1]), np.min(self.site_locations['all'][:, 1]))
         max_length = np.max((x_max - x_min, y_max - y_min))
@@ -1339,6 +1748,22 @@ class MapView(object):
                 num_keys += 1
 
     def pt_fill_limits(self, fill_param, pt_type):
+        """Return the ``(lower, upper)`` colour-axis range for a
+        phase-tensor fill parameter.
+
+        Parameters
+        ----------
+        fill_param : str
+            The quantity used to colour the ellipses (``'beta'``,
+            ``'alpha'``, ``'azimuth'``, ``'delta'``, ``'phi_max'``,
+            ``'phi_split_pt'``, a ``'diff_*'`` residual, ...).
+        pt_type : {'phi', 'phi_a', 'ua', 'va'}
+            Tensor family; changes the range for the ``phi_*`` params.
+
+        Returns
+        -------
+        tuple of float
+        """
         if fill_param.startswith('diff') and 'delta' not in fill_param.lower():
             lower, upper = self.diff_cax
         elif fill_param in ['Lambda']:
@@ -1375,6 +1800,9 @@ class MapView(object):
         return lower, upper
 
     def generate_rectangle(self, width, height, angle):
+        """Return ``(x, y)`` vertex arrays for a ``width`` x ``height``
+        rectangle (built from a squared sine/cosine parametrisation)
+        rotated by ``angle`` radians."""
         t = np.arange(0, 2 * np.pi + np.pi / 30, np.pi / 30)
         x = width * (abs(np.cos(t)) * np.cos(t) + abs(np.sin(t)) * np.sin(t))
         y = height * (abs(np.cos(t)) * np.cos(t) - abs(np.sin(t)) * np.sin(t))
@@ -1383,43 +1811,60 @@ class MapView(object):
         return x, y
 
     def generate_ellipse(self, phi):
-            jx = np.cos(np.arange(0, 2 * np.pi + np.pi / 30, np.pi / 30))
-            jy = np.sin(np.arange(0, 2 * np.pi + np.pi / 30, np.pi / 30))
-            phi_x = phi[0, 0] * jx + phi[0, 1] * jy
-            phi_y = phi[1, 0] * jx + phi[1, 1] * jy
-            # phi_x = jx
-            # phi_y = jy
-            return phi_x, phi_y
+        """Return ``(phi_x, phi_y)`` vertex arrays for the ellipse traced
+        by the 2x2 tensor ``phi`` acting on the unit circle."""
+        jx = np.cos(np.arange(0, 2 * np.pi + np.pi / 30, np.pi / 30))
+        jy = np.sin(np.arange(0, 2 * np.pi + np.pi / 30, np.pi / 30))
+        phi_x = phi[0, 0] * jx + phi[0, 1] * jy
+        phi_y = phi[1, 0] * jx + phi[1, 1] * jy
+        return phi_x, phi_y
 
     def generate_arc(self, phi, azi_1, azi_2):
+        """Return ``(phi_x, phi_y, ok)`` for the arc of the ``phi``
+        ellipse swept between azimuths ``azi_1`` and ``azi_2`` (radians).
+
+        ``ok`` is ``False`` (and the coordinates ``None``) when the two
+        azimuths are within 3 degrees of each other.  Used to draw the
+        rotation arc for Castro-style phase-tensor differences.
+        """
         if np.abs(azi_1 - azi_2) < np.pi/60:
             return None, None, False
-            # jx = np.cos(np.arange(0, 2 * np.pi + np.pi/180, np.pi/180))
-            # jy = np.sin(np.arange(0, 2 * np.pi + np.pi/180, np.pi/180))
-            # phi_x = phi[0, 0] * jx + phi[0, 1] * jy
-            # phi_y = phi[1, 0] * jx + phi[1, 1] * jy
-            # return phi_x, phi_y, True
         if azi_2 > azi_1:
             flip = -1
-            # flip = 1
             jx = np.cos(np.arange(azi_1, azi_2 + np.pi/180, np.pi/180))
             jy = np.sin(np.arange(azi_1, azi_2 + np.pi/180, np.pi/180))
         else:
             flip = 1
             jx = np.cos(np.arange(azi_2, azi_1 + np.pi/180, np.pi/180))
             jy = np.sin(np.arange(azi_2, azi_1 + np.pi/180, np.pi/180))
-        
-        # print(['azi:', azi_1, azi_2])
-        # jx = np.cos(np.arange(0, flip * (azi_1 - azi_2) + np.pi/60, np.pi/60))
-        # jy = np.sin(np.arange(0, flip * (azi_1 - azi_2) + np.pi/60, np.pi/60))
-        
-        # print(['js', jx, jy])
         phi_x = phi[0, 0] * jx + phi[0, 1] * jy
         phi_y = phi[1, 0] * jx + phi[1, 1] * jy
         return phi_x[::flip], phi_y[::flip], True
 
-
     def get_tensor_params(self, pt_type, fill_param, site=None, tensor=None, period_idx=None):
+        """Pull the ellipse geometry and fill value for one tensor.
+
+        Parameters
+        ----------
+        pt_type : {'phi', 'phi_a', ...}
+            ``'phi'`` uses ``site.phase_tensors``; ``'phi_a'`` and the
+            anisotropy families (``'ua'``, ``'va'``, ...) use
+            ``site.CART``.  For the latter the attribute names are
+            prefixed with ``pt_type``.
+        fill_param : str
+            Attribute to return as the fill value.
+        site : pyMT.data_structures.Site, optional
+            Source of the tensor when ``tensor`` is not given.
+        tensor : object, optional
+            An explicit tensor (e.g. a residual) to read instead.
+        period_idx : int, optional
+            Period index into ``site``.
+
+        Returns
+        -------
+        tuple
+            ``(tensor, phi, phi_max, phi_min, azimuth, fill_val)``.
+        """
         if pt_type == 'phi':
             if not tensor:
                 tensor = site.phase_tensors[period_idx]
@@ -1452,7 +1897,9 @@ class MapView(object):
         return tensor, phi, phi_max, phi_min, azimuth, fill_val
 
     def resize_ellipse_aspect(self, azimuth, phi_max):
-        # Rescales the ellipse so that the max and min axes are no smaller than a given amount
+        """Return ``(phi_x, phi_y)`` for an ellipse of semi-major axis
+        ``|phi_max|`` and axis ratio :attr:`min_pt_ratio`, oriented at
+        ``azimuth`` -- used to stop very flat ellipses from vanishing."""
         R = np.array(((np.cos(azimuth), -np.sin(azimuth)),
                        (np.sin(azimuth), np.cos(azimuth))))
         max_element = np.abs(phi_max)
@@ -1464,11 +1911,44 @@ class MapView(object):
         return phi_x, phi_y
 
     def rescale_ellipse(self, phi_x, phi_y, rescale_factor):
-        # Rescale the whole size of the ellipse
+        """Return ``[phi_x, phi_y]`` scaled uniformly by
+        ``rescale_factor``."""
         return [rescale_factor * x for x in (phi_x, phi_y)]
 
     @utils.enforce_input(data_type=list, normalize=bool, fill_param=str, period_idx=int, pt_type=str, bostick_depth=float, cb_slot=int)
     def plot_phase_tensor(self, data_type='data', normalize=True, fill_param='Beta', period_idx=1, pt_type=None, bostick_depth=0, cb_slot=1):
+        """Draw a phase-tensor ellipse per station at one period.
+
+        Call with keyword arguments (see the module note on
+        ``enforce_input``).
+
+        Parameters
+        ----------
+        data_type : list of str
+            One entry plots that tensor; two entries plot the
+            ``data - response`` residual (per
+            :attr:`pt_difference_definition`), optionally with a
+            rotation arc for the ``'castro'`` definition.
+        normalize : bool
+            Scale every ellipse to the same size.
+        fill_param : str
+            Quantity used to colour the ellipses (see
+            :meth:`pt_fill_limits`).
+        period_idx : int
+            Period index (ignored if ``bostick_depth`` is given, which
+            picks the nearest Bostick depth instead).
+        pt_type : str, optional
+            Tensor family (default ``'phi'``).
+        bostick_depth : float, optional
+            Bostick depth (km) to plot at instead of ``period_idx``.
+        cb_slot : int, optional
+            Colour-bar slot; ``0`` suppresses it.
+
+        Notes
+        -----
+        Stations with flagged / missing impedance, or an axis ratio
+        below :attr:`pt_ratio_cutoff`, are drawn as plain markers.
+        """
         ellipses = []
         fill_vals = []
         arcs = []
@@ -1672,6 +2152,13 @@ class MapView(object):
 
     @utils.enforce_input(data_type=list, normalize=bool, fill_param=str, period_idx=int, pt_type=str, cb_slot=int)
     def plot_phase_bar(self, data_type='data', normalize=True, fill_param='Beta', period_idx=1, pt_type=None, cb_slot=2):
+        """Draw a phase-tensor *bar* (rectangle) per station at one
+        period -- an alternative to :meth:`plot_phase_tensor` where the
+        rectangle's aspect encodes :math:`\\phi_{min} / \\phi_{max}` and
+        its orientation the tensor azimuth.  Same keyword-only calling
+        convention and ``fill_param`` / ``cb_slot`` meaning as
+        :meth:`plot_phase_tensor`.
+        """
         rectangles = []
         fill_vals = []
         if not pt_type:
@@ -1750,8 +2237,38 @@ class MapView(object):
 
     @utils.enforce_input(data_type=list, fill_param=str, n_interp=int, period_idx=int, cb_slot=int)
     def plan_pseudosection(self, data_type='data', fill_param='rhoxy', n_interp=200, period_idx=0, cb_slot=1):
+        """Interpolate a per-station scalar onto the map as a filled
+        ``pcolor`` image at one period.
+
+        Call with keyword arguments (see the module note on
+        ``enforce_input``).
+
+        Parameters
+        ----------
+        data_type : list of str
+            One entry plots the field; two entries plot the
+            ``response - data`` difference.
+        fill_param : str
+            Quantity to grid -- ``'rhoxy'`` / ``'rhoyx'`` (or ``'rho..-..'``
+            for a component difference), ``'phaxy'``, ``'tip'``,
+            ``'beta'`` / ``'absbeta'``, ``'azimuth'``, ``'bostxy'``,
+            ``'pt_split'``, ``'phi_min'`` / ``'phi_max'``.
+        n_interp : int
+            Interpolation grid size per axis.
+        period_idx : int
+            Period index.
+        cb_slot : int, optional
+            Colour-bar slot; ``0`` suppresses it.
+
+        Notes
+        -----
+        Only stations carrying the components the parameter needs are
+        used; outliers are trimmed unless :attr:`include_outliers`.
+        Interpolation follows :attr:`interpolant` (see
+        :meth:`interpolate`).  The axis ``format_coord`` is set to read
+        back the gridded value.
+        """
         vals = []
-        #  Just make sure data is the first one
         if len(data_type) == 2:
             data_type = ['data', 'response']
         for ii, dt in enumerate(data_type):
@@ -1936,6 +2453,8 @@ class MapView(object):
                                               use_log=use_log)
 
     def get_label(self, param):
+        """Return the LaTeX axis / colour-bar label for a phase-tensor
+        parameter name, or ``''`` if it is not recognised."""
         if param.lower() == 'alpha':
             label = r'$\alpha$'
         elif param.lower() == 'beta':
@@ -1961,6 +2480,20 @@ class MapView(object):
         return label
 
     def plot_plan_view(self, ax=None, z_slice=0, rho_axis='rho_x', cb_slot=0):
+        """Plot a depth slice of :attr:`model` as :math:`\\log_{10}`
+        resistivity.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+        z_slice : int
+            Depth-layer index.
+        rho_axis : str
+            Model attribute to plot (``'rho_x'`` …); ``'a / b'`` plots
+            the ratio of two attributes on the anisotropy colour axis.
+        cb_slot : int, optional
+            Colour-bar slot; ``0`` suppresses it.
+        """
         rho_axis = rho_axis.lower()
         if not ax:
             ax = self.window['axes'][0]
@@ -2002,6 +2535,9 @@ class MapView(object):
             self.set_colorbar(mappable=im, label=rho_axis, cb_slot=cb_slot)
 
     def plot_x_slice(self, ax=None, x_slice=0, rho_axis='rho_x'):
+        """Plot a north-south (``x`` index fixed) vertical section of
+        :attr:`model` as :math:`\\log_{10}` resistivity.  ``rho_axis``
+        has the same meaning as in :meth:`plot_plan_view`."""
         rho_axis = rho_axis.lower()
         if not ax:
             ax = self.window['axes'][0]
@@ -2030,14 +2566,26 @@ class MapView(object):
                            linewidth=self.linewidth)
         self.set_axis_labels(ax=ax, xlabel='Easting ({})'.format(self.spatial_units),
                                     ylabel='Depth ({})'.format(self.spatial_units))
-        # ax.set_xlabel('Easting (km)', fontsize=self.label_fontsize)
-        # ax.set_ylabel('Depth (km)', fontsize=self.label_fontsize)
         ax.format_coord = format_model_coords(im,
                                               X=X, Y=Y,
                                               x_label='Easting ({})'.format(self.spatial_units),
                                               y_label='Depth ({})'.format(self.spatial_units))
 
     def plot_y_slice(self, ax=None, y_slice=0, orientation='xz', rho_axis='rho_x'):
+        """Plot an east-west (``y`` index fixed) vertical section of
+        :attr:`model`.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+        y_slice : int
+            Column index.
+        orientation : {'xz', 'zx'}
+            ``'xz'`` puts northing on the x-axis and depth (downward) on
+            the y-axis; ``'zx'`` swaps them.
+        rho_axis : str
+            As in :meth:`plot_plan_view`.
+        """
         rho_axis = rho_axis.lower()
         if not ax:
             ax = self.window['axes'][0]
@@ -2073,20 +2621,46 @@ class MapView(object):
                            edgecolor=edgecolor,
                            linewidth=self.linewidth)
         self.set_axis_labels(ax=ax, xlabel=x_label, ylabel=y_label)
-        # ax.set_xlabel(x_label, fontsize=self.label_fontsize)
-        # ax.set_ylabel(y_label, fontsize=self.label_fontsize)
         ax.format_coord = format_model_coords(im, X=X, Y=Y,
                                               x_label=x_label.split()[0],
                                               y_label=y_label.split()[0])
 
     def plot_image(self, image, extents, ax=None):
+        """Draw a background raster (e.g. a georeferenced basemap) at
+        ``extents`` = ``[x0, x1, y0, y1]`` with opacity
+        :attr:`image_opacity`."""
         if not ax:
             ax = self.window['axes'][0]
         ax.imshow(image, extent=extents, alpha=self.image_opacity, zorder=2)
 
     @utils.enforce_input(sites=list, data_type=str, fill_param=str, periods=tuple, pt_type=str, x_axis=str, annotate_sites=bool)
     def tensor_ellipse_pseudosection(self, sites=None, data_type='data', fill_param='beta', periods=(), pt_type=None, x_axis='linear', annotate_sites=False):
-        # Here periods is defined by the tuple (lower, upper, skip). Done this way to ensure we can treat both raw and used data
+        """Phase-tensor ellipse pseudosection: station distance across,
+        :math:`\\log_{10}` period down.
+
+        Call with keyword arguments (see the module note on
+        ``enforce_input``).
+
+        Parameters
+        ----------
+        sites : list of str
+            Stations, in profile order (used as-is for ``x_axis='linear'``,
+            otherwise sorted by the chosen coordinate).
+        data_type : str
+            ``'data'`` / ``'raw_data'`` / ``'response'``.
+        fill_param : str
+            Ellipse fill quantity (see :meth:`pt_fill_limits`).
+        periods : tuple
+            ``(lower, upper, skip)`` -- period window in seconds plus a
+            stride (every ``skip + 1``-th period).
+        pt_type : str, optional
+            Tensor family (default ``'phi'``).
+        x_axis : {'linear', 'x', 'y', 'lat', 'lon'}
+            Horizontal coordinate: cumulative distance, or a projected /
+            geographic axis.
+        annotate_sites : bool, optional
+            Currently unused.
+        """
         ellipses = []
         fill_vals = []
         if not pt_type:
@@ -2187,13 +2761,12 @@ class MapView(object):
                                                       c=fake_vals, cmap=self.cmap)
         if x_axis.lower() == 'linear':
             self.window['axes'][0].set_xlabel('Distance ({})'.format(self.spatial_units), fontsize=self.label_fontsize)
-        elif x_axis.lower() == 'X':
+        elif x_axis.lower() == 'x':
             self.window['axes'][0].set_xlabel('Northing ({})'.format(self.spatial_units), fontsize=self.label_fontsize)
-        elif x_axis.lower() == 'Y':
+        elif x_axis.lower() == 'y':
             self.window['axes'][0].set_xlabel('Easting ({})'.format(self.spatial_units), fontsize=self.label_fontsize)
         self.window['axes'][0].set_ylabel('Period (s)', fontsize=self.label_fontsize)
 
-        # fake_im.colorbar()
         self.fake_im.set_visible(False)
         if not self.window['colorbar'] and self.use_colourbar:
             # self.window['colorbar'] = self.window['figure'].colorbar(mappable=self.fake_im)
@@ -2216,7 +2789,12 @@ class MapView(object):
 
     @utils.enforce_input(sites=list, data_type=str, fill_param=str, periods=tuple, pt_type=str, x_axis=str)
     def tensor_bar_pseudosection(self, sites=None, data_type='data', fill_param='beta', periods=(), pt_type=None, x_axis='linear'):
-        # Here periods is defined by the tuple (lower, upper, skip). Done this way to ensure we can treat both raw and used data
+        """Phase-tensor *bar* pseudosection -- the rectangle
+        (:meth:`plot_phase_bar`-style) equivalent of
+        :meth:`tensor_ellipse_pseudosection`, with the same keyword-only
+        calling convention and ``sites`` / ``periods`` / ``x_axis``
+        meaning.
+        """
         rectangles = []
         fill_vals = []
         if not pt_type:
