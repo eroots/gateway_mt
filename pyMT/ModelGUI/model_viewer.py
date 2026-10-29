@@ -228,7 +228,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         # NOTE: this unconditionally overrides the 'Resolution' value set
         # above, so a resolution file has no effect until the user ticks
         # the resolution checkbox.  Left as-is (changing it would alter
-        # first-render output); flagged in the changelog.
+        # first-render output).
         self.use_resolution = 1
         self.use_scalar = 'Resistivity'
         self.rho_axis = 'rho_x'
