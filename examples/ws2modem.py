@@ -3,10 +3,10 @@
 
 Usage::
 
-    ws2modem <input data> <output data>
+    python ws2modem.py <input data> [<output data>]
 
-Prompts before overwriting an existing output file.  Installed via
-``setup.py``'s ``scripts=[...]``.
+Prompts before overwriting an existing output file.  WSINV3DMT files do
+not store site names, so the ModEM file gets numbered sites (0, 1, ...).
 """
 import pyMT.data_structures as WSDS
 import sys
@@ -27,19 +27,19 @@ def parse_args(args):
         print('Usage is: ws2ModEM <input data> <output data>')
         return False
     elif len(args) == 2:
-        in_file = sys.argv[1]
+        in_file = args[1]
         print('No output specified. Using "ModEM_input.data".\n')
         out_file = 'ModEM_input.data'
     elif len(args) == 3:
-        in_file = sys.argv[1]
-        out_file = sys.argv[2]
+        in_file = args[1]
+        out_file = args[2]
     else:
         print('Too many inputs.\n')
         print('Usage is: ws2ModEM <input data> <output data>\n')
-        return
+        return False
 
     if not utils.check_file(in_file):
-        print('{} not found.\n')
+        print('{} not found.\n'.format(in_file))
         return False
     if utils.check_file(out_file):
         print('{} already exists.\n'.format(out_file))

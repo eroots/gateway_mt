@@ -36,11 +36,3 @@ Follow the command line prompts to select your model and/or data files. You will
 
 Note that any station / model rotations will have to be handled manually.
 
-ws2modem
-^^^^^^^^
-
-Simple script to convert WSINV3DMT data files into ModEM 3-D data files.
-Usage::
-
-	ws2modem.py <ws_input_data> <modem_output_data>
-

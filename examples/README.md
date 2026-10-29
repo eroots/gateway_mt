@@ -60,6 +60,7 @@ no `main()`. Several need packages **not** in `pyMT`'s
 | `to_vtk_point-cloud.py` | -- | Like `to_vtk.py` but writes a point cloud. |
 | `write_induction_arrows.py` | -- | Write an induction-arrow table (template: edit three variables). |
 | `write_phase_tensors.py` | -- | Write a phase-tensor ellipse table. |
+| `ws2modem.py` | -- | Convert a WSINV3DMT data file to ModEM (`ws2modem.py IN [OUT]`; sites come out numbered). |
 | `ztem_to_edi.py` | -- | Convert ZTEM Geosoft `.grd` grids to EDI files. |
 
 ## Overlapping / superseded
