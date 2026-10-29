@@ -1,3 +1,8 @@
+"""Write an induction-arrow table for GIS / plotting.
+
+Template -- set ``list_file`` / ``data_file`` / ``out_file`` near the top and run.
+A good candidate to promote to a CLI.
+"""
 import pyMT.data_structures as DS
 import numpy as np
 

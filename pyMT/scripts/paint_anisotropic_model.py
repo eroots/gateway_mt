@@ -1,3 +1,7 @@
+"""Hand-edit resistivity regions of an anisotropic (EM3DANI) model.
+
+Personal script -- edit the region blocks at the top and run.
+"""
 import pyMT.data_structures as DS
 import numpy as np
 from copy import deepcopy

@@ -1,3 +1,8 @@
+"""Write model depth slices / conductance to GeoTIFF.
+
+Personal script -- edit the paths and projection and run.  Needs ``rasterio``.
+The conductance calculation is now also a ``Model`` method.
+"""
 import pyMT.data_structures as DS
 import pyMT.IO as IO
 import pyMT.utils as utils

@@ -1,3 +1,7 @@
+"""Find receiver pairs closer than a threshold (GoFEM receivers CSV or a site list).
+
+Personal script -- edit the paths at the top and run.
+"""
 import numpy as np
 import pyMT.data_structures as DS
 

@@ -1,3 +1,7 @@
+"""RMS-misfit histograms and difference histograms.
+
+Personal figure script -- edit the paths at the top and run.
+"""
 import numpy as np
 import pyMT.data_structures as DS
 import matplotlib.pyplot as plt

@@ -1,3 +1,7 @@
+"""Convert a site list to KML (and shapefile) for GIS.
+
+Personal script -- edit ``transects`` / paths and run.  Needs ``simplekml`` and ``pyshp``.
+"""
 import simplekml
 import pyMT.data_structures as WSDS
 import pandas as pd

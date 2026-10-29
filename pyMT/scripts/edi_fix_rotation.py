@@ -1,3 +1,7 @@
+"""Interpolate and de-rotate a folder of EDI files.
+
+Personal script -- edit the paths / frequency list and run.  Needs ``mtpy``.
+"""
 # from mtpy.core.mt import MT
 # import matplotlib.pyplot as plt
 import mtpy.core.mt as mt

@@ -1,3 +1,7 @@
+"""Per-component misfit-curve PDFs for a dataset (via ``gplot.DataPlotManager``).
+
+``generate_misfit_plots(dataset, save_path, ...)`` is reusable; a good candidate to promote to a CLI or fold into ``data_plot``.
+"""
 import pyMT.data_structures as DS
 import matplotlib.pyplot as plt
 import pyMT.gplot as gplot

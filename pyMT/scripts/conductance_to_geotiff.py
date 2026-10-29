@@ -1,3 +1,7 @@
+"""Write a model's depth-integrated conductance to a GeoTIFF.
+
+Personal script -- edit the paths and run.  Needs ``rasterio``.  The conductance calculation is now also a ``Model`` method.
+"""
 # This script needs to be run in the 'rasterio' environment.
 # Rasterio has dependency issues with other packages used in my main environment.
 import pyMT.data_structures as DS

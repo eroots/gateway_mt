@@ -1,3 +1,11 @@
+"""Plot a whole dataset (data / response / raw) to a multi-page PDF via
+:class:`pyMT.gplot.DataPlotManager`.
+
+Shipped via ``setup.py``'s ``scripts=[...]``, but the list / data /
+response paths are edited near the top of the file rather than passed on
+the command line.  See ``plot_dataset_rhophatip.py`` for a self-contained
+rho/phase/tipper variant.
+"""
 import pyMT.utils as utils
 import pyMT.data_structures as WSDS
 import matplotlib.pyplot as plt

@@ -1,3 +1,7 @@
+"""Rho / phase / tipper dataset plots to multi-page PDF.
+
+Self-contained (does not use ``gplot``); a rho/phase/tipper counterpart to ``plot_dataset.py``.  Edit ``plot_options`` / paths and run.
+"""
 import pyMT.utils as utils
 from matplotlib.backends.backend_pdf import PdfPages
 import pyMT.data_structures as DS

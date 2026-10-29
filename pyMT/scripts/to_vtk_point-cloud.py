@@ -1,3 +1,7 @@
+"""Write station data to a VTK point cloud (point-cloud variant of ``to_vtk.py``).
+
+Edit the paths / prompts and run.
+"""
 import pyMT.data_structures as DS
 from pyMT.IO import verify_input
 import os

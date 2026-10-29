@@ -4,8 +4,8 @@ Convert a text file of lon/lat/elevation (or lat/lon/elevation) points into
 a GeoTIFF raster that can be loaded directly into QGIS.
 
 Usage:
-    python xyz_to_raster.py input.xyz output.tif --res 0.001
-    python xyz_to_raster.py input.xyz output.tif --res 0.001 --lat-lon-order lat,lon,z
+    python np_to_geotiff.py input.xyz output.tif --res 0.001
+    python np_to_geotiff.py input.xyz output.tif --res 0.001 --lat-lon-order lat,lon,z
 
 Requirements:
     pip install numpy scipy rasterio --break-system-packages

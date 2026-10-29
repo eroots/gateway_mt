@@ -1,3 +1,7 @@
+"""Estimate anisotropic resistivities from an isotropic model slice (Eisel & Haak 1999).
+
+Personal script -- edit the model path and indices and run.
+"""
 ## Calculate approximate anisotropic resistivities from a slice through an isotropic model
 # Uses equations from Eisel and Haak (1999)
 import pyMT.data_structures as DS

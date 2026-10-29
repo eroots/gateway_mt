@@ -1,3 +1,7 @@
+"""Per-period RMS-misfit curves comparing several responses to one data file.
+
+Personal figure script -- edit the paths at the top and run.
+"""
 import numpy as np
 import pyMT.data_structures as DS
 import matplotlib.pyplot as plt

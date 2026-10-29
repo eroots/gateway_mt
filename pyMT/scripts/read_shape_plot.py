@@ -1,3 +1,8 @@
+"""Overlay a shapefile on MT station locations with cartopy.
+
+Personal figure script -- edit ``shp_file_base`` and ``list_file`` below
+and run.  Needs ``cartopy`` and ``pyshp`` (not in pyMT's requirements).
+"""
 import shapefile
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,7 +16,7 @@ from cartopy.feature import ShapelyFeature
 shp_file_base='C:/Users/eric/phd/ownCloud/data/ArcMap/test2.shp'
 list_file = 'C:/Users/eric/phd/ownCloud/data/Regions/MetalEarth/j2/culled_allSuperior.lst'
 
-# data = WSDS.RawData(list_file)
+data = WSDS.RawData(list_file)
 data.locations = data.get_locs(mode='latlong')
 # dat_dir='../shapefiles/'+shp_file_base +'/'
 sf = shapefile.Reader(shp_file_base)

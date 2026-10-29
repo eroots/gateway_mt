@@ -1,3 +1,10 @@
+"""Write a pyMT ``Data`` / ``Model`` (and station locations) to VTK
+files for ParaView.
+
+Run with no arguments and answer the prompts (model file, data file,
+output name, coordinate system).  Installed as the ``to_vtk`` console
+script.  See ``to_vtk_point-cloud.py`` for a point-cloud variant.
+"""
 import pyMT.data_structures as WSDS
 from pyMT.IO import verify_input
 import os

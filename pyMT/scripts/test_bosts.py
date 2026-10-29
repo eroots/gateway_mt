@@ -1,3 +1,7 @@
+"""Development scratch: a local re-implementation of ``compute_bost1D`` with test plots.
+
+Not a real test -- not run by any test runner.
+"""
 import pyMT.data_structures as DS
 import pyMT.utils as utils
 import numpy as np

@@ -1,3 +1,7 @@
+"""Apply a distortion tensor to EDIs and write the distorted files.
+
+Personal script -- edit the paths at the top and run.  Needs ``mtpy``.
+"""
 # import pyMT.data_structures as DS
 import mtpy.core.mt as mt
 import numpy as np

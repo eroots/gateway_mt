@@ -1,4 +1,8 @@
-import e_colours.colourmaps as cm
+"""Save a PNG swatch of every ``pyMT.e_colours`` colour map.
+
+Edit ``save_path`` below and run.
+"""
+import pyMT.e_colours.colourmaps as cm
 import matplotlib.pyplot as plt
 import numpy as np
 

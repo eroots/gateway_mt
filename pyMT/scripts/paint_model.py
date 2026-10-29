@@ -1,3 +1,7 @@
+"""Hand-edit resistivity regions of a model by index ranges.
+
+Personal script -- edit the region blocks at the top and run.
+"""
 import pyMT.data_structures as DS
 import pyMT.utils as utils
 import numpy as np

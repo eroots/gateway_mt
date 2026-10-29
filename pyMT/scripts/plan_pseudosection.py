@@ -1,3 +1,8 @@
+"""Interpolated plan pseudosection of a data field.
+
+Personal script -- edit the paths at the top and run.  Needs ``naturalneighbor``.
+Overlaps ``gplot.MapView.plan_pseudosection``.
+"""
 import pyMT.data_structures as WSDS
 import pyMT.utils as utils
 from scipy.interpolate import griddata

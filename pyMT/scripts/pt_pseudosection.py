@@ -1,3 +1,8 @@
+"""Phase-tensor ellipse pseudosection along a profile.
+
+Personal figure script -- edit the paths at the top and run.
+Overlaps ``gplot.MapView.tensor_ellipse_pseudosection``.
+"""
 import pyMT.data_structures as WSDS
 import matplotlib.pyplot as plt
 import numpy as np

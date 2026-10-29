@@ -1,3 +1,8 @@
+"""Convert ZTEM data from Geosoft ``.grd`` grids to EDI files.
+
+Set the parameter block at the top (paths, UTM zone, frequencies) and run.
+A good candidate to promote to a CLI.
+"""
 # Converts ZTEM data from Geosoft .grd format to EDI files.
 # Note that the .grd data may be interpolated from the actual flight lines, so choose the downsampling rate accordingly.
 

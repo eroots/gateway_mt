@@ -1,10 +1,15 @@
+"""Read a MARE2DEM CSR penalty-matrix file into a scipy sparse matrix.
+
+Does not use ``pyMT``.  Edit ``csr_file`` below to point at your
+``*.penalty`` file and run.
+"""
 from scipy.sparse import csr_matrix as csr
 import numpy as np
 
 csr_file = 'C:/Users/eric/Documents/MATLAB/MATLAB/Inversion/MARE2DEM/synth_test/small_test.penalty'
 res_file = 'C:/Users/eric/Documents/MATLAB/MATLAB/Inversion/MARE2DEM/synth_test/small_test.0.resistivity'
 
-with open(file, 'r') as f:
+with open(csr_file, 'r') as f:
     next(f)
     nnz, P = [int(x) for x in next(f).strip().split()]
     lines = f.readlines()

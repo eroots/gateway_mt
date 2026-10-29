@@ -1,3 +1,8 @@
+"""Batch pseudosection figures via ``gplot``.
+
+Personal figure script -- edit the paths at the top and run.
+Overlaps ``gplot.MapView.plan_pseudosection``.
+"""
 import pyMT.data_structures as DS
 import matplotlib.pyplot as plt
 import numpy as np

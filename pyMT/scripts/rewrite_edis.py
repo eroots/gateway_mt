@@ -1,3 +1,7 @@
+"""Re-write EDI files from pyMT ``Site`` objects (``to_edi``).
+
+Personal script -- edit the paths at the bottom and run.
+"""
 from collections import OrderedDict
 # import harmonica as hm
 # import pyproj

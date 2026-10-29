@@ -1,3 +1,7 @@
+"""Add bathymetry / topography to a model from an SRTM raster.
+
+Personal script -- see the INSTRUCTIONS block below.  Needs ``rasterio`` and ``cmocean``.
+"""
 import urllib
 import csv
 import codecs

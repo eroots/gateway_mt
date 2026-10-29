@@ -1,3 +1,7 @@
+"""Worked example: interpolate an arbitrary slice through a model and plot it.
+
+Documentation example -- the ``/path/to/...`` placeholders are meant to be replaced.
+"""
 import pyMT.data_structures as DS
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator as RGI

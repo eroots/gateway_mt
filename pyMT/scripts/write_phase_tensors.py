@@ -1,3 +1,8 @@
+"""Write a phase-tensor ellipse table (CSV) for GIS / plotting.
+
+Template -- set ``listfile`` / ``outfile`` near the top and run.
+A good candidate to promote to a CLI.
+"""
 import pyMT.data_structures as DS
 
 # listfile = r'E:\phd\Nextcloud\data\Regions\MetalEarth\rouyn\j2\ROUBB.lst' # List file containing sites to write out

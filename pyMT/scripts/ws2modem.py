@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
+"""Convert a WSINV3DMT data file to ModEM format.
 
+Usage::
+
+    ws2modem <input data> <output data>
+
+Prompts before overwriting an existing output file.  Installed via
+``setup.py``'s ``scripts=[...]``.
+"""
 import pyMT.data_structures as WSDS
 import sys
 import pyMT.utils as utils

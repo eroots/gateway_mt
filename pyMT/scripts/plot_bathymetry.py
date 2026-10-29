@@ -1,3 +1,7 @@
+"""Download and plot NOAA bathymetry for a lat/long box.
+
+Personal script -- edit the lat/long bounds and run.  Needs ``basemap``.
+"""
 import urllib
 from io import BytesIO
 import csv

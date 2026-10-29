@@ -1,3 +1,7 @@
+"""Convert a georeferenced raster (``.tif`` + world file) to a VTK surface.
+
+Personal script -- edit ``file_name`` / ``outfile`` and run.  Needs ``PIL``.
+"""
 # from matplotlib.pyplot import imread
 from PIL import Image
 import numpy as np

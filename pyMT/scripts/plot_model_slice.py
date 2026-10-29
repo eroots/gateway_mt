@@ -1,3 +1,8 @@
+"""Crooked-transect model-slice figures (rho vs depth along a picked line).
+
+Personal figure script -- edit ``local_path`` and the transect below and run.
+One of three overlapping crooked-slice scripts (see also ``integrated_crooked_slice.py``, ``crooked_model_slice_commented.py``); ``model_viewer``'s transect tab now does this interactively.
+"""
 import pyMT.data_structures as WSDS
 from pyMT.utils import edge2center
 import matplotlib.pyplot as plt

@@ -1,3 +1,7 @@
+"""Re-write spectra EDIs as transfer-function EDIs.
+
+Personal script -- edit the paths at the top and run. Needs the older ``mtpy`` (numpy <= 1.21).
+"""
 import mtpy.core.mt as mt
 import os
 # Simple script to re-write spectra EDIs to transfer function EDIs

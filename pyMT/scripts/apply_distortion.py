@@ -1,3 +1,7 @@
+"""Apply a frequency-dependent distortion tensor to a data set and write the shifted responses.
+
+Personal script -- edit the paths at the top and run.
+"""
 import pyMT.data_structures as DS
 import numpy as np
 import matplotlib.pyplot as plt

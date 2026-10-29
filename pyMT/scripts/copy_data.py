@@ -1,3 +1,7 @@
+"""Add raw-data tipper to a GoFEM data file, taking tipper errors from two other data files.
+
+Personal script -- edit the paths at the top and run.
+"""
 import pyMT.data_structures as DS
 import numpy as np
 

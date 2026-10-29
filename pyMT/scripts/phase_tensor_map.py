@@ -1,3 +1,7 @@
+"""Plan-view phase-tensor ellipse map (via ``gplot.MapView``).
+
+Personal figure script -- edit the paths and options at the top and run.
+"""
 import numpy as np
 import pyMT.data_structures as WSDS
 import matplotlib.pyplot as plt

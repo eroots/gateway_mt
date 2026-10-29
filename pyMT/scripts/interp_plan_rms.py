@@ -1,3 +1,8 @@
+"""Interpolated plan-view RMS-misfit map / scatter plot.
+
+Personal script -- edit the paths at the top and run.  Needs ``naturalneighbor``.
+Overlaps ``gplot.MapView`` RMS plotting and ``data_plot``'s map tab.
+"""
 import pyMT.data_structures as WSDS
 import pyMT.utils as utils
 from scipy.interpolate import griddata

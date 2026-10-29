@@ -1,4 +1,15 @@
 #!/usr/bin/env python
+"""Build a ``.lst`` site-list file from the EDI / ``.dat`` files in the
+current directory.
+
+Usage::
+
+    f2l              # list every .edi / .dat in the folder
+    f2l simple       # same (explicit)
+    f2l <suffix>     # only files whose name contains <suffix>
+
+Installed as the ``f2l`` console script.
+"""
 import os
 import sys
 

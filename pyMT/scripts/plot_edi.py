@@ -1,3 +1,13 @@
+"""Plot apparent resistivity / phase / tipper curves from EDI files.
+
+Usage::
+
+    plot_edi <file.edi>   # plot one EDI to screen
+    plot_edi all          # save a figure for every .edi in the folder
+
+Installed as the ``plot_edi`` console script.  Self-contained -- does not
+use :mod:`pyMT.gplot`.
+"""
 import pyMT.utils as utils
 import pyMT.data_structures as DS
 import matplotlib.pyplot as plt
@@ -5,7 +15,6 @@ from matplotlib.gridspec import GridSpec
 import numpy as np
 import sys
 import os
-# from pyMT import gplot
 
 
 plot_options = {'marker_dict': {'Rxy':  'o',

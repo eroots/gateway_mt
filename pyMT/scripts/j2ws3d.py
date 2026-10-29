@@ -1,3 +1,14 @@
+"""Interactive j-format -> WSINV3DMT converter and mesh generator.
+
+Reads MTU / phoenix ``.dat`` data listed in a ``.lst`` file, lets you
+pick components / periods / error floors, and writes a WSINV3DMT data
+file; also builds an initial model mesh (with ``-i``, in the
+:mod:`mesh_designer` window).
+
+Flags: ``-data`` (data only), ``-mesh`` (mesh only), ``-i``
+(interactive mesh), ``-dbg``, ``-h``.  Installed via ``setup.py``'s
+``scripts=[...]``.
+"""
 import pyMT.data_structures as WSDS
 import pyMT.IO as WSIO
 import pyMT.utils as utils
@@ -5,7 +16,7 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 from pyMT.WSExceptions import WSFileError
-from pyMT.ModelGUI import mesh_designer as meshview
+from pyMT.ModelGUI import mesh_designer
 
 
 def greetings():
@@ -232,7 +243,9 @@ def main_mesh(args, data=None):
     model.dz = zmesh
     model.vals = bg_resistivity * np.ones((model.nx, model.ny, model.nz))
     if '-i' in args:
-        viewer = meshview(model, data)
+        # NOTE: needs a running QApplication; launch mesh_designer directly
+        # (via its main()) if this path is used interactively.
+        viewer = mesh_designer.model_viewer_2d(model, data)
         viewer.show()
     else:
         nxpads = WSIO.verify_input('Number of pads in X direction', expected=int, default=5)

@@ -1,3 +1,10 @@
+"""Generate a text template + misfit-curve PDF for an inversion result.
+
+``scan_models()`` finds the lowest-RMS ``*model*`` file in the working
+directory, but :func:`main` currently has the dataset paths hard-coded
+(the scan is commented out) -- edit them before running.  Installed via
+``setup.py``'s ``scripts=[...]``.
+"""
 import pyMT.data_structures as WSDS
 import pyMT.IO as WSIO
 import pyMT.gplot as gplot

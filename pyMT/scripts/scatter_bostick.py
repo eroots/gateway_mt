@@ -1,3 +1,7 @@
+"""3-D scatter of Niblett-Bostick depth vs tipper magnitude.
+
+Personal script -- edit ``datafile`` and run.
+"""
 import pyMT.data_structures as WSDS
 import pyMT.utils as utils
 import numpy as np

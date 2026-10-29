@@ -1,3 +1,7 @@
+"""Plot Archie's-law and Hashin-Shtrikman conductivity mixing curves.
+
+Self-contained demo; edit ``save_path`` and run.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 

@@ -1,3 +1,7 @@
+"""Write phase-tensor parameters for every site / period to CSV.
+
+Personal script -- edit ``data_file`` / ``list_file`` and run.  Needs ``pandas``.
+"""
 import pyMT.data_structures as WSDS
 import pandas as pd
 import numpy as np

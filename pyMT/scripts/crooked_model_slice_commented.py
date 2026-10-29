@@ -1,3 +1,8 @@
+"""Crooked-transect model slices -- heavily annotated version.
+
+Personal figure script -- edit ``local_path`` and the transect below and run.  ~200 comment lines.
+One of three overlapping crooked-slice scripts (see also ``plot_model_slice.py``, ``integrated_crooked_slice.py``); ``model_viewer``'s transect tab now does this interactively.
+"""
 import pyMT.data_structures as WSDS
 import pyMT.utils as utils
 import matplotlib.pyplot as plt

@@ -1,3 +1,8 @@
+"""Plot Occam-2D data and model response.
+
+Pass the Occam data / response / iteration files as command-line
+arguments.  Installed via ``setup.py``'s ``scripts=[...]``.
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 import sys

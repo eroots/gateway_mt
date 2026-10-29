@@ -1,3 +1,7 @@
+"""Sketch of a rotated phase-tensor-style ellipse with axes and arrows.
+
+Scratch figure script; does not use ``pyMT``.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, Polygon

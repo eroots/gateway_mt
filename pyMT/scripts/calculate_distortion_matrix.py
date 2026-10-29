@@ -1,3 +1,7 @@
+"""Recover the per-site distortion tensor between two data sets.
+
+Personal script -- edit the paths at the top and run.
+"""
 import pyMT.data_structures as DS
 import numpy as np
 import matplotlib.pyplot as plt

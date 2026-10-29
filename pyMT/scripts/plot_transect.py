@@ -1,3 +1,9 @@
+"""Plot MT station locations against a seismic-line shapefile, in UTM.
+
+Personal figure script -- shipped via ``setup.py``'s ``scripts=[...]``
+but the list files, shapefile path and UTM zone are all hard-coded
+below.  Needs ``pyshp``.
+"""
 import pyMT.data_structures as WSDS
 import matplotlib.pyplot as plt
 import shapefile
