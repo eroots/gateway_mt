@@ -16,7 +16,7 @@ be run as-is.
 | Script | Entry | Purpose |
 |---|---|---|
 | `f2l.py` | `console_scripts: f2l` | Write a site list (`all_sites.lst`, or `<FILTER>_sites.lst`) of the EDI / `.dat` files in a folder. Run `f2l -h` for options. |
-| `to_vtk.py` | `console_scripts: to_vtk` + `scripts` | Write a `Data` / `Model` (+ locations) to VTK for ParaView. |
+| `to_vtk.py` | `console_scripts: to_vtk` + `scripts` | Write a model and / or site locations to VTK for ParaView (ModEM / WSINV3DMT-style inputs). Interactive with no arguments, or `to_vtk -h` for the command-line options. |
 | `plot_edi.py` | `console_scripts: plot_edi` | Plot apparent resistivity / phase / tipper curves from EDI files. |
 | `ws2modem.py` | `scripts` | Convert a WSINV3DMT data file to ModEM format. |
 | `plot_occam.py` | `scripts` | Plot Occam-2D data and response. |
