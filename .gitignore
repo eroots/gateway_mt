@@ -1,21 +1,29 @@
-# Ignore these
+# Python / build artefacts
 __pycache__/
-*.vtk
 *.pyc
 *.pyo
-docs
-dist
+*.egg-info/
+build/
+dist/
+
+# Sphinx build output (sources in docs/ are tracked)
+docs/_build/
+
+# Generated output
+*.vtk
+outcmaes/
 demo_files
+
+# Personal script scratch
 pyMT/scripts/crooked_model_slice.py
 pyMT/scripts/personal_use
 pyMT/scripts/test_outputs
+examples/personal_use
+examples/test_outputs
+
+# Verification-harness scratch output
 tests/baseline_ds/roundtrip_*
 tests/baseline_io/scratch/
-
-# CMA-ES optimiser scratch output
-outcmaes/
-
-# verification-harness scratch output
 tests/baseline_data_plot/scratch/
 tests/baseline_mesh_designer/scratch/
 tests/baseline_gateway_gui/scratch/
