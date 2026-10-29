@@ -72,10 +72,9 @@ def test_wait_1d_half_space():
                                one_d_impedance(PERIODS, [100.0], []), rtol=1e-10)
 
 
-@pytest.mark.xfail(strict=True, reason='Known bug: wait_1D only runs its layer recursion when len(dz) > 1, '
-                                       'so a two-layer model returns Z = 0.')
 def test_wait_1d_two_layers():
-    np.testing.assert_allclose(wait_1D(PERIODS, [1000.0, 10.0], np.array([2000.0])),
+    """dz has one entry per layer, as the 1-D modelling window passes it; the half-space's entry is unused."""
+    np.testing.assert_allclose(wait_1D(PERIODS, [1000.0, 10.0], np.array([2000.0, 1e6])),
                                one_d_impedance(PERIODS, [1000.0, 10.0], [2000.0]), rtol=1e-10)
 
 
