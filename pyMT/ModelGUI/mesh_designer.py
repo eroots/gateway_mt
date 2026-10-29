@@ -1,4 +1,35 @@
 #!/usr/bin/env python
+"""Interactive 2-D mesh designer for ModEM / MT3DANI models.
+
+``mesh_designer`` builds and edits the horizontal and vertical grid of a
+:class:`pyMT.data_structures.Model`.  The plan view shows
+:math:`\\log_{10}\\rho` for one depth layer with the station locations
+overlaid; left-click inserts a north-south (Y) mesh line at the cursor,
+right-click an east-west (X) line, and Ctrl+click deletes the nearest.
+Side panels regenerate the horizontal mesh from station spacing, add /
+remove padding cells, build the depth layers (by decade or from an
+increase-factor table), set or reset the background resistivity,
+Gaussian-smooth the model, and launch a 1-D modelling window.  The
+result is written as a ModEM model (``.model`` / ``.rho``) or an MT3DANI
+model (``.zani``) plus a covariance file.
+
+ModEM/MT3DANI-only and largely superseded by GoFEM's own meshing.
+
+Launching
+---------
+Installed as the ``mesh_designer`` console script (:func:`main`).  Takes
+positional file paths in any order; :func:`pyMT.utils.sort_files`
+classifies them into ``{'model', 'data'}``.  At least one of the two
+must be given -- with only data, a uniform starting model is generated
+from it.
+
+Relation to the rest of pyMT
+----------------------------
+Grid edits and file writes go through
+:class:`pyMT.data_structures.Model`; station info and 1-D modelling use
+:class:`pyMT.data_structures.Dataset` and
+:class:`pyMT.GUI_common.windows.Modeling1D`.
+"""
 from matplotlib.widgets import Cursor
 import matplotlib.pyplot as plt
 import pyMT.utils as utils
@@ -34,18 +65,39 @@ plt.rcParams['font.size'] = 8
 
 
 class CustomToolbar(NavigationToolbar):
+    """Matplotlib navigation toolbar subclass -- currently a pass-through
+    with no customisation."""
+
     def __init__(self, canvas, **kwargs):
         NavigationToolbar.__init__(self, canvas, **kwargs)
 
 
 class model_viewer_2d(QMainWindow, Ui_MainWindow):
+    """The mesh-designer window (``mesh_designer.ui``).
+
+    Despite the name this is an *editor*, not a viewer: it owns a
+    :class:`pyMT.data_structures.Model` (``self.model``, with
+    ``self.revert_model`` as the last saved state) and mutates its
+    ``dx`` / ``dy`` / ``dz`` grids and ``vals`` in response to plan-view
+    clicks and the side-panel controls, redrawing through
+    :meth:`redraw_pcolor`.
+
+    Parameters
+    ----------
+    model : pyMT.data_structures.Model or str or None
+        A model, a path to one, or falsy -- in which case a uniform model
+        is generated from ``dataset.data``.
+    dataset : pyMT.data_structures.Dataset or str, optional
+        A dataset (or path) for the station locations and 1-D modelling;
+        without it the mesh-from-stations button is disabled.
+    path : str, optional
+        Initial directory for the save dialogs.
+    """
+
     def __init__(self, model, dataset=None, path='./'):
+        """Resolve / copy the model, build the plan view and side panels,
+        wire the widgets and draw the initial mesh."""
         super(model_viewer_2d, self).__init__()
-        """
-        Shows a given array in a 2d-viewer.
-        Input: z, an 2d array.
-        x,y coordinters are optional.
-        """
         self.setupUi(self)
         if dataset:
             if type(dataset) is str:
@@ -71,7 +123,6 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.modeling_window = None
         self.fig = Figure()
         self.key_presses = {'Control': False, 'Alt': False, 'Shift': False}
-        # self.fig = plt.figure()
         self.cid = {'Mesh': []}
         if model:
             if type(model) is str:
@@ -89,8 +140,6 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.plan_view.autoscale(1, 'both', 1)
         self.addmpl(self.fig)
         self.redraw_pcolor()
-        # self.plan_view.pcolor(self.model.dy, self.model.dx,
-        #                      self.model.vals[:, :, self.slice_idx], edgecolors='w', picker=3)
         cursor = Cursor(self.plan_view, useblit=True, color='black', linewidth=2)
         self._widgets = [cursor]
         self.connect_mpl_events()
@@ -100,10 +149,12 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             self.data_info_labels()
         self.init_decade_list()
         self.update_depth_list()
-        # self.update_decade_list()
         self.initialized = True
 
     def init_increase_factors(self):
+        """Seed the two-column "increase factors" table (depth, factor)
+        with a shallow and a deep row derived from the model's first /
+        last z spacing."""
         self.minDepthFactor.setText(str(self.model.dz[1]))
         self.maxDepthFactor.setText(str(self.model.dz[-1]))
         for ix in range(1, self.increaseFactors.rowCount()):
@@ -117,6 +168,9 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.increaseFactors.setColumnWidth(1, 50)
 
     def setup_widgets(self):
+        """Wire every button / menu action / edit box to its handler and
+        set the initial extent / background / colour-map widget state
+        from the model."""
         self.minDepth.setText(str(self.model.dz[1]))
         self.maxDepth.setText(str(self.model.dz[-1]))
         self.writeModEM.triggered.connect(self.write_modem)
@@ -186,46 +240,53 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         
     @property
     def cmap(self):
+        """matplotlib.colors.Colormap: ``colourmap`` resolved through
+        :mod:`pyMT.e_colours.colourmaps`."""
         return cm.get_cmap(self.colourmap)
 
     @property
     def annotate_sites(self):
+        """bool: whether station names are drawn on the plan view."""
         return self.actionAnnotate_Sites.isChecked()
-            
+
     @property
     def lock_aspect_ratio(self):
+        """bool: whether the plan view keeps an equal x / y aspect."""
         return self.actionLock_Aspect_Ratio.isChecked()
 
     def redraw_workaround(self):
+        """Force a full autoscaled redraw by clearing ``initialized``
+        around :meth:`redraw_pcolor` (used by the aspect-ratio and
+        annotate toggles)."""
         self.initialized = False
         self.redraw_pcolor()
         self.initialized = True
 
     def set_marker_size(self):
+        """Prompt for the station-marker size and redraw."""
         d, ok_pressed = QtWidgets.QInputDialog.getDouble(self,
                                                          'Marker Size',
                                                          'Value:',
-                                                         self.map.markersize,
+                                                         self.markersize,
                                                          0.1, 20, 2)
-        if ok_pressed and d != self.map.markersize:
+        if ok_pressed and d != self.markersize:
             self.markersize = d
             self.redraw_pcolor()
 
     def launch_1d_window(self):
+        """Open the 1-D modelling window (once) and enable the
+        "use 1-D model" write options."""
         if not self.modeling_window:
             periods = self.dataset.data.periods
             self.modeling_window = Modeling1D(dataset=self.dataset,
                                               parent=self)
-            # self.toggle1DResponse.setEnabled(True)
-            # self.toggle1DResponse.clicked.connect(self.plot_1D_response)
-            # self.dpm.site1D = self.modeling_window.site
-            # self.dpm.sites.update({'1d': [self.dpm.site1D] * len(self.dpm.sites['data'])})
-            # self.modeling_window.updated.connect(self.update_1D_response)
         self.modeling_window.show()
         self.use_1D_inverse.setEnabled(True)
         self.use_1D_synthetic.setEnabled(True)
 
     def set_marker_colour(self):
+        """Prompt for the station-marker colour and redraw.
+        :meth:`set_marker_shape` does the same for the marker shape."""
         colours = ['White', 'Black', 'Blue', 'Red', 'Green', 'Cyan', 'Yellow', 'Magenta']
         codes = {'White': 'w',
                  'Black': 'k',
@@ -258,6 +319,8 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             self.redraw_pcolor()
 
     def set_colourmap(self):
+        """Set ``colourmap`` from the checked Colour-map menu action and
+        redraw.  :meth:`set_mesh_colour` sets the grid-line colour."""
         if self.actionJet.isChecked():
             self.colourmap = 'jet'
         if self.actionJet_r.isChecked():
@@ -284,6 +347,8 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.redraw_pcolor()
 
     def set_rho_cax(self):
+        """Prompt for the lower and upper :math:`\\log_{10}\\rho` colour
+        limits and redraw."""
         d, ok_pressed = QtWidgets.QInputDialog.getDouble(self,
                                                          'Lower limit',
                                                          'Value:',
@@ -305,6 +370,8 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             print('Invalid colour limits')
 
     def validate_background_rho(self):
+        """Keep ``background_resistivity`` in sync with the ``bgRho`` spin
+        box (restoring the old value on a non-numeric entry)."""
         try:
             self.background_resistivity = float(self.bgRho.value())
         except ValueError:
@@ -312,6 +379,9 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             self.bgRho.setText(str(self.background_resistivity))
 
     def validate_x_slice(self, value):
+        """X-slice spin-box handler: clamp ``value`` to ``[0, nx)`` and
+        redraw.  ``validate_y_slice`` / ``validate_z_slice`` are the
+        equivalents (only Z affects the plan view)."""
         if value != self.x_slice:
             if value >= self.model.nx or value < 0:
                 self.xSlice.setValue(self.x_slice)
@@ -336,11 +406,15 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             self.redraw_pcolor()
 
     def smooth_model(self):
+        """Gaussian-blur ``model.vals`` with the per-axis sigmas from the
+        smoothing spin boxes, then redraw."""
         sigma = [self.sigmaX.value(), self.sigmaY.value(), self.sigmaZ.value()]
         self.model.vals = gaussian_filter(self.model.vals, sigma=sigma)
         self.redraw_pcolor()
 
     def set_background_rho(self):
+        """Fill the model with ``background_resistivity`` (asking first if
+        it isn't currently a half-space)."""
         if self.model.is_half_space():
             self.model.vals[:, :, :] = self.background_resistivity
             self.model.background_resistivity = self.background_resistivity
@@ -357,11 +431,15 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.redraw_pcolor()
 
     def update_dimension_labels(self):
+        """Refresh the "NX / NY / NZ" labels from the current model."""
         self.nxLabel.setText(' : '.join(['NX', str(self.model.nx)]))
         self.nyLabel.setText(' : '.join(['NY', str(self.model.ny)]))
         self.nzLabel.setText(' : '.join(['NZ', str(self.model.nz)]))
 
     def data_info_labels(self):
+        """Fill the station-info labels: average nearest-neighbour
+        spacing, and the average min / max Niblett-Bostick depth across
+        all sites."""
         locations = self.dataset.data.locations
         avg = 0
         for ii in range(self.dataset.data.NS):
@@ -383,6 +461,10 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.maxBostLabel.setText('Avg. Max N-B Depth:{:>9.1f} km'.format(max_avg))
 
     def min_depth(self):
+        """Validate the "min depth" edit box (must be < max depth) and
+        refresh the decade list.  ``max_depth`` is the mirror handler;
+        ``min_depth_factor`` / ``max_depth_factor`` do the same for the
+        increase-factor panel."""
         try:
             min_depth = float(self.minDepth.text())
         except ValueError:
@@ -427,6 +509,8 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.update_factor_table()
 
     def update_factor_table(self):
+        """Clamp every cutoff-depth entry in the increase-factor table to
+        the current min / max factor depths."""
         min_depth = float(self.minDepthFactor.text())
         max_depth = float(self.maxDepthFactor.text())
         for row in range(self.increaseFactors.rowCount()):
@@ -439,12 +523,9 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                     self.increaseFactors.setItem(row, 0, QtWidgets.QTableWidgetItem(str(max_depth)))
             except (AttributeError, ValueError):
                 continue
-        # if location == 'bottom':
-        #     self.increaseFactors.setItem(self.increaseFactors.rowCount(), 0, QtWidgets.QTableWidgetItem(self.maxDepthFactor.text()))
-        # elif location == 'top':
-        #     self.increaseFactors.setItem(0, 0, QtWidgets.QTableWidgetItem(self.minDepthFactor.text()))
 
     def sort_increase_factors(self):
+        """Re-order the increase-factor table rows by cutoff depth."""
         depths, factors = [], []
         vals = []
         for row in range(self.increaseFactors.rowCount()):
@@ -457,21 +538,20 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                 break
         idx = np.argsort(vals)
         for ii, row in enumerate(idx):
-            # print([row, depths[row].text()])
             self.increaseFactors.setItem(ii, 0, depths[row])
             self.increaseFactors.setItem(ii, 1, factors[row])
 
     def increase_factor_edit(self, item):
+        """Validate an edited increase-factor cell: column 0 (cutoff
+        depth) must lie between the min / max factor depths, column 1
+        (factor) between 1 and 2; a partial row is auto-completed with a
+        default, then the table is re-sorted."""
         self.increaseFactors.itemChanged.disconnect()
         try:
             row = item.row()
             col = item.column()
             val = float(item.text())
         except ValueError:
-            # if col == 0:
-                # new_val = round((float(self.maxDepthFactor.text()) + float(self.minDepthFactor.text())) / 2)
-                # new_item = QtWidgets.QTableWidgetItem(str(new_val))
-            # elif col == 1:
             new_item = QtWidgets.QTableWidgetItem('')
             self.increaseFactors.setItem(row, col, new_item)
             self.messages.setText('Values must be floats.')
@@ -506,6 +586,9 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         
 
     def update_decade_list(self, direction=None):
+        """Grow / shrink the "cells per decade" list so it has one entry
+        per depth decade between the min and max depths (adding / removing
+        at the top or bottom per ``direction``)."""
         min_depth = float(self.minDepth.text())
         max_depth = float(self.maxDepth.text())
         if direction is None or direction == 'top':
@@ -525,9 +608,10 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             idx = self.zPerDecade.count() - 1
 
     def init_decade_list(self):
+        """Populate the "cells per decade" list by counting how many of
+        the model's existing depth layers fall in each decade."""
         min_depth = self.model.zCS[0]
         max_depth = self.model.dz[-1]
-        # num_decade = int(np.ceil(np.log10(max_depth)) - np.floor(np.log10(min_dep)))
         idx = 1
         decade = np.log10(min_depth)
         num_per_decade = []
@@ -547,30 +631,28 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             self.zPerDecade.insertItem(idx, item)
 
     def generate_depths_decades(self):
+        """Rebuild the model's depth layers from the min / max depth and
+        the per-decade cell counts (``Model.generate_zmesh``), warning if
+        the layer thicknesses stop increasing monotonically."""
         min_depth = float(self.minDepth.text())
         max_depth = float(self.maxDepth.text())
         depths_per_decade = [float(self.zPerDecade.item(ii).text())
                              for ii in range(self.zPerDecade.count())]
-        # if self.zUseDecades.isChecked():
         self.model.generate_zmesh(min_depth=min_depth,
                                   max_depth= max_depth,
                                   decades=depths_per_decade)
         ddz = np.diff(np.diff(self.model.dz[1:]))
         if any(ddz < 0):
-            # idx = np.where(ddz)[0][0]
             self.messages.setText('Warning!\n Second derivative of depths is not always positive.')
         else:
             self.messages.setText('Z mesh generation complete.')
-        # self.model.generate_zmesh(min_depth, max_depth, depths_per_decade)
-        # Update the modeling window with the latest model depths
         if self.modeling_window:
             self.modeling_window.inversion_settings.model_3d = self.model
         self.update_depth_list()
         self.redraw_pcolor()
 
-        # print(ddz)
-
     def test_table_item(self, item):
+        """Return ``True`` if a table item is missing or blank."""
         if item is None:
             return True
         elif item.text() == '':
@@ -579,6 +661,8 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             return False
 
     def generate_depths_factor(self):
+        """Rebuild the depth layers from the increase-factor table
+        (cutoff depth -> growth factor) via ``Model.generate_zmesh``."""
         try:
             min_depth = float(self.minDepthFactor.text())
             max_depth = float(self.maxDepthFactor.text())
@@ -599,7 +683,6 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                                   increase_factor=[factors, depths])
         ddz = np.diff(np.diff(self.model.dz[1:]))
         if any(ddz < 0):
-            # idx = np.where(ddz)[0][0]
             self.messages.setText('Warning!\n Second derivative of depths is not always positive.')
         else:
             self.messages.setText('Z mesh generation complete.')
@@ -607,9 +690,10 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.redraw_pcolor()
 
     def update_depth_list(self):
+        """Repopulate the depth table (layer -> depth, thickness) from the
+        current model."""
         self.depthList.setRowCount(self.model.nz)
         self.depthList.setColumnCount(2)
-        # self.depthList.setHorizontalHeaderItem(0, QtWidgets.QTableWidgetItem('Layer #'))
         self.depthList.setHorizontalHeaderItem(0, QtWidgets.QTableWidgetItem('Depth (m)'))
         self.depthList.setHorizontalHeaderItem(1, QtWidgets.QTableWidgetItem('Thickness (m)'))
         for ii, z in enumerate(self.model.dz):
@@ -621,7 +705,9 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.depthList.resizeColumnToContents(1)
 
     def add_pads(self):
-        # print('Adding pads')
+        """Insert one padding cell on each edge whose "pad" checkbox is
+        ticked, sized ``padMult`` x the nearest cell.  :meth:`remove_pads`
+        removes them."""
         xmesh = self.model.xCS
         ymesh = self.model.yCS
         if self.padLeft.checkState():
@@ -640,7 +726,6 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                            y_lim=[self.model.dx[0], self.model.dx[-1]])
 
     def remove_pads(self):
-        # print('Removing pads')
         if self.padLeft.checkState():
             self.model.dy_delete(0)
         if self.padRight.checkState():
@@ -653,6 +738,8 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                            y_lim=[self.model.dx[0], self.model.dx[-1]])
 
     def regenerate_mesh(self):
+        """Rebuild the horizontal (x / y) mesh from the station locations
+        and the min / max X / Y extents (``Model.generate_mesh``)."""
         print('Regenerating mesh')
         self.model.generate_mesh(self.site_locations,
                                  min_x=float(self.minX.text()),
@@ -662,22 +749,39 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.redraw_pcolor()
 
     def revert_progress(self):
+        """Discard edits since the last :meth:`save_progress` (restore
+        ``revert_model``)."""
         print('Reverting...')
         self.model = copy.deepcopy(self.revert_model)
         self.update_depth_list()
         self.redraw_pcolor()
 
     def save_progress(self):
+        """Mark the current model as the revert point."""
         self.revert_model = copy.deepcopy(self.model)
 
     def write_modem(self):
+        """File-menu action: write an isotropic ModEM model."""
         self.write_model(write_anisotropic=False)
 
     def write_mt3dani(self):
+        """File-menu action: write an anisotropic MT3DANI model."""
         self.write_model(write_anisotropic=True)
 
     def write_model(self, write_anisotropic=False):
-        # model_file, ret = self.file_dialog.write_file(ext='.model', label='Output Model')
+        """Write the model (+ covariance) to files chosen in save dialogs.
+
+        If a 1-D modelling window is open and its "use 1-D inverse" /
+        "use 1-D synthetic" option is selected, the model is first filled
+        from that 1-D profile (via ``Model.import_1D``); otherwise, with
+        "use half-space", it is filled with ``background_resistivity``.
+
+        Parameters
+        ----------
+        write_anisotropic : bool
+            ``True`` writes MT3DANI (``.zani``), ``False`` ModEM
+            (``.model`` / ``.rho``).
+        """
         if self.modeling_window:
             if self.use_1D_inverse.checkState():
                 if self.modeling_window.inversion_settings.results:
@@ -742,44 +846,42 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                 self.model.write_covariance(cov_file)
 
     def connect_mpl_events(self):
+        """Connect the plan-view click handler (only while
+        ``mesh_changable``)."""
         if self.mesh_changable:
-            # print('Trying to connect')
             self.cid['Mesh'] = self.canvas.mpl_connect('button_release_event', self.click)
-            # self.cid['Mesh'] = self.canvas.mpl_connect('button_press_event', self.click)
 
     def addmpl(self, fig):
-        self.canvas = FigureCanvas(fig)  # Make a canvas
+        """Embed ``fig`` (canvas + :class:`CustomToolbar`) in the
+        ``mplvl`` layout."""
+        self.canvas = FigureCanvas(fig)
         self.mplvl.addWidget(self.canvas)
-        # self.canvas.setParent(self.mplwindow)
-        # self.canvas.setFocusPolicy(QtCore.Qt.ClickFocus)
-        # self.canvas.setFocus()
         self.toolbar = CustomToolbar(canvas=self.canvas,
                                      parent=self.mplwindow, coordinates=True)
-        # Connect check box to instance
         self.canvas.draw()
         self.mplvl.addWidget(self.toolbar)
 
     def show_legend(self, event):
-        """Shows legend for the plots"""
+        """Print the current model dimensions.  Not wired to any widget."""
         print('NX: {}, NY: {}, NZ: {}'.format(self.model.nx, self.model.ny, self.model.nz))
-        # for pl in [self.x_subplot, self.y_subplot]:
-        #     if len(pl.lines) > 0:
-        #         pl.legend()
-        # plt.draw()
 
     def clear_xy_subplots(self, event):
-        """Clears the subplots."""
+        """Reset the model to the revert point and redraw.  Misnamed and
+        not wired to any widget."""
         self.model = copy.deepcopy(self.revert_model)
         self.canvas.draw()
 
     def redraw_pcolor(self, x_lim=None, y_lim=None):
+        """Redraw the plan view: ``pcolormesh`` of :math:`\\log_{10}\\rho`
+        for the current Z layer, plus the mesh grid lines and (if a
+        dataset is loaded) the station markers.  The x / y limits are
+        preserved once ``initialized`` unless overridden."""
         if self.initialized:
             if not x_lim:
                 x_lim = self.plan_view.get_xlim()
             if not y_lim:
                 y_lim = self.plan_view.get_ylim()
         self.plan_view.clear()
-        # self.plan_view.autoscale(1, 'both', 1)
         self.mesh_plot = self.plan_view.pcolormesh(self.model.dy, self.model.dx,
                                                    np.log10(self.model.vals[:, :, self.z_slice]),
                                                    edgecolors=self.mesh_color, picker=3,
@@ -805,27 +907,22 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.update_dimension_labels()
 
     def click(self, event):
+        """Plan-view mouse-release handler.
+
+        Left button inserts a Y (north-south) mesh line at the cursor,
+        right button an X (east-west) line; with Ctrl held, the nearest
+        line on that axis is deleted instead (only if the cursor is
+        within ``delete_tolerance`` of it).  Ignored while a toolbar tool
+        is active or the click is outside the axis.
         """
-        What to do, if a click on the figure happens:
-            1. Check which axis
-            2. Get data coord's.
-            3. Plot resulting data.
-            4. Update Figure
-        """
-        #  Don't activate if a toolbar button is being used, or if the click is outside the region
-        # if self.toolbar._active:
         if self.toolbar.mode != '':
             return
         if not event.inaxes:
             return
         self.key_presses = check_key_presses(QtWidgets.QApplication.keyboardModifiers())
-        # print(key_presses)
-        # Get nearest data
         xpos = np.argmin(np.abs(event.xdata - self.model.dy))
         ypos = np.argmin(np.abs(event.ydata - self.model.dx))
-        # Check which mouse button:
         if event.button == 1:
-            # Plot it
             if self.key_presses['Control']:
                 diff = np.abs(event.xdata - self.model.dy[xpos])
                 if diff <= self.delete_tolerance * abs(self.model.dy[xpos] - self.model.dy[xpos - 1]):
@@ -844,15 +941,17 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                     ypos += 1
                 self.model.dx_insert(ypos, event.ydata)
         self.redraw_pcolor()
-        # Show it
 
     def show_plot(self):
+        """Placeholder -- currently a no-op."""
         pass
 
 
 def main():
-    # If a model file is not specified, a uniformly spaced model should be generated based on the data.the
-    # i.e., use sites as bounds, and use smallest period as a starting point for cell sizes.
+    """Console entry point: classify the positional file args with
+    :func:`pyMT.utils.sort_files` (a model and/or data file), build a
+    starting model from the data if none was given, and show the
+    :class:`model_viewer_2d` window."""
     files = sys.argv[1:]
     for file in files:
         if not utils.check_file(file):
@@ -873,7 +972,6 @@ def main():
         else:
             print('Generating initial model...')
             model = DS.Model(data=dataset.data)
-            # print([model.vals.shape, model.nx, model.ny, model.nz])
 
     app = QtWidgets.QApplication(sys.argv)
     viewer = model_viewer_2d(model=model, dataset=dataset)
@@ -881,7 +979,6 @@ def main():
     viewer.show()
     ret = app.exec_()
     sys.exit(ret)
-    viewer.disconnect_mpl_events()
 
 
 if __name__ == '__main__':
