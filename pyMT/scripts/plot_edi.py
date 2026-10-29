@@ -2,8 +2,10 @@
 
 Usage::
 
-    plot_edi <file.edi>   # plot one EDI to screen
-    plot_edi all          # save a figure for every .edi in the folder
+    plot_edi SITE.edi [SITE2.edi ...]   # show each EDI on screen
+    plot_edi all                        # save a PNG for every .edi in the folder
+    plot_edi all --format pdf -o figs   # ...as PDFs, into figs/
+    plot_edi SITE.edi --save            # save instead of showing
 
 Installed as the ``plot_edi`` console script.  Self-contained -- does not
 use :mod:`pyMT.gplot`.
@@ -13,6 +15,7 @@ import pyMT.data_structures as DS
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import numpy as np
+import argparse
 import sys
 import os
 
@@ -63,7 +66,7 @@ plot_options = {'marker_dict': {'Rxy':  'o',
 								 'T': [-0.75, 0.75]}
 								 }
 
-def plot_site(site, save_fig=False):
+def plot_site(site, save_fig=False, out_dir='.', fmt='png'):
 	to_plot = []
 	if 'ZXYR' in site.components:
 		to_plot.append('Rxy')	
@@ -83,7 +86,7 @@ def plot_site(site, save_fig=False):
 	axes = {'rho': None,
 			'phase': None,
 			'tzr': None,
-			'tzy': None}
+			'tzi': None}
 	spec = {'rho': None,
 			'phase': None,
 			'tzr': None,
@@ -101,8 +104,8 @@ def plot_site(site, save_fig=False):
 		top_plot = 'tzr'
 		spec['tzr'] = GridSpec(2, 2, figure=fig).new_subplotspec((0, 0), colspan=2, rowspan=1)
 		spec['tzi'] = GridSpec(2, 2, figure=fig).new_subplotspec((1, 0), colspan=2, rowspan=1)
-		spec['tzr'] = fig.add_subplot(spec['tzr'])
-		spec['tzi'] = fig.add_subplot(spec['tzi'])
+		axes['tzr'] = fig.add_subplot(spec['tzr'])
+		axes['tzi'] = fig.add_subplot(spec['tzi'])
 	elif len(to_plot) > 6:
 		spec['rho'] = GridSpec(6, 6, figure=fig).new_subplotspec((0, 0), colspan=6, rowspan=3)
 		spec['phase'] = GridSpec(6, 6, figure=fig).new_subplotspec((3, 0), colspan=6, rowspan=1)
@@ -174,25 +177,55 @@ def plot_site(site, save_fig=False):
 	axes[bottom_plot].set_xlabel('Period (s)')
 	axes[top_plot].set_title(site.name)
 	if save_fig:
-		plt.savefig(site.name)
+		plt.savefig(os.path.join(out_dir, '{}.{}'.format(site.name, fmt)))
 		plt.close()
 	else:
 		plt.show()
 
-def main():
-	if sys.argv[1].lower() == 'all':
-		for site in os.listdir():
-			if site.endswith('.edi'):
-				data = DS.RawData(site)
-				plot_site(data.sites[data.site_names[0]], save_fig=True)
-	else:
-		data = DS.RawData(sys.argv[1])
-		plot_site(data.sites[data.site_names[0]], save_fig=False)
+def parse_args(argv=None):
+	parser = argparse.ArgumentParser(
+		prog='plot_edi',
+		description='Plot apparent resistivity, phase and tipper from EDI files.')
+	parser.add_argument('files', nargs='+', metavar='FILE',
+						help="EDI file(s) to plot, or 'all' for every .edi in the current folder "
+							 "('all' saves the figures instead of showing them)")
+	parser.add_argument('--save', action='store_true',
+						help='save the figures (SITE.png) instead of showing them')
+	parser.add_argument('-o', '--out-dir', default='.',
+						help='folder for saved figures (default: current folder)')
+	parser.add_argument('--format', default='png', choices=('png', 'pdf'),
+						help='file format for saved figures (default: png)')
+	return parser.parse_args(argv)
+
+
+def main(argv=None):
+	args = parse_args(argv)
+	save_fig = args.save
+	files = args.files
+	if len(files) == 1 and files[0].lower() == 'all':
+		files = sorted(f for f in os.listdir() if f.endswith('.edi'))
+		save_fig = True
+		if not files:
+			print('plot_edi: no .edi files in the current folder')
+			return 1
+	if save_fig:
+		os.makedirs(args.out_dir, exist_ok=True)
+	failed = 0
+	for file in files:
+		if not os.path.isfile(file):
+			print('plot_edi: {} not found'.format(file))
+			failed += 1
+			continue
+		try:
+			data = DS.RawData(file)
+			plot_site(data.sites[data.site_names[0]], save_fig=save_fig,
+					  out_dir=args.out_dir, fmt=args.format)
+		except Exception as err:  # e.g. WSFileError for an unreadable EDI
+			print('plot_edi: skipped {} ({})'.format(file, getattr(err, 'message', err)))
+			plt.close('all')
+			failed += 1
+	return 1 if failed else 0
 
 
 if __name__ == '__main__':
-	main()
-	# file = 'E:/Work/Regions/ATHA/Atha21_emtf/zxx/10124_2021-09-15-222830/13_flipHy_SL1.edi'
-	
-	# data = DS.RawData(file)
-	
+	sys.exit(main())
