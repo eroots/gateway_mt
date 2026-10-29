@@ -36,3 +36,14 @@ Follow the command line prompts to select your model and/or data files. You will
 
 Note that any station / model rotations will have to be handled manually.
 
+autogen_report
+^^^^^^^^^^^^^^
+
+Writes a misfit report for an inversion result: a text summary (input files, inversion type, overall and per-component RMS, worst-fitting sites, the inverted periods, and blank fields for your own notes) and one PDF of data vs. response curves per component group.
+
+Usage::
+
+	autogen_report -d <data file> -r <response file> [-l <list file>] [-m <model file>] [-o <report folder>]
+
+Any data format pyMT can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). Give the list file to add the raw data to the plots, or to name the sites when the data format doesn't store names (WSINV3DMT).
+
