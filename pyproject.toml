@@ -32,6 +32,9 @@ dependencies = [
     "cma>=3.3",
 ]
 
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
 [project.urls]
 Homepage = "https://github.com/eroots/gateway_mt"
 
@@ -57,3 +60,7 @@ include = ["gateway_mt*"]
 [tool.setuptools.package-data]
 "*" = ["*.ui"]
 "gateway_mt.resources" = ["*.jpg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

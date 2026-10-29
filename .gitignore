@@ -21,9 +21,5 @@ gateway_mt/scripts/test_outputs
 examples/personal_use
 examples/test_outputs
 
-# Verification-harness scratch output
-tests/baseline_ds/roundtrip_*
-tests/baseline_io/scratch/
-tests/baseline_data_plot/scratch/
-tests/baseline_mesh_designer/scratch/
-tests/baseline_gateway_gui/scratch/
+# pytest
+.pytest_cache/

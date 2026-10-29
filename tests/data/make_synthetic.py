@@ -260,7 +260,13 @@ def main():
             f.write('Dipole {} 1 {:.6e} {:.6e} {:.6e}\n'.format(
                 name, x, y, -data.sites[name].locations['elev']))
 
-    build_model(sites).write(os.path.join(OUT, 'synthetic.model'))
+    # The ModEM writer puts the file path in the header; write from OUT so it is just the file name
+    cwd = os.getcwd()
+    os.chdir(OUT)
+    try:
+        build_model(sites).write('synthetic.model')
+    finally:
+        os.chdir(cwd)
 
     with open(os.path.join(OUT, 'synthetic.pymt'), 'w', newline='\n') as f:
         f.write('% synthetic\n'
