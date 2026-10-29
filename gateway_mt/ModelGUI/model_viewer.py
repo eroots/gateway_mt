@@ -602,6 +602,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.viewYZ.triggered.connect(self.view_yz)
         # Interpolation widgets
         self.selectPoints.clicked.connect(self.transect_pick)
+        # Placeholder for a "Clear Transect" button that isn't implemented yet
+        self.clearTransect.hide()
         self.nInterp.editingFinished.connect(self.set_nInterp)
         self.interpCheckbox.clicked.connect(self.toggle_transect3D)
         # Isosurface widgets
