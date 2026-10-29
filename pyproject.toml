@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "gateway_mt"
 dynamic = ["version"]
 description = "GUIs and tools for visualising, analysing and preparing magnetotelluric (MT) data for inversion"
-readme = "readme.rst"
+readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Eric Roots", email = "eroots087@gmail.com"}]
 keywords = ["magnetotellurics", "geophysics", "inversion", "ModEM", "GoFEM"]
