@@ -30,5 +30,14 @@ Usage::
 
 	autogen_report -d <data file> -r <response file> [-l <list file>] [-m <model file>] [-o <report folder>] [--plot rho-phase|impedance]
 
-Any data format pyMT can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). Give the list file to name the sites when the data format doesn't store names (WSINV3DMT).
+Any data format pyMT can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). Give the list file to add the raw data to the plots, and to name the sites when the data format doesn't store names (WSINV3DMT).
+
+plot_dataset
+^^^^^^^^^^^^
+
+Plots raw data, inversion data and / or an inversion response -- any combination -- to a PDF, four sites per page, in the same layout as autogen_report. Useful for checking raw data, or an inversion data file before inverting.
+
+Usage::
+
+	plot_dataset [-l <list file>] [-d <data file>] [-r <response file>] [-o <output.pdf>] [--plot rho-phase|impedance] [--sites SITE ...]
 

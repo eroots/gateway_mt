@@ -8,9 +8,11 @@ Usage::
 Writes ``REPORT_DIR/summary.txt`` (input files, inversion type, sites and
 periods, overall / per-component RMS, worst-fitting sites, the period table,
 and blank fields to fill in by hand) and ``REPORT_DIR/misfit_curves.pdf``:
-data (points with error bars) against response (lines), four sites per page.
-Each site shows apparent resistivity and phase (default) or the impedance
-tensor (``--plot impedance``), with the tipper underneath when present.
+data (points with error bars) against response (lines), four sites per page,
+in the same layout as ``plot_dataset``. Each site shows apparent resistivity
+and phase (default) or the impedance tensor (``--plot impedance``), with the
+tipper underneath when present; with a list file the raw data is added as
+faint points.
 Works with any data format pyMT reads (ModEM, WSINV3DMT, GoFEM, ...); the
 format is taken from the file. Installed as the ``autogen_report`` script.
 """
@@ -19,18 +21,10 @@ import datetime
 import os
 import sys
 
-from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.gridspec import GridSpec
-from matplotlib.lines import Line2D
-import matplotlib.pyplot as plt
 import numpy as np
 
 import pyMT.data_structures as WSDS
-import pyMT.utils as utils
-
-SITES_PER_PAGE = 4
-COLOURS = {'xy': 'b', 'yx': 'r', 'xx': 'b', 'yy': 'r', 'tzx': 'b', 'tzy': 'r'}
-ALPHA = {'xy': 0.9, 'yx': 0.9, 'xx': 0.4, 'yy': 0.4, 'tzx': 0.9, 'tzy': 0.9}
+from pyMT.scripts import plot_dataset
 
 
 def describe_components(components):
@@ -87,126 +81,15 @@ def write_summary(dataset, outfile, files):
         f.write('Notes:')
 
 
-# --------------------------------------------------------------------------- #
-# Misfit curves
-# --------------------------------------------------------------------------- #
-def _flagged(site, comp):
-    """True where ``comp`` was excluded from the inversion (REMOVE_FLAG error)."""
-    return np.asarray(site.used_error[comp]) == site.REMOVE_FLAG
+def generate_misfit_plots(dataset, outfile, plot_type='rho-phase', include_raw=False):
+    """Write data vs. response for every site to ``outfile`` (see :mod:`pyMT.scripts.plot_dataset`).
 
-
-def _plot_pair(ax, periods, data, errors, resp, flagged, colour, alpha, filled=True, dashed=False, label=None):
-    """Data as points with error bars, response as a line; flagged points are left out."""
-    data = np.where(flagged, np.nan, data)
-    errors = np.where(flagged, np.nan, errors)
-    ax.errorbar(periods, data, yerr=errors, linestyle='', marker='o', markersize=4,
-                color=colour, mec='k', mew=0.5, mfc=colour if filled else 'w', alpha=alpha, label=label)
-    ax.plot(periods, resp, linestyle='--' if dashed else '-', color=colour, alpha=alpha)
-
-
-def _rho_phase_panels(axes, d, r, has_diag):
-    rho_ax, pha_ax = axes
-    off_diagonal = []
-    for comp in ('xy', 'yx') + (('xx', 'yy') if has_diag else ()):
-        flagged = _flagged(d, 'Z{}R'.format(comp.upper()))
-        rho, rho_err, _ = utils.compute_rho(d, calc_comp=comp, errtype='used_error')
-        rho_resp, _, _ = utils.compute_rho(r, calc_comp=comp)
-        _plot_pair(rho_ax, d.periods, np.real(rho), rho_err, np.real(rho_resp), flagged,
-                   COLOURS[comp], ALPHA[comp], label=comp.upper())
-        if comp in ('xy', 'yx'):
-            off_diagonal += list(np.real(rho)[~flagged]) + list(np.real(rho_resp))
-            pha, pha_err = utils.compute_phase(d, calc_comp=comp, errtype='used_error', wrap=1)
-            pha_resp, _ = utils.compute_phase(r, calc_comp=comp, wrap=1)
-            _plot_pair(pha_ax, d.periods, pha, pha_err, pha_resp, flagged, COLOURS[comp], ALPHA[comp])
-    rho_ax.set_yscale('log')
-    # Limits from the off-diagonal curves; small diagonal values are clipped
-    off_diagonal = np.array([x for x in off_diagonal if np.isfinite(x) and x > 0])
-    if off_diagonal.size:
-        rho_ax.set_ylim(10 ** (np.floor(np.log10(off_diagonal.min())) - 1),
-                        10 ** (np.ceil(np.log10(off_diagonal.max())) + 0.5))
-    rho_ax.set_ylabel(r'$\rho_a$ ($\Omega$m)')
-    pha_ax.set_ylim(0, 120)
-    pha_ax.set_ylabel('Phase (deg)')
-
-
-def _impedance_panels(axes, d, r, has_diag):
-    groups = [('xy', 'yx')] + ([('xx', 'yy')] if has_diag else [])
-    root_t = np.sqrt(d.periods)
-    for ax, comps in zip(axes, groups):
-        for comp in comps:
-            for part, filled, dashed in (('R', True, False), ('I', False, True)):
-                key = 'Z{}{}'.format(comp.upper(), part)
-                _plot_pair(ax, d.periods, d.data[key] * root_t, d.used_error[key] * root_t,
-                           r.data[key] * root_t, _flagged(d, key), COLOURS[comp], ALPHA[comp],
-                           filled=filled, dashed=dashed,
-                           label='{} {}'.format(comp.upper(), 'Re' if part == 'R' else 'Im'))
-        ax.set_ylabel(r'Z$\cdot\sqrt{T}$' + ('\n(off-diagonal)' if comps[0] == 'xy' else '\n(diagonal)'))
-
-
-def _tipper_panel(ax, d, r):
-    for comp in ('tzx', 'tzy'):
-        for part, filled, dashed in (('R', True, False), ('I', False, True)):
-            key = '{}{}'.format(comp.upper(), part)
-            _plot_pair(ax, d.periods, d.data[key], d.used_error[key], r.data[key], _flagged(d, key),
-                       COLOURS[comp], ALPHA[comp], filled=filled, dashed=dashed,
-                       label='{} {}'.format(comp[1:].upper(), 'Re' if part == 'R' else 'Im'))
-    ax.axhline(0, color='0.6', linewidth=0.5)
-    ax.set_ylabel('Tipper')
-
-
-def plot_misfit_page(fig, data_sites, resp_sites, site_rms, plot_type='rho-phase'):
-    """Draw up to four sites (2 x 2) on ``fig``, each as a column of panels."""
-    outer = GridSpec(2, 2, figure=fig, hspace=0.25, wspace=0.25)
-    for kk, (d, r) in enumerate(zip(data_sites, resp_sites)):
-        has_diag = {'ZXXR', 'ZYYR'} <= set(d.components)
-        has_tipper = {'TZXR', 'TZYR'} <= set(d.components) and not _flagged(d, 'TZXR').all()
-        if not {'ZXYR', 'ZYXR'} <= set(d.components):
-            main_heights = []   # tipper-only data
-        elif plot_type == 'rho-phase':
-            main_heights = [3, 2]
-        else:
-            main_heights = [2, 2] if has_diag else [3]
-        heights = main_heights + ([2] if has_tipper else [])
-        inner = outer[kk].subgridspec(len(heights), 1, height_ratios=heights, hspace=0.08)
-        axes = [fig.add_subplot(inner[0])]
-        axes += [fig.add_subplot(inner[ii], sharex=axes[0]) for ii in range(1, len(heights))]
-        if main_heights and plot_type == 'rho-phase':
-            _rho_phase_panels(axes[:2], d, r, has_diag)
-        elif main_heights:
-            _impedance_panels(axes[:len(main_heights)], d, r, has_diag)
-        if has_tipper:
-            _tipper_panel(axes[-1], d, r)
-        for ax in axes:
-            ax.set_xscale('log')
-            ax.grid(True, which='major', alpha=0.3)
-            if ax is not axes[-1]:
-                plt.setp(ax.get_xticklabels(), visible=False)
-        axes[-1].set_xlabel('Period (s)')
-        axes[0].set_title('{}  (RMS {:.2f})'.format(d.name, site_rms.get(d.name, np.nan)))
-        if kk == 0:
-            axes[0].legend(loc='best', fontsize=7, ncol=2)
-            if has_tipper:
-                axes[-1].legend(loc='best', fontsize=7, ncol=2)
-    fig.legend(handles=[Line2D([], [], marker='o', linestyle='', color='0.4', label='data'),
-                        Line2D([], [], color='0.4', label='response')],
-               loc='upper center', ncol=2, frameon=False)
-
-
-def generate_misfit_plots(dataset, outfile, plot_type='rho-phase'):
-    """Write all sites to one multi-page PDF, four per page. Returns the number of pages."""
+    Returns the number of pages written.
+    """
     site_rms = {site: info['Total'] for site, info in dataset.rms['Station'].items()}
-    names = dataset.data.site_names
-    pages = 0
-    with PdfPages(outfile) as pdf:
-        for ii in range(0, len(names), SITES_PER_PAGE):
-            fig = plt.figure(figsize=(12, 16))
-            chunk = names[ii:ii + SITES_PER_PAGE]
-            plot_misfit_page(fig, [dataset.data.sites[s] for s in chunk],
-                             [dataset.response.sites[s] for s in chunk], site_rms, plot_type)
-            pdf.savefig(fig)
-            plt.close(fig)
-            pages += 1
-    return pages
+    kinds = (['raw_data'] if include_raw else []) + ['data', 'response']
+    return plot_dataset.write_pdf(dataset, outfile, kinds, plot_type, site_rms=site_rms)
+
 
 
 def parse_args(argv=None):
@@ -216,8 +99,8 @@ def parse_args(argv=None):
                     'Any data format pyMT reads is accepted; the format is taken from the file.')
     parser.add_argument('-d', '--data', required=True, help='inversion data file')
     parser.add_argument('-r', '--response', required=True, help='inversion response (predicted data) file')
-    parser.add_argument('-l', '--list', help='site list; names the sites for formats that do not store '
-                                             'names (e.g. WSINV3DMT)')
+    parser.add_argument('-l', '--list', help='site list; adds the raw data to the plots and names the sites '
+                                             'for formats that do not store names (e.g. WSINV3DMT)')
     parser.add_argument('-m', '--model', help='model file (listed in the summary)')
     parser.add_argument('-o', '--out-dir', default='Report', help='output folder (default: Report)')
     parser.add_argument('--plot', choices=('rho-phase', 'impedance'), default='rho-phase',
@@ -254,7 +137,7 @@ def main(argv=None):
     os.makedirs(args.out_dir, exist_ok=True)
     write_summary(dataset, summary, {'data': args.data, 'response': args.response,
                                      'list': args.list, 'model': args.model})
-    pages = generate_misfit_plots(dataset, pdf_file, args.plot)
+    pages = generate_misfit_plots(dataset, pdf_file, args.plot, include_raw=bool(args.list))
     print('Wrote {} and {} ({} page{})'.format(summary, pdf_file, pages, '' if pages == 1 else 's'))
     return 0
 

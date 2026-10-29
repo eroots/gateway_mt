@@ -43,7 +43,8 @@ no `main()`. Several need packages **not** in `pyMT`'s
 | `phase_tensor_map.py` | -- | Plan-view phase-tensor ellipse map (via `gplot.MapView`). |
 | `plan_pseudosection.py` | `naturalneighbor` | Interpolated plan pseudosection. |
 | `plot_bathymetry.py` | `basemap` | Download + plot NOAA bathymetry for a lat/long box. |
-| `plot_dataset_rhophatip.py` | -- | Rho / phase / tipper dataset plots (self-contained, does not use `gplot`). |
+| `plot_dataset_gplot.py` | -- | Per-component dataset PDFs via `gplot.DataPlotManager` (older version of the next one). |
+| `plot_dataset_rhophatip.py` | -- | Rho / phase / tipper dataset plots (self-contained, does not use `gplot`); basis of the installed `plot_dataset`. |
 | `plot_induction_map.py` | -- | Plan-view induction-arrow map (via `gplot.MapView`). |
 | `plot_misfit_curves.py` | -- | Per-component misfit-curve PDFs (function `generate_misfit_plots`). |
 | `plot_occam.py` | -- | Occam2D data vs response, TE / TM rho and phase (`plot_occam.py DATA RESPONSE`; does not use `pyMT`). |
@@ -79,8 +80,8 @@ its replacement.
   `pt_pseudosection.py`, `interp_rhopha.py`, `interp_plan_rms.py` --
   overlap with `gplot.MapView.plan_pseudosection` and `data_plot`'s map
   tab.
-* `pyMT/scripts/plot_dataset.py` vs `plot_dataset_rhophatip.py` -- two
-  dataset plotters.
+* **Dataset plots**: `plot_dataset_gplot.py` and `plot_dataset_rhophatip.py`
+  -- superseded by the installed `plot_dataset` command.
 * `conductance_to_geotiff.py` vs `model_to_geotiff.py` -- both note the
   calculation is now a `Model` method.
 * `pyMT/scripts/to_vtk.py` vs `to_vtk_point-cloud.py`.
@@ -90,4 +91,5 @@ its replacement.
 If these are turned into real CLIs or folded into `data_plot` later,
 they are the natural starting points (already parameterised, minimal
 personal state): `plot_misfit_curves.py`, `write_induction_arrows.py`,
-`write_phase_tensors.py`, `ztem_to_edi.py`, `plot_dataset_rhophatip.py`.
+`write_phase_tensors.py`, `ztem_to_edi.py`. (`plot_dataset_rhophatip.py`
+was promoted as the installed `plot_dataset`.)
