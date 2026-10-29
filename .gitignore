@@ -11,3 +11,9 @@ pyMT/scripts/personal_use
 pyMT/scripts/test_outputs
 tests/baseline_ds/roundtrip_*
 tests/baseline_io/scratch/
+
+# CMA-ES optimiser scratch output
+outcmaes/
+
+# verification-harness scratch output
+tests/baseline_data_plot/scratch/

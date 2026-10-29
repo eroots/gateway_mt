@@ -1,34 +1,67 @@
 #!/usr/bin/env python
-# Main module for inversion data / response plotting. GUI is launched using 'python data_plot.py'.
-# Currently a flagless launch looks for a file 'pystart' which contains the paths of the files to use.
-# Format of the 'pystart' file is as follows:
-# % Dataset_name  <--- '%' sign indicates that this line contains the dataset name.
-# path /path/to/files   <--- a line containing the common path to the files that follow. Not needed,
-#                            but if it is not specified then the path must be given for each file.
-# list list_file_name   <--- Name of the file containing the site names for the given dataset.
-#                            Same file as used for input to j2ws3d
-# data data_file_name   <--- Name of the file containing the data as used for input to wsinv3dmt
-# resp resp_file_name   <--- Name of the file containing the model responses, as output from wsinv3dmt
-# raw  /path/to/dat/files <--- if the .dat files used are not in the same folder as the list file,
-#                              this option tells the the program where to find them.
-#
-# Multiple datasets may be specified in a single startup file.
-# Any combination of data / raw data / response may be used, as long as at least one is present.
-# This module is callable with several flags, including a help flag, -h
-# call 'python data_plot.py -h' for information on the other flags.
-# EXAMPLE USAGE (command line entry)
-# python data_plot.py -n abi-gren -c abi0:abi45:abi90
-# |_________________  ||_________| |_________________|
-#    Calls module   Specifies startup With startup file, selects datasets
-#                    file 'abi-gren'     abi0, abi45 and abi90. If this
-#                                    flag is not given, all datasets are selected
+"""Interactive GUI for inspecting and editing MT inversion data.
+
+``data_plot`` is the main pyMT window for working with an inversion data
+set before running an inversion: it loads one or more ``Dataset``\\ s
+(inversion data, forward responses, raw EDIs, model), draws the MT
+response curves one site per subplot (via
+:class:`pyMT.gplot.DataPlotManager`), and lets you edit periods, flag
+data, adjust the error tree / error floors, rotate azimuth, sort / add /
+remove sites, and write the result back out as WSINV3DMT / ModEM /
+GoFEM.  A companion window (:class:`MapMain`, wrapping
+:class:`pyMT.gplot.MapView`) shows the plan-view map -- locations,
+induction arrows, phase-tensor ellipses / bars, plan pseudosections, RMS
+maps and model slices.
+
+Launching
+---------
+Installed as the ``data_plot`` console script (``main``).  With no flag
+a file-picker dialog is shown; otherwise:
+
+``-d``
+    Use the default start file named ``pystart`` in the working directory.
+``-n <file>``
+    Use ``<file>`` as the start file.
+``-b``
+    Browse for the start file (falls back to the file-picker dialog).
+``-l``
+    List the datasets in the chosen start file and prompt which to load.
+``-c d1:d2:...``
+    Load only the named datasets from the start file.
+``-h``
+    Print the flag help and exit.
+
+Start-file (``pystart``) format
+-------------------------------
+A plain-text file; parsed by
+:meth:`pyMT.GUI_common.classes.FileInputParser.read_pystart`.  Each
+dataset begins with a ``% name`` line, followed by ``keyword value``
+lines:
+
+======== =====================================================================
+keyword  meaning
+======== =====================================================================
+``path`` common directory prepended to any following bare filenames
+``list`` site-name list file (same file j2ws3d takes)
+``data`` inversion data file
+``resp`` forward-response file
+``raw``  directory holding the ``.dat`` / EDI files (if not next to ``list``)
+``mod``  model file
+======== =====================================================================
+
+Multiple datasets may appear in one file; any combination of data / raw
+data / response is allowed as long as at least one is present.
+
+Example::
+
+    python data_plot.py -n abi-gren -c abi0:abi45:abi90
+"""
 import numpy as np
 import re
 from PyQt5.uic import loadUiType
 from PyQt5 import QtWidgets, QtCore, QtGui
 from matplotlib.figure import Figure
 from matplotlib.pyplot import imread
-# from PIL import UnidentifiedImageError  # This will require a new dependency?
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
@@ -40,7 +73,6 @@ from pyMT import resources
 from pyMT.GUI_common.classes import FileDialog, ColourMenu, TwoInputDialog, FileInputParser, MyPopupDialog
 from pyMT.GUI_common.windows import Modeling1D
 from pyMT.IO import debug_print
-from copy import deepcopy
 try:
     import importlib.resources as pkg_resources
 except ImportError:
@@ -50,23 +82,40 @@ except ImportError:
 path = os.path.dirname(os.path.realpath(__file__))
 with pkg_resources.path(resources, 'data_plot.jpg') as p:
     data_plot_jpg = str(p)
-# data_plot_jpg = str(next(pkg_resources.path(resources, 'data_plot.jpg').func(resources, 'data_plot.jpg')))
-# data_plot_jpg = path + '/../resources/images/data_plot.jpg'
 
 Ui_MainWindow, QMainWindow = loadUiType(os.path.join(path, 'data_plot.ui'))
 UI_MapViewWindow, QMapViewMain = loadUiType(os.path.join(path, 'map_viewer.ui'))
-# UI_ModelingWindow, QModelingMain = loadUiType(os.path.join(path, '1D_modeling.ui'))
 
-# Attempt to ensure that the GUI scales with the users resolution and magnification settings
-# os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
-# 
 class MapMain(QMapViewMain, UI_MapViewWindow):
+    """Plan-view map window (``map_viewer.ui``).
+
+    Thin controller around a :class:`pyMT.gplot.MapView` (``self.map``):
+    the menu actions and toggles read GUI widgets, set attributes on
+    ``self.map``, and call :meth:`update_map`, which clears the axis and
+    re-plots every enabled layer (background image, model plan slice,
+    plan pseudosection, phase-tensor ellipses / bars, induction arrows,
+    site markers / annotations).  Constructed by :class:`DataMain`.
+
+    Most handlers follow one shape and are not documented individually:
+    a ``set_<thing>`` method reads a value (a ``QInputDialog``, a menu
+    action, a combo box), stores it on ``self.map``, and calls
+    :meth:`update_map` if the affected layer is showing.  The
+    ``set_*_cax`` family sets the matching ``MapView`` colour-axis range.
+
+    Parameters
+    ----------
+    dataset : pyMT.data_structures.Dataset
+        The dataset to map.
+    sites : list of str
+        All site names, in plot order.
+    active_sites : list of str
+        The highlighted subset.
+    """
 
     def __init__(self, dataset, sites, active_sites):
         super(MapMain, self).__init__()
         self.setupUi(self)
-        # self.fig = Figure()
         self.active_period = 0
         self.map = gplot.MapView()
         self.fig = self.map.window['figure']
@@ -80,7 +129,13 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.connect_widgets()
 
     def connect_widgets(self):
-        # self.DEBUG.clicked.connect(self.DEBUG_FUNC)
+        """Wire every menu action / toggle / combo to its handler.
+
+        Induction and phase-tensor controls are enabled only for the
+        inversion types that carry those components (tipper -> 3 / 5,
+        impedance -> 1 / 5 / 6); the rest are disabled and the matching
+        pseudosection fill options removed.
+        """
         #  Connect induction arrow toggles
         if self.map.dataset.data.inv_type in (3, 5):
             self.toggle_dataInduction.clicked.connect(self.update_map)
@@ -156,7 +211,6 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.colourMenu.skew_limits = self.colourMenu.limits.addAction('Skew')
         self.colourMenu.tipper_limits = self.colourMenu.limits.addAction('Tipper')
         self.colourMenu.rms_limits = self.colourMenu.limits.addAction('RMS')
-        # self.colourMenu.limits.triggered.connect(self.set_rho_cax)
         ###################################################
         self.colourMenu.lut.triggered.connect(self.set_lut)
         self.groupColourmaps = QtWidgets.QActionGroup(self)
@@ -181,20 +235,6 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.inductionConventionGroup.setExclusive(True)
         self.inductionConventionGroup.triggered.connect(self.update_map)
         ###################################################
-        # self.groupColourmaps.triggered.connect(self.set_colourmap)
-        # self.actionJet.setActionGroup(self.groupColourmaps)
-        # self.actionJet_r.setActionGroup(self.groupColourmaps)
-        # self.actionJet_plus.setActionGroup(self.groupColourmaps)
-        # self.actionJet_plus_r.setActionGroup(self.groupColourmaps)
-        # self.actionBgy.setActionGroup(self.groupColourmaps)
-        # self.actionBgy_r.setActionGroup(self.groupColourmaps)
-        # self.actionBwr.setActionGroup(self.groupColourmaps)
-        # self.actionBwr_r.setActionGroup(self.groupColourmaps)
-        # Set up colour limits
-        # self.actionRho_cax.triggered.connect(self.set_rho_cax)
-        # self.actionPhase_cax.triggered.connect(self.set_phase_cax)
-        # self.actionDifference_cax.triggered.connect(self.set_difference_cax)
-        # Set up point / marker options
         # Annotate Options
         self.groupAnnotate = QtWidgets.QActionGroup(self)
         self.actionAnnotate_All.setActionGroup(self.groupAnnotate)
@@ -213,17 +253,6 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.actionPTRhoErrorTolerance.triggered.connect(self.set_pt_rho_error_tol)
         self.actionEqualAspect.triggered.connect(self.update_map)
         self.actionDeltaScalingFactor.triggered.connect(self.set_delta_scale)
-        # Set up the phase tensor difference definition
-        # self.ptDiffActionGroup = QtWidgets.QActionGroup(self)
-        # self.ptDiffActionGroup.addAction(self.actionPtDiffBooker)
-        # self.ptDiffActionGroup.addAction(self.actionPtDiffHill)
-        # self.ptDiffActionGroup.addAction(self.actionPtDiffHeise)
-        # self.ptDiffActionGroup.addAction(self.actionPtDiffCastro)
-        # self.ptDiffActionGroup.addAction(self.actionPtDiffRoots_1)
-        # self.ptDiffActionGroup.addAction(self.actionPtDiffRoots_2)
-        # self.ptDiffActionGroup.setExclusive(True)
-        # self.ptDiffActionGroup.triggered.connect(self.pt_diff_definition)
-        
         # Induction Arrow Options
         self.actionInductionScale.triggered.connect(self.set_induction_scale)
         self.actionInductionErrorTolerance.triggered.connect(self.set_induction_error_tol)
@@ -236,10 +265,6 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.action_rmsColour.triggered.connect(self.set_rms_plot)
         self.action_rmsSize.triggered.connect(self.set_rms_plot)
         self.action_rmsLabels.triggered.connect(self.set_rms_plot)
-        # self.rmsGroup = QtWidgets.QActionGroup(self)
-        # self.action_rmsColour.setActionGroup(self.rmsGroup)
-        # self.action_rmsSize.setActionGroup(self.rmsGroup)
-        # self.rmsGroup.triggered.connect(self.set_rms_plot)
         # Model plan view plotting
         if self.map.dataset.model.file:
             self.toggle_planView.clicked.connect(self.update_map)
@@ -282,6 +307,9 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
 
     @property
     def PT_type(self):
+        """str: Phase-tensor family selected in the ``phaseTensorType``
+        combo -- ``'phi'`` / ``'phi_a'`` / ``'Ua'`` / ``'Va'`` (defaults
+        to ``'phi'``)."""
         if self.phaseTensorType.currentIndex() == 0:
             return 'phi'
         elif self.phaseTensorType.currentIndex() == 1:
@@ -304,13 +332,11 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.update_map()
 
     def set_pseudosection_options(self):
+        """Push the "include outliers" checkbox to ``map.include_outliers``
+        and redraw if a pseudosection is showing."""
         self.map.include_outliers = self.actionIncludeOutliers.isChecked()
         if self.toggle_dataPseudo.checkState() or self.toggle_responsePseudo.checkState():
             self.update_map()
-        # if self.actionIncludeOutliers.isChecked():
-        #     self.map.include_outliers = True
-        # else:
-        #     self.map.include_outliers = False
 
     def set_pseudosection_std(self):
         val, ok_pressed = QtWidgets.QInputDialog.getDouble(self,
@@ -322,6 +348,9 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             self.set_pseudosection_options()
 
     def set_pt_rot_axis(self):
+        """Set the phase-tensor rotation reference axis (``'x'`` / ``'y'``)
+        from the menu, and propagate it to every ``PhaseTensor`` on every
+        site so the ellipses recompute."""
         if self.actionPTRotAxisX.isChecked():
             axis = 'x'
         else:
@@ -333,6 +362,10 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
                     self.map.dataset.data.sites[site].phase_tensors[ii].rotation_axis = axis
 
     def coord_system(self):
+        """Switch the map coordinate system from the menu selection
+        (local / UTM / lat-long / Lambert).  If the target system can't
+        be verified (no raw-data locations), warn and fall back to
+        local."""
         can_do = 1
         if self.action_coordLocal.isChecked():
             if self.map.verify_coordinate_system('local'):
@@ -381,29 +414,33 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             self.update_map()
 
     def load_jpeg(self):
+        """Load a georeferenced background image: read the JPEG plus its
+        ``.jgw`` world file, compute the data-coordinate extent (scaled to
+        km if needed) and store both in ``self.background_image``."""
         file_name = QtWidgets.QFileDialog.getOpenFileName(self, 'Get JPEG', '', 'Image Files (*.jpg *.jpeg)')[0]
         if file_name:
-            # try:
-                im = imread(file_name)
-                with open(file_name.split('.')[0] + '.jgw', 'r') as f:
-                    xsize = float(f.readline())
-                    dummy = f.readline()
-                    dummy = f.readline()
-                    ysize = 1 * float(f.readline())
-                    x1 = float(f.readline())
-                    y2 = float(f.readline())
-                x2 = x1 + xsize * im.shape[1]
-                y1 = y2 + ysize * im.shape[0]
-                if self.map.spatial_units == 'km':
-                    x1, x2, y1, y2 = [x/1000 for x in [x1, x2, y1, y2]]
-                self.background_image['image'] = im
-                self.background_image['extent'] = [x1, x2, y1, y2]
-                self.actionShow_JPEG.setChecked(True)
-                self.update_map()
-            # except FileNotFoundError as e:
-                # QtWidgets.QMessageBox.warning(self, 'Error', 'File not readable, or world file not found.')
+            im = imread(file_name)
+            with open(file_name.split('.')[0] + '.jgw', 'r') as f:
+                xsize = float(f.readline())
+                dummy = f.readline()
+                dummy = f.readline()
+                ysize = 1 * float(f.readline())
+                x1 = float(f.readline())
+                y2 = float(f.readline())
+            x2 = x1 + xsize * im.shape[1]
+            y1 = y2 + ysize * im.shape[0]
+            if self.map.spatial_units == 'km':
+                x1, x2, y1, y2 = [x/1000 for x in [x1, x2, y1, y2]]
+            self.background_image['image'] = im
+            self.background_image['extent'] = [x1, x2, y1, y2]
+            self.actionShow_JPEG.setChecked(True)
+            self.update_map()
 
     def data_phase_tensor(self):
+        """Handle the "data" phase-tensor checkbox: clear "none", clear
+        "response" if the exclusive toggle is on, and redraw.
+        :meth:`resp_phase_tensor` / :meth:`none_phase_tensor` are the
+        mirror handlers for the other two checkboxes."""
         if self.toggle_dataPhaseTensor.isChecked():
             self.toggle_nonePhaseTensor.setCheckState(0)
         if self.toggle_PTExclusive.isChecked():
@@ -431,14 +468,12 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.update_map()
 
     def set_spatial_units(self):
-        # for ds in self.stored_datasets.values():
+        """Switch the map axes between metres and kilometres, refresh the
+        site locations and redraw."""
         if self.actionKilometers.isChecked():
-                # ds.spatial_units = 'km'
             self.map.set_spatial_units('km')
         elif self.actionMeters.isChecked():
-                # ds.spatial_units = 'm'
             self.map.set_spatial_units('m')
-            # self.background_image['extent'] = [x*1000 for x in self.background_image['extent']]
         self.map.set_locations()
         self.update_map()
 
@@ -543,18 +578,9 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
                 self.update_map()
 
     def pt_diff_definition(self):
-        # if self.actionPtDiffBooker.isChecked():
-        #     self.map.pt_difference_definition = 'Booker'
-        # if self.actionPtDiffHill.isChecked():
-        #     self.map.pt_difference_definition = 'Hill'
-        # if self.actionPtDiffHeise.isChecked():
-        #     self.map.pt_difference_definition = 'Heise'
-        # if self.actionPtDiffCastro.isChecked():
-        #     self.map.pt_difference_definition = 'Castro'
-        # if self.actionPtDiffRoots_1.isChecked():
-        #     self.map.pt_difference_definition = 'Roots_1'
-        # if self.actionPtDiffRoots_2.isChecked():
-        #     self.map.pt_difference_definition = 'Roots_2'
+        """Set ``map.pt_difference_definition`` from the ``PTDifference``
+        combo (Booker / Hill / Heise / Castro / Roots_1 / Roots_2) and
+        redraw when a data-minus-response tensor is showing."""
         index = self.PTDifference.currentIndex()
         definition = self.PTDifference.itemText(index)
         if definition == 'Booker':
@@ -573,6 +599,8 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             self.update_map()
 
     def set_annotations(self):
+        """Set which site names are labelled (all / none / active) from
+        the Annotate menu group and redraw."""
         if self.actionAnnotate_All.isChecked():
             self.map.annotate_sites = 'all'
         elif self.actionAnnotate_None.isChecked():
@@ -628,6 +656,10 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             self.update_map()
 
     def set_cax(self, initial_1, initial_2):
+        """Prompt for a ``[lower, upper]`` colour-axis range (seeded with
+        the current values) and return it as floats, or ``None`` if the
+        dialog was cancelled or the inputs were invalid.  Shared by every
+        ``set_*_cax`` handler."""
         inputs, ret = self.colourMenu.set_clim(initial_1=str(initial_1),
                                                initial_2=str(initial_2))
         lower, upper = inputs
@@ -648,69 +680,18 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             self.map.rho_cax = limits
             self.map.model_cax = limits
             self.update_map()
-        # inputs, ret = self.colourMenu.set_clim(initial_1=str(self.map.rho_cax[0]),
-        #                                        initial_2=str(self.map.rho_cax[1]))
-        # lower, upper = inputs
-        # if ret and [lower, upper] != self.cax:
-        #     try:
-        #         self.map.rho_cax[0] = float(lower)
-        #         self.map.rho_cax[1] = float(upper)
-        #         self.map.model_cax = self.cax
-        #         self.update_map()
-        #     except ValueError:
-        #         print('Bad inputs to clim')
-        # d, ok_pressed = QtWidgets.QInputDialog.getDouble(self,
-        #                                                  'Lower limit',
-        #                                                  'Value:',
-        #                                                  self.map.rho_cax[0],
-        #                                                  -100, 100, 2)
-        # if ok_pressed:
-        #     lower = d
-        # d, ok_pressed = QtWidgets.QInputDialog.getDouble(self,
-        #                                                  'Upper limit',
-        #                                                  'Value:',
-        #                                                  self.map.rho_cax[1],
-        #                                                  -100, 100, 2)
-        # if ok_pressed:
-        #     upper = d
-        # if lower < upper and [lower, upper] != self.map.rho_cax:
-        #     self.map.rho_cax = [lower, upper]
-        #     self.update_map()
-        # else:
-        #     print('Invalid colour limits')
 
     def set_aniso_cax(self):
         limits = self.set_cax(self.map.aniso_cax[0], self.map.aniso_cax[1])
         if limits is not None and limits != self.map.aniso_cax:
             self.map.aniso_cax = limits
-            self.map.aniso_cax = limits
             self.update_map()
-
 
     def set_difference_cax(self):
         limits = self.set_cax(self.map.diff_cax[0], self.map.diff_cax[1])
         if limits is not None and limits != self.map.diff_cax:
             self.map.diff_cax = limits
             self.update_map()
-        # d, ok_pressed = QtWidgets.QInputDialog.getDouble(self,
-        #                                                  'Lower limit',
-        #                                                  'Value:',
-        #                                                  self.map.diff_cax[0],
-        #                                                  -1000, 1000, 2)
-        # if ok_pressed:
-        #     lower = d
-        # d, ok_pressed = QtWidgets.QInputDialog.getDouble(self,
-        #                                                  'Upper limit',
-        #                                                  'Value:',
-        #                                                  self.map.diff_cax[1],
-        #                                                  -1000, 1000, 2)
-        # if ok_pressed:
-        #     upper = d
-        # if lower < upper and [lower, upper] != self.map.diff_cax:
-        #     self.map.diff_cax = [lower, upper]
-        #     self.update_map()
-        # else:
-        #     print('Invalid colour limits')
 
     def set_phase_cax(self):
         limits = self.set_cax(self.map.phase_cax[0], self.map.phase_cax[1])
@@ -750,42 +731,28 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
                 self.update_map()
 
     def set_colourmap(self):
+        """Set ``map.colourmap`` / ``map.invert_cmap`` from the Colour
+        menu and redraw."""
         self.map.colourmap = self.colourMenu.action_group.checkedAction().text()
         self.map.invert_cmap = self.colourMenu.map.invert_cmap.isChecked()
-        # if self.actionJet.isChecked():
-        #     self.map.colourmap = 'jet'
-        # if self.actionJet_r.isChecked():
-        #     self.map.colourmap = 'jet_r'
-        # if self.actionJet_plus.isChecked():
-        #     self.map.colourmap = 'jet_plus'
-        # if self.actionJet_plus_r.isChecked():
-        #     self.map.colourmap = 'jet_plus_r'
-        # if self.actionBgy.isChecked():
-        #     self.map.colourmap = 'bgy'
-        # if self.actionBgy_r.isChecked():
-        #     self.map.colourmap = 'bgy_r'
-        # if self.actionBwr.isChecked():
-        #     self.map.colourmap = 'bwr'
-        # if self.actionBwr_r.isChecked():
-        #     self.map.colourmap = 'bwr_r'
         self.update_map()
 
     def set_period_label(self):
+        """Refresh the "Period / Frequency" label for the active period."""
         period = self.periods[self.active_period]
         self.periodLabel.setText('Period: {:>6.4g} s\n Frequency: {:>6.4g} Hz'.format(period,
                                                                                       1 / period))
 
     def change_period(self, idx):
+        """Period scroll-bar handler: set the active period (1-based
+        ``idx``), update the label and redraw."""
         self.active_period = idx - 1
         self.set_period_label()
         self.update_map()
 
     def DEBUG_FUNC(self):
+        """Developer scratch method -- not wired to any widget."""
         print('This is a debug function')
-        # print(self.map.site_locations['all'])
-        # print(self.map.active_sites)
-        # print(self.map.site_locations['active'])
-        # print(self.map.site_names)
         X, Y = [], []
         for site in self.map.site_names:
             if 'TZXR' in self.map.site_data['data'].sites[site].components:
@@ -796,13 +763,10 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
                 Y.append(self.map.site_data['data'].sites[site].data['TZYR'][-1])
             else:
                 Y.append(0)
-        # arrows = np.transpose(np.array((X, Y)))
-        # print(arrows)
-        # induction_toggles = self.get_induction_toggles()
-        # print(induction_toggles['data'])
-        # print(induction_toggles['normalize'])
 
     def add_mpl(self, fig):
+        """Embed ``fig`` in a :class:`FigureCanvas` plus navigation
+        toolbar inside the ``mplvl`` layout."""
         self.canvas = FigureCanvas(fig)
         self.mplvl.addWidget(self.canvas)
         self.toolbar = NavigationToolbar(canvas=self.canvas,
@@ -811,6 +775,9 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.mplvl.addWidget(self.toolbar)
 
     def init_map(self, dataset, sites, active_sites):
+        """Load ``dataset`` into ``self.map`` and compute the initial
+        site locations (generic / active / all) in the current
+        coordinate system."""
         self.map.dataset = dataset
         self.map.data = dataset.data
         self.map.raw_data = dataset.raw_data
@@ -818,7 +785,6 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.map.model = dataset.model
         self.map.site_names = sites
         self.map._active_sites = active_sites
-        self.map._generic_sites = list(set(self.map.site_names) - set(self.map.active_sites))
         if self.actionKilometers.isChecked():
             self.map.dataset.spatial_units = 'km'
         elif self.actionMeters.isChecked():
@@ -832,10 +798,17 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             self.planSlice.setMaximum(self.map.dataset.model.nz - 1)
 
     def update_map(self):
-        # Currently redraws the whole map every time
-        # This should be changed to just destroy and redraw whatever features are needed
-        # print(self.map.site_locations['generic'])
-        # Also there should be a mechanism that makes sure this is only redrawn if something changes
+        """Redraw the whole map.
+
+        Clears the axis and colour bars, then plots each enabled layer in
+        z-order: background JPEG, model plan slice, plan pseudosection,
+        site annotations, phase-tensor ellipses (+ a bar layer when a
+        single data type and a different bar fill are selected), induction
+        arrows, and -- if neither PTs nor arrows are shown -- the plain
+        site markers.  Colour bars are assigned to successive ``cb_slot``
+        s.  (Every change triggers a full redraw; there is no incremental
+        path yet.)
+        """
         cb_slot = 1
         self.x_lim = self.map.window['axes'][0].get_xlim()
         self.y_lim = self.map.window['axes'][0].get_ylim()
@@ -919,20 +892,22 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.canvas.draw()
 
     def set_axis_settings(self):
+        """Apply the equal-aspect and lock-axis menu options and refresh
+        the navigation toolbar history."""
         if self.actionEqualAspect.isChecked():
             self.map.window['axes'][0].set_aspect('equal')
         else:
             self.map.window['axes'][0].set_aspect('auto')
         self.toolbar.update()
         self.toolbar.push_current()
-        # DEBUG
-        # print('Updating Map')
         if self.actionLockAxis.isChecked():
             self.map.window['axes'][0].set_xlim(self.x_lim)
             self.map.window['axes'][0].set_ylim(self.y_lim)
 
-
     def get_pseudosection_toggles(self):
+        """Collect the pseudosection state into
+        ``{'data': [...], 'fill': <param>, 'component': <XY/YX/...>}``
+        from the data/response checkboxes and the two fill combos."""
         toggles = {'data': [], 'fill': None, 'component': None}
         if self.toggle_dataPseudo.checkState() and self.map.dataset.data.sites:
             toggles['data'].append('data')
@@ -962,19 +937,15 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             toggles['fill'] = 'phi_max'
         elif item == 'phi_min':
             toggles['fill'] = 'phi_min'
-        # if self.toggle_rhoPseudo.isChecked():
-        #     toggles['fill'] = 'Rho'
-        # elif self.toggle_phasePseudo.isChecked():
-        #     toggles['fill'] = 'Pha'
-        # elif self.toggle_tipPseudo.isChecked():
-        #     toggles['fill'] = 'Tip'
-        # elif self.toggle_depthPseudo.isChecked():
-        #     toggles['fill'] = 'Bost'
         index = self.Pseudosection_fill.currentIndex()
         toggles['component'] = self.Pseudosection_fill.itemText(index)
         return toggles
 
     def get_PT_toggles(self):
+        """Collect the phase-tensor state into
+        ``{'data': [...], 'fill': <PhaseTensor_fill text>}``.  Forces
+        ``'None'`` (and unchecks data / response) when nothing is
+        selected."""
         toggles = {'data': [], 'fill': 'Alpha'}
         if self.toggle_dataPhaseTensor.checkState() and self.map.dataset.data.sites:
             toggles['data'].append('data')
@@ -990,6 +961,9 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         return toggles
 
     def get_induction_toggles(self):
+        """Collect the induction-arrow state into
+        ``{'data': [...], 'normalize': bool}``, unchecking any data type
+        that has no sites."""
         toggles = {'data': [], 'normalize': False}
         if self.toggle_dataInduction.checkState() and self.map.dataset.data.sites:
             toggles['data'].append('data')
@@ -1006,19 +980,67 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
 
 
 class DataMain(QMainWindow, Ui_MainWindow):
-    """
-    Main GUI window for data plotting and manipulation.
+    """Main data-plotting / editing window (``data_plot.ui``).
+
+    Loads every dataset named in ``dataset_dict`` into a
+    :class:`pyMT.data_structures.Dataset`, keeps them in
+    ``self.stored_datasets`` (the active one is ``self.dataset``), and
+    drives a :class:`pyMT.gplot.DataPlotManager` (``self.dpm``) that draws
+    the response curves one site per subplot.  Also owns a
+    :class:`MapMain` (``self.map_view``) and, on demand, a 1-D modelling
+    window.
+
+    The left panel selects data types / components / scaling / errors and
+    the sites to show; the plot area supports click-to-edit (add / remove
+    periods, flag / unflag data) via :meth:`onpick` / :meth:`onpick_flagged`;
+    the right panel holds the error tree, error floors and RMS tables.
+    The File menu writes the edited dataset back out (list + WSINV3DMT /
+    ModEM / GoFEM).
+
+    Parameters
+    ----------
+    dataset_dict : dict
+        ``{name: {'data': ..., 'list': ..., 'response': ..., 'raw_path':
+        ..., 'model': ...}}`` -- as returned by
+        :func:`parse_commandline` / ``FileInputParser``.  Missing keys
+        default to ``''``.  A ``list`` file shared between datasets is
+        loaded once and reused.
+    edi_locs_from : {'definemeas', 'listfile'}, optional
+        Where ``RawData`` should take EDI locations from.
+
+    Attributes
+    ----------
+    dataset : pyMT.data_structures.Dataset
+        The active dataset.
+    stored_datasets : dict
+        ``{name: Dataset}`` for every dataset loaded.
+    dpm : pyMT.gplot.DataPlotManager
+    map_view : MapMain
+    site_names : list of str
+        The sites currently plotted (property; also drives the subplot
+        count).
+    stored_sites : dict
+        ``{site_name: {data_type: Site}}`` -- data for sites removed
+        during the session, so they can be re-added.
+
+    Notes
+    -----
+    Many handlers share one shape and are not documented individually: a
+    ``set_<thing>_limits`` method prompts for a ``[lower, upper]`` pair
+    and writes it into ``dpm.ax_lim_dict``; the other small ``set_*`` /
+    ``toggle_*`` handlers read a widget, set an attribute on ``self.dpm``
+    (or ``self.dataset``) and call :meth:`update_dpm`.
     """
 
     def __init__(self, dataset_dict, edi_locs_from='definemeas'):
+        """Load every dataset, build the widgets / plot manager / map
+        window and draw the initial figure (first six sites)."""
         super(DataMain, self).__init__()
         self.fig_dpi = 300
         self.pick_tol = 0.05
         self.DEBUG = False
         self.setupUi(self)
         self.cid = {'DataSelect': []}
-        # Holds the data for any sites that are removed during GUI execution so they can be added later.
-        # Has the format of {site_name: {data_type: site}}
         self.stored_sites = {}
         self.old_val = ''
         self.fig = Figure()
@@ -1102,28 +1124,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.stacked_data_window = self.modeling_window.data_window
             self.synthetic_window = self.modeling_window.synthetic_window
         self.modeling_window.show()
-       
-
-    # def launch_modeler(self):
-    #     if not self.modeling_window:
-    #         periods = self.dataset.data.periods
-    #         self.modeling_window = ModelingMain(dummy_site=self.dataset.data.sites[self.dataset.data.site_names[0]],
-    #                                             parent=self)
-    #         self.toggle1DResponse.setEnabled(True)
-    #         self.toggle1DResponse.clicked.connect(self.plot_1D_response)
-    #         self.dpm.site1D = self.modeling_window.site
-    #         self.dpm.sites.update({'1d': [self.dpm.site1D] * len(self.dpm.sites['data'])})
-    #         self.modeling_window.updated.connect(self.update_1D_response)
-    #     self.modeling_window.show()
-
-    # def launch_stacked_data(self):
-    #     if not self.stacked_data_window:
-    #         self.stacked_data_window = StackedDataWindow(dataset=self.dataset,
-    #                                                      synthetic_response=self.dpm.site1D,
-    #                                                      parent=self)
-    #     self.stacked_data_window.show()
-
     def update_1D_response(self):
+        """Push the 1-D modelling window's synthetic site to the stacked
+        data window and, if the ``1d`` overlay is on, to the plot."""
         if self.stacked_data_window:
             self.stacked_data_window.synthetic_response = self.synthetic_window.site
             if self.stacked_data_window.checkResponse.checkState():
@@ -1132,6 +1135,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.update_dpm()
 
     def plot_1D_response(self, event):
+        """Toggle the 1-D synthetic-response overlay (``toggle1DResponse``
+        checkbox)."""
         if self.synthetic_window.Z is not []:
             self.dpm.toggles['1d'] = event
             self.update_dpm()
@@ -1139,13 +1144,16 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.toggle1DResponse.setCheckState(0)
 
     def plot_smoothed_data(self, event):
-        # print('triggered')
+        """Toggle the smoothed-data overlay, if smoothed data exists."""
         if self.dataset.smoothed_data:
             print(['Setting toggle to {}'.format(event)])
             self.dpm.toggles['smoothed_data'] = event
             self.update_dpm()
 
     def init_rms_tables(self):
+        """Recompute RMS and (re)populate the station and period RMS
+        tables -- rows per site / period, columns ``Total`` + each
+        component."""
         self.dataset.rms = self.dataset.calculate_RMS()
         ordered_comps = [comp for comp in self.dataset.data.ACCEPTED_COMPONENTS
                          if comp in self.dataset.data.components]
@@ -1187,36 +1195,29 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                                                    QtWidgets.QHeaderView.ResizeToContents)
 
     def update_rms_info(self):
+        """Placeholder -- currently a no-op."""
         pass
-        # ordered_comps = [comp for comp in self.dataset.data.ACCEPTED_COMPONENTS
-        #                  if comp in self.dataset.data.components]
 
     def set_nparam_labels(self):
+        """Refresh the "Periods: N / Sites: N" labels on both panels."""
         self.label_NP.setText('Periods: ' + str(self.dataset.data.NP))
         self.label_NS.setText('Sites: ' + str(self.dataset.data.NS))
         self.label_NP_2.setText('Periods: ' + str(self.dataset.data.NP))
         self.label_NS_2.setText('Sites: ' + str(self.dataset.data.NS))
 
-    # @property
-    # def error_type(self):
-    #     if self.dataErrRadio.isChecked():
-    #         return 'raw'
-    #     elif self.usedErrRadio.isChecked():
-    #         return 'mapped'
-    #     elif self.noErrRadio.isChecked():
-    #         return 'none'
-
     @property
     def site_names(self):
+        """list of str: The sites currently plotted (also the subplot
+        count)."""
         return self._site_names
 
     @site_names.setter
     def site_names(self, names):
         self._site_names = names
-        # if self.map['fig']:
-        #     self.draw_map()
 
     def update_error_floor_table(self):
+        """Build the 5-row error-floor table (diagonal / off-diagonal
+        impedance, tipper, rho, phase) from ``data.error_floors``."""
         self.errorFloorTable.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
         horizontal_headers = ['Error Floor']
         vertical_headers = ['Diagonal Impedance', 'Off-Diagonal Impedance', 'Tipper', 'Rho', 'Phase']
@@ -1240,6 +1241,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.errorFloorTable.resizeRowsToContents()
 
     def update_comp_table(self):
+        """Populate the component table from the dataset's available
+        components, grouped into Impedance / Tipper / Rho / Phase /
+        Bostick / phase-tensor columns (with the derived Det / AAV / GAV /
+        SSQ rows once all four impedance components are present)."""
         ordered_comps = [comp for comp in self.dataset.data.ACCEPTED_COMPONENTS
                          if comp in self.dataset.data.components]
         c = 0
@@ -1250,12 +1255,6 @@ class DataMain(QMainWindow, Ui_MainWindow):
                      'Phase': [],
                      'Bostick': [],
                      'PhsTensor': []}
-        # print('ORDERED COMPS:')
-        # print(ordered_comps)
-        # print('ACCEPTED COMPS:')
-        # print(self.dataset.data.ACCEPTED_COMPONENTS)
-        # print('COMPS:')
-        # print(self.dataset.data.components)
         if 'TZXR' in ordered_comps:
             all_comps.update({'Tipper': [comp for comp in ordered_comps if comp[0].upper() == 'T']})
             ordered_comps.remove('TZXR')
@@ -1353,7 +1352,12 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
 
     def update_comp_list(self):
-        # Not used anymore
+        """Populate the ``comp_list`` widget.
+
+        Superseded by :meth:`update_comp_table`; neither this method nor
+        :meth:`list_click` is wired up any more (the connections in
+        ``__init__`` / :meth:`setup_widgets` are commented out).
+        """
         ordered_comps = [comp for comp in self.dataset.data.ACCEPTED_COMPONENTS
                          if comp in self.dataset.data.components]
         c = 0
@@ -1388,6 +1392,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.comp_list.setItemSelected(labels, True)
 
     def comp_table_click(self):
+        """Component-table selection handler: reject a selection that
+        mixes components of different units (impedance vs rho vs phase
+        ...), otherwise set ``dpm.components`` and redraw."""
         comps = [x.text() for x in self.comp_table.selectedItems()]
         if not all([x[0] == comps[0][0] for x in comps]):
             QtWidgets.QMessageBox.question(self, 'Message',
@@ -1395,7 +1402,6 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                            QtWidgets.QMessageBox.Ok)
             comps = self.dpm.components
             items = self.comp_table.selectedItems()
-            # self.comp_table.clearSelection()
             self.comp_table.itemSelectionChanged.disconnect(self.comp_table_click)
             for item in items:
                 if item.text() not in comps:
@@ -1409,12 +1415,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
                             updated_comps=self.dpm.components)
 
     def list_click(self):
-        # This doesn't delete comps that are removed from the list
-        # I think I need a way to keep track of what is contained in each
-        # axis / line so that I can just modify / delete lines as need be,
-        # rather than redrawing every time. The only time an axes needs to be
-        # redrawn from scratch is if the site changes (although min/max have to
-        # be updated if a new comp is added.)
+        """``comp_list`` selection handler -- the list-widget counterpart
+        of :meth:`comp_table_click`.  Not currently wired up (see
+        :meth:`update_comp_list`)."""
         comps = [x.text() for x in self.comp_list.selectedItems()]
         if not all([x[0] == comps[0][0] for x in comps]):
             QtWidgets.QMessageBox.question(self, 'Message',
@@ -1434,12 +1437,18 @@ class DataMain(QMainWindow, Ui_MainWindow):
                             updated_comps=self.dpm.components)
 
     def calculate_PT_errors(self):
+        """Recompute phase-tensor errors by Monte-Carlo with the number
+        of realizations from the ``nPtRealizations`` spin box, then
+        redraw."""
         n_realizations = self.nPtRealizations.value()
         self.dataset.data.calculate_PT_errors(n_realizations)
         self.update_dpm()
 
     @property
     def dTypes(self):
+        """list of str: The data types whose toggle checkbox is on
+        (``'raw_data'`` / ``'data'`` / ``'response'`` /
+        ``'smoothed_data'``)."""
         return list(filter(None,
                            ['raw_data' * bool(self.toggleRaw.checkState()),
                             'data' * bool(self.toggleData.checkState()),
@@ -1447,12 +1456,14 @@ class DataMain(QMainWindow, Ui_MainWindow):
                             'smoothed_data' * bool(self.toggleSmoothedData.checkState())]))
 
     def init_dpm(self):
+        """Create the :class:`~pyMT.gplot.DataPlotManager`, load the
+        initial sites / data types, and set the period scaling from the
+        menu."""
         self.dpm = gplot.DataPlotManager(fig=self.fig)
         self.dpm.sites = self.dataset.get_sites(site_names=self.site_names,
                                                 dTypes=self.dTypes)
         self.dpm.sites.update({'1d': []})
         self.dpm.sites.update({'smoothed_data': []})
-        # self.dpm.scale = self.scalingBox.currentText()
         if self.actionSqrtScaling.isChecked():
             self.dpm.scale = 'sqrt(periods)'
         elif self.actionLogScaling.isChecked():
@@ -1461,9 +1472,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.dpm.components = [self.dataset.data.components[0]]
 
     def setup_widgets(self):
-        # self.mplInteractGroup = QtWidgets.QButtonGroup()
-        # self.mplInteractGroup.addButton(self.selectPoints)
-        # self.mplInteractGroup.addButton(self.selectFlagged)
+        """Wire every button / combo / menu action to its handler and set
+        the initial widget states from the loaded dataset (data-type
+        toggles, azimuth, site list, inversion-type group, error-plot
+        checkboxes, phase-tensor units, Z scaling, ...)."""
         self.selectPoints.clicked.connect(self.select_points)
         self.selectFlagged.clicked.connect(self.select_flagged_data)
         self.select_points_state = False
@@ -1582,6 +1594,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
         # self.actionLaunchStackedData.triggered.connect(self.launch_stacked_data)
 
     def set_plotted_errors(self):
+        """Set which data types show error bars (``dpm.which_errors``)
+        from the "inversion" / "raw" error checkboxes."""
         self.dpm.which_errors = []
         if self.invErrorCheck.checkState():
             self.dpm.which_errors.append('data')
@@ -1590,16 +1604,22 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.update_dpm()
 
     def set_period_tolerance(self):
+        """Copy the four period-tolerance spin boxes (flag / remove, low /
+        high, as fractions) onto ``raw_data``."""
         self.dataset.raw_data.low_tol = self.lowPeriodToleranceFlag.value() / 100
         self.dataset.raw_data.high_tol = self.highPeriodToleranceFlag.value() / 100
         self.dataset.raw_data.remove_low_tol = self.lowPeriodToleranceRemove.value() / 100
         self.dataset.raw_data.remove_high_tol = self.highPeriodToleranceRemove.value() / 100
 
     def plot_flagged_data(self):
+        """Toggle whether points flagged with ``REMOVE_FLAG`` are still
+        drawn."""
         self.dpm.plot_flagged_data = self.plotFlaggedData.isChecked()
         self.update_dpm()
 
     def reset_dummy_errors(self):
+        """Undo the "removed" dummy periods / components (restore their
+        real errors) and rebuild the tree / plot."""
         self.dataset.reset_dummy_periods()
         self.dataset.reset_dummy_components()
         self.update_error_tree()
@@ -1672,6 +1692,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 self.update_dpm()
 
     def change_pt_units(self):
+        """Switch phase-tensor components between degrees and unitless,
+        redrawing if a phase-tensor component is currently plotted."""
         if self.actionDegrees.isChecked():
             self.dpm.pt_units = 'degrees'
         elif self.actionUnitless.isChecked():
@@ -1679,13 +1701,17 @@ class DataMain(QMainWindow, Ui_MainWindow):
         if set(self.dpm.components).issubset(set(self.dataset.data.PHASE_TENSOR_COMPONENTS)):
             self.update_dpm()
 
-
     def reset_errors(self):
+        """Restore every point's used error to its raw value and rebuild
+        the tree / plot."""
         self.dataset.data.reset_errors()
         self.update_error_tree()
         self.update_dpm()
 
     def error_floor_changed(self, row, column):
+        """Error-floor table edit: parse the new value (restore the old
+        one on a bad entry), store it in ``data.error_floors`` and
+        re-apply the floor."""
         value = self.errorFloorTable.item(row, column).text()
         component = self.errorFloorTable.verticalHeaderItem(row).text()
         try:
@@ -1695,12 +1721,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.dataset.data.error_floors[component] = value
         self.dataset.data.apply_error_floor()
         self.update_dpm()
-        # print(self.dataset.data.sites[self.dataset.data.site_names[0]].used_error['TZXR'])
-        # self.dpm.components = comps
-        # self.update_dpm(updated_sites=self.dpm.site_names,
-                        # updated_comps=self.dpm.components)
 
     def set_phase_wrap(self):
+        """Toggle phase wrapping (``dpm.wrap_phase``); redraw if a phase
+        component is showing."""
         if self.actionPhase_Wrap.isChecked():
             self.dpm.wrap_phase = 1
         else:
@@ -1709,6 +1733,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.dummy_update_dpm(toggled=True)
 
     def set_axis_bounds(self):
+        """Apply the manual y-limit text boxes (``axmin_hack`` /
+        ``axmax_hack``) to every subplot."""
         try:
             self.dpm.min_ylim = float(self.axmin_hack.text())
             self.dpm.max_ylim = float(self.axmax_hack.text())
@@ -1719,6 +1745,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
             return
 
     def link_axes(self):
+        """Toggle shared y-bounds across all subplots (``LockAxes``
+        checkbox) and redraw."""
         if self.LockAxes.checkState():
             self.dpm.link_axes_bounds = True
         else:
@@ -1727,16 +1755,19 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.update_dpm()
 
     def write_current_plot(self):
-        # pass
+        """Save the current figure to a PDF chosen in a file dialog."""
         filename, ret = self.file_dialog.write_file(ext='.pdf')
         if ret:
             file, extention = os.path.splitext(filename)
             if not extention:
                 extention = '.pdf'
             self.dpm.fig.savefig(''.join([file, extention]), dpi=self.fig_dpi)
-        # filename = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Plot',)
 
     def write_all_plots(self):
+        """Page through every site, ``num_subplots`` at a time, and save
+        each page -- a multi-page PDF if the chosen extension is
+        ``.pdf``, otherwise one numbered file per page.  Restores the
+        original site selection afterwards."""
         filename, ret = self.file_dialog.write_file(ext='.pdf')
         if ret:
             file, extention = os.path.splitext(filename)
@@ -1765,34 +1796,41 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.dpm.sites = self.dataset.get_sites(site_names=original_sites, dTypes='all')
 
     def regulate_errors(self):
+        """Recompute the error maps from the "regulate errors" panel
+        (filter width, multiplier, median window, threshold, smooth-by),
+        rebuild the tree / plot and enable the smoothed-data overlay."""
         print('Recalculating error maps...')
         fwidth = float(self.width.text())
         mult = float(self.mult.text())
         median_window = int(self.medianSize.text())
         threshold = float(self.threshold.text())
         smooth_by = self.regSmoothBy.currentText().lower()
-        # print([fwidth, mult])
         self.dataset.regulate_errors(multiplier=mult, fwidth=fwidth, median_window=median_window, threshold=threshold, smooth_by=smooth_by)
         print('Updating error tree...')
         self.update_error_tree()
         print('Done!')
-        # self.dpm.sites['smoothed_data'] = self.dataset.raw_data.smoothed_data
         self.update_dpm()
-        # if not self.toggleSmoothedData.isEnabled():
         self.toggleSmoothedData.setEnabled(True)
         self.toggleSmoothedData.clicked.connect(self.plot_smoothed_data)
 
     def sort_sites(self, index=None):
+        """Re-order the site list.
+
+        ``index`` selects the ``sortSites`` combo entry -- Default,
+        West-East, South-North, Clustering, or Selection.  For every mode
+        except Selection the dataset is sorted, the list refreshed and the
+        back / forward / subplot controls enabled.  Selection mode
+        disables those and instead lets the user pick sites directly
+        (:meth:`plot_selected_sites`).
+        """
         if index is None:
             index = self.sortSites.currentIndex()
         sort_type = self.sortSites.itemText(index)
-        # Skip if its already disconnected, but otherwise disconnect it before doing anything
         try:
             self.siteList.itemSelectionChanged.disconnect(self.plot_selected_sites)
         except TypeError:
             pass
         if sort_type != 'Selection':
-            
             self.dataset.sort_sites(self.sortSites.itemText(index))
             self.siteList.clear()
             self.siteList.addItems(self.dataset.data.site_names)
@@ -1809,34 +1847,24 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.siteList.itemSelectionChanged.connect(self.plot_selected_sites)
 
     def plot_selected_sites(self):
+        """Plot exactly the sites highlighted in the site list (Selection
+        sort mode): rebuild ``dpm.sites`` for every data type, redraw the
+        curves, and sync the error tree, subplot count and map
+        annotations."""
         sites_to_add = [site.text() for site in self.siteList.selectedItems()]
         self.collapse_tree_nodes(to_collapse=self.dpm.site_names)
         self.site_names = sites_to_add
-        # If the sites haven't changed
         sites = self.dataset.get_sites(site_names=self.site_names, dTypes='all')
-        # debug_print(sites, 'debug.log')
-        # self.dpm.replace_sites(sites_in=sites, sites_out=self.dpm.site_names)
-        # self.dpm.fig.canvas.draw()
 
         for dType in self.dpm.sites.keys():
             self.dpm.sites[dType] = []
             if self.dataset.has_dType(dType) or dType == '1d':
-                # tmp_sites = self.site_names
-                # sites_to_add = [site for site in self.dataset.data.site_names
-                #                 if site not in self.site_names][:num_to_add]
                 for site in sites_to_add:
                     if dType == '1d':
                         self.dpm.sites[dType].append(self.dpm.site1D)
                     else:
                         self.dpm.sites[dType].append(getattr(self.dataset, dType).sites[site])
-                # for ii in range(num_to_add):
-                #     site_name = next(site for site in self.dataset.data.site_names
-                #                      if site not in tmp_sites)
-                #     tmp_sites.append(site_name)
-                #     self.dpm.sites[dType].append(getattr(self.dataset, dType).sites[site_name])
 
-        # self.site_names = self.dpm.site_names
-        # self.dpm.draw_all()
         self.dpm.plot_data()
         self.dpm.fig.canvas.draw()
         self.update_dpm()
@@ -1845,10 +1873,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.numSubplots.setValue((len(sites_to_add)))
         self.map_view.map.active_sites = self.site_names
         for annotation in self.map_view.map.actors['annotation']:
-            # annotation.remove()
             del annotation
         self.map_view.map.actors['annotation'] = []
-        # del self.map_view.map.actors['annotation']
         self.map_view.x_lim = self.map_view.map.window['axes'][0].get_xlim()
         self.map_view.y_lim = self.map_view.map.window['axes'][0].get_ylim()
         self.map_view.map.plot_annotate()
@@ -1856,16 +1882,13 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.map_view.canvas.draw()
 
     def show_map(self):
-        # print(self.map_view.map.site_locations['generic'])
-        # print(self.map_view.map.generic_sites)
-        # print(self.map_view.map.active_sites)
+        """Refresh and raise the :class:`MapMain` window."""
         self.map_view.update_map()
         self.map_view.show()
-        # if not self.map['fig']:
-            # self.draw_map()
-        # self.map['canvas'].show()
 
     def update_map_data(self):
+        """Re-seed the map window with the current dataset (periods,
+        scroll-bar range, site locations)."""
         self.map_view.periods = self.dataset.data.periods
         self.map_view.PeriodScrollBar.setMaximum(len(self.dataset.data.periods))
         self.map_view.dataset = self.dataset
@@ -1874,6 +1897,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                active_sites=self.site_names)
 
     def draw_map(self):
+        """Draw a minimal site map onto the embedded ``self.map`` figure.
+
+        Predates :class:`MapMain` and is no longer wired to anything.
+        """
         if not self.map['fig']:
             self.map['fig'] = Figure()
         if not self.map['canvas']:
@@ -1901,10 +1928,14 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.map['canvas'].draw()
 
     def dummy_update_dpm(self, toggled=True):
+        """:meth:`update_dpm` wrapper for signals that pass a bool -- a
+        no-op when ``toggled`` is false."""
         if toggled:
             self.update_dpm(updated_sites=None, updated_comps=None, remove_sites=None)
 
     def set_data_toggles(self):
+        """Uncheck (and disable in ``dpm.toggles``) any of raw / data /
+        response that the current dataset does not have."""
         if not self.dataset.has_dType('raw_data'):
             self.toggleRaw.setCheckState(0)
             self.dpm.toggles['raw_data'] = False
@@ -1916,15 +1947,17 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.dpm.toggles['response'] = False
 
     def change_dataset(self, index):
+        """Switch the active dataset to the one selected in the
+        ``currentDataset`` combo, re-seeding the map, data-type toggles,
+        site sort, error tree and plot (keeping the same site selection
+        where the names still exist)."""
         dset = self.currentDataset.itemText(index)
         self.current_dataset = dset
         self.dataset = self.stored_datasets[dset]
         if self.dataset.data.sites and self.dataset.response.sites:
             self.recalculateRMS.setEnabled(True)
-            # self.select_points_button.setEnabled(False)
         else:
             self.recalculateRMS.setEnabled(False)
-            # self.select_points_button.setEnabled(True)
         # Try to keep the same selection if possible
         if (self.sortSites.currentText() == 'Selection' and set(self.site_names).issubset(set(self.dataset.data.site_names))):
             shift_sites = False
@@ -1955,8 +1988,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
         # self.error_tree.itemChanged.connect(self.post_edit_error)
 
     def num_subplots(self):
-        # text = self.numSubplots.text()
-        # numplots = utils.validate_input(text, int)
+        """Grow or shrink the plotted-site set to match the
+        ``numSubplots`` spin box, appending the next unplotted sites or
+        dropping from the end, then redraw."""
         numplots = self.numSubplots.value()
         if not numplots:
             self.numSubplots.setValue(self.dpm.num_sites)
@@ -1992,10 +2026,16 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.update_dpm()
 
     def remove_sites(self):
-        # Note that this method doesn't care about how many sites there are
-        # relative to the number that should be plotted. I.E. in the edge case
-        # that 6 sites are plotted but you remove some so that only 4 remain, there
-        # will be an error.
+        """Move the sites selected in ``siteList`` to the removed list.
+
+        Their data is stashed in :attr:`stored_sites` (so :meth:`add_sites`
+        can restore them), they are dropped from the dataset, and any that
+        were on screen are replaced with the next available sites before
+        the map and labels refresh.
+
+        Note: assumes enough sites remain to fill the current subplot
+        count -- removing down to fewer than that can error.
+        """
         site_names = []
         min_row = np.inf
         for site in self.siteList.selectedItems():
@@ -2058,8 +2098,11 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.set_nparam_labels()
 
     def add_sites(self):
-        # This method and the relevent methods in ws.data_structures are
-        # not optimized. Adding many sites at once could be slow.
+        """Restore the sites selected in the removed list back into the
+        dataset (from :attr:`stored_sites`) and refresh the map / labels.
+
+        Not optimised -- adding many sites at once can be slow.
+        """
         site_names = []
         min_row = np.inf
         for site in self.rmSitesList.selectedItems():
@@ -2079,6 +2122,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.set_nparam_labels()
 
     def print_periods(self):
+        """Dump the raw-data period table (period, log10, % of sites,
+        whether it is in the inversion data, freqset index) into the
+        info box."""
         lines = []
         periods = list(self.dataset.raw_data.narrow_periods.keys())
         periods.sort()
@@ -2108,16 +2154,12 @@ class DataMain(QMainWindow, Ui_MainWindow):
         #     print('{}\n'.format(utils.truncate(t)))
 
     def DEBUG_METHOD(self):
-        # print(self.dpm.scale)
-        # print(self.current_dataset)
-        # print(self.stored_datasets)
-        # print(self.dataset)
-        # print(self.dataset.azimuth, self.dataset.data.azimuth,
-        #       self.dataset.response.azimuth, self.dataset.raw_data.azimuth)
+        """Developer scratch method wired to ``DEBUG_BUTTON``."""
         print((self.dataset.data.sites[
               self.dataset.data.site_names[0]].used_error['ZXYR']))
 
     def azimuth_scroll(self, val):
+        """Nudge the azimuth by 1 degree via the scroll bar and re-rotate."""
         current_val = float(self.azimuthEdit.text())
         if val < self.AzimuthScrollBar.value():
             new_val = (current_val - 1) % 359
@@ -2128,33 +2170,25 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.set_azimuth()
 
     def set_azimuth(self, azi):
-        # text = self.azimuthEdit.text()
-        # azi = utils.validate_input(text, float)
-        # if azi is False:
-            # self.azimuthEdit.setText(str(self.dataset.azimuth))
-            # return
+        """Rotate every data type to ``azi`` degrees and refresh the plot
+        and map (no-op if the dataset is already at that azimuth)."""
         if azi != self.dataset.azimuth:
-            # if azi <= 0:
-            #     azi += 360
-            #     self.azimuthEdit.setText(str(azi))
             azi = azi % 360
             self.dataset.rotate_sites(azi=azi)
             self.update_dpm()
             self.map_view.init_map(dataset=self.dataset,
                                    sites=self.dataset.data.site_names,
                                    active_sites=self.site_names)
-            # self.map_view.init_map(dataset=self.dataset,
-                                   # active_sites=self.site_names,
-                                   # sites=self.dataset.data.site_names)
             self.azimuthEdit.setValue(azi)
             self.map_view.update_map()
 
     def change_scaling(self, index):
+        """Set the period scaling (sqrt vs log10) from the menu group and
+        redraw, refreshing the leftmost-column y-labels."""
         if self.actionSqrtScaling.isChecked():
             self.dpm.scale = 'sqrt(periods)'
         elif self.actionLogScaling.isChecked():
             self.dpm.scale = 'log10'
-        # self.dpm.scale = self.scalingBox.itemText(index).lower()
         self.update_dpm()
         for axnum, site_name in enumerate(self.site_names):
             cols = self.dpm.tiling[1]
@@ -2162,28 +2196,28 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 self.dpm.set_labels(axnum, site_name)
 
     def set_outlier_threshold(self):
+        """Push the outlier-threshold spin box to ``dpm.outlier_thresh``;
+        redraw only if outliers are currently hidden."""
         self.dpm.outlier_thresh = self.outlierThreshold.value()
         if not self.dpm.show_outliers:
             self.debugInfo.setText('New thresh: {}'.format(self.dpm.outlier_thresh))
             self.update_dpm()
 
     def toggle_outliers(self, event):
+        """Show / hide outliers in the y-limit calculation."""
         self.dpm.show_outliers = event
         self.update_dpm()
 
     def toggle_raw(self, event):
+        """Show / hide the raw-data curves, keeping at least one data type
+        on.  :meth:`toggle_data` / :meth:`toggle_response` are the
+        mirror handlers."""
         if self.dataset.raw_data.sites:
             if any([self.toggleRaw.checkState(),
                     self.toggleData.checkState(),
                     self.toggleResponse.checkState()]):
                 self.dpm.toggles['raw_data'] = event
                 self.update_dpm()
-            # This can be used for quicker re-drawing since it just makes the data invisible,
-            # however it doesn't properly update when the sites being plotted changes.
-            # for axnum in range(len(self.dpm.axes)):
-            #     artist = self.dpm.artist_ref['raw_data'][axnum][0]
-            #     artist.set_visible(event)
-            # self.dpm.fig.canvas.draw()
             else:
                 self.toggleRaw.setCheckState(2)
         else:
@@ -2214,15 +2248,20 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.toggleResponse.setCheckState(0)
 
     def write_wsinv3dmt(self):
+        """File-menu action: write the dataset as WSINV3DMT."""
         self.write_data(file_format='WSINV3DMT')
 
     def write_ModEM(self):
+        """File-menu action: write the dataset as ModEM."""
         self.write_data(file_format='ModEM')
 
     def write_gofem(self):
+        """File-menu action: write the dataset as GoFEM."""
         self.write_data(file_format='gofem')
 
     def check_inv_type(self):
+        """Return the inversion type selected in the menu group (1-10),
+        or the dataset's current ``inv_type`` if none is checked."""
         if self.inv_type1.isChecked():
             return 1
         elif self.inv_type2.isChecked():
@@ -2243,6 +2282,20 @@ class DataMain(QMainWindow, Ui_MainWindow):
             return self.dataset.data.inv_type
 
     def write_data(self, file_format='WSINV3DMT'):
+        """Write the active dataset to a data file.
+
+        Validates the selected inversion type against the available
+        components, sets 2-D / 3-D dimensionality, offers to write a new
+        list file if the sites were re-ordered, prompts for the output
+        path (adding the format's extension), optionally centres the
+        station coordinates, and -- for ModEM with flagged data -- offers
+        to also write a "removed" version.  Retries on a name clash with
+        an overwrite prompt.
+
+        Parameters
+        ----------
+        file_format : {'WSINV3DMT', 'ModEM', 'gofem'}
+        """
         inv_type = self.check_inv_type()
         if not set(self.dataset.data.INVERSION_TYPES[inv_type]).issubset(self.dataset.data.components):
             reply = QtWidgets.QMessageBox.question(self, 'Message',
@@ -2309,6 +2362,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                     break
 
     def write_list(self):
+        """Write the current site list to a ``.lst`` file (with an
+        overwrite prompt on a name clash)."""
         keep_going = True
         while keep_going:
             outfile, ret = MyPopupDialog.get_file(label='Enter list file')
@@ -2328,28 +2383,19 @@ class DataMain(QMainWindow, Ui_MainWindow):
                     break
 
     def Back(self):
-        """
-        Bulk shifts the plotted sites back by the number of subplots.
-        Works best if plotting sites as they appear in the list.
-        """
+        """Page the plotted sites back by one screenful (see
+        :meth:`back_or_forward_button`)."""
         self.back_or_forward_button(shift=-1)
-        # self.draw_map()
 
     def Forward(self):
+        """Page the plotted sites forward by one screenful."""
         self.back_or_forward_button(shift=1)
-        # self.draw_map()
 
     def back_or_forward_button(self, shift):
-        # This used to work for an older version of matplotlib
-        # In 3.10.3, removing the annotation in this way resulted in an error
-        # for annotation in self.map_view.map.actors['annotation']:
-        #     annotation.remove()
-        #     # self.map_view.map.window['axes'][0].texts.remove(annotation)
-        #     del annotation
-        #     # print('I am removing the artists')
-        # 
-        # In matplotlib 3.10.3, you can do this instead
-        # It seems to have the same effect, but hasn't been thoroughly tested
+        """Shift the plotted-site window by ``shift`` screenfuls
+        (``-1`` back, ``+1`` forward, ``0`` refresh), swapping the sites
+        into the plot manager and syncing the error tree and map
+        annotations."""
         for annotation in self.map_view.map.window['axes'][0].texts:
             annotation.remove()
 
@@ -2360,15 +2406,11 @@ class DataMain(QMainWindow, Ui_MainWindow):
             return
         sites = self.dataset.get_sites(site_names=self.site_names, dTypes='all')
         self.dpm.replace_sites(sites_in=sites, sites_out=self.dpm.site_names)
-        # self.dpm.fig.canvas.draw()
         self.update_dpm()
         self.expand_tree_nodes(to_expand=self.site_names, expand=True)
-        # DEBUG
-        # print(self.site_names)
         self.map_view.map.active_sites = self.site_names
 
         self.map_view.map.actors['annotation'] = []
-        # del self.map_view.map.actors['annotation']
         self.map_view.x_lim = self.map_view.map.window['axes'][0].get_xlim()
         self.map_view.y_lim = self.map_view.map.window['axes'][0].get_ylim()
         self.map_view.map.plot_annotate()
@@ -2377,6 +2419,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
         # self.map_view.update_map()
 
     def shift_site_names(self, shift=1):
+        """Return the site-name list ``shift`` screenfuls along from the
+        currently-plotted window, clamped to the ends of the dataset."""
         try:
             idx_plotted = [self.dataset.data.site_names.index(x) for x in self.dpm.site_names]
         except ValueError:
@@ -2398,12 +2442,26 @@ class DataMain(QMainWindow, Ui_MainWindow):
     @utils.enforce_input(updated_sites=list, updated_comps=list, remove_sites=list)
     def update_dpm(self, updated_sites=None,
                    updated_comps=None, remove_sites=None):
+        """Re-plot the subplots for ``updated_sites`` in place.
+
+        Only redraws the axes whose station appears in both
+        ``updated_sites`` and the currently-plotted set; each is refreshed
+        with :meth:`~pyMT.gplot.DataPlotManager.redraw_single_axis` after
+        pointing ``dpm.sites['data']`` at the current ``Dataset`` site.
+        To swap one station for another, call
+        :meth:`~pyMT.gplot.DataPlotManager.replace_sites` first.  Takes
+        keyword arguments (``@utils.enforce_input`` -- see the note in
+        :mod:`pyMT.gplot`).
+
+        Parameters
+        ----------
+        updated_sites : list of str, optional
+            Stations to redraw (default: all plotted).
+        updated_comps : list of str, optional
+            Currently informational (default: ``dpm.components``).
+        remove_sites : list of str, optional
+            Unused.
         """
-        This site updates axes given by the sites in updated_sites. If you want to replace
-        a site with another, you must first call the replace_site method of the DataPlotManager
-        """
-        # dpm_sites = [site.name for site in self.dpm.sites['data']]  # Sites currently plotted
-        # self.dpm.errors = self.error_type
         if updated_sites is None:
             updated_sites = self.dpm.site_names
         if updated_comps is None:
@@ -2425,9 +2483,11 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.dpm.link_axes(y_bounds=limits)
         self.dpm.set_axis_scales()
         self.dpm.fig.canvas.draw()
-        # print(time.time() - t)
 
     def get_component_fullname(self):
+        """Map the current first component to a key in
+        ``dpm.ax_lim_dict`` -- ``'impedance'`` / ``'tipper'`` / ``'phase'``
+        / ``'rho'`` / ``'beta'`` / ``'azimuth'``."""
         if self.dpm.components[0].lower().startswith('z'):
             return 'impedance'
         elif self.dpm.components[0].lower().startswith('t'):
@@ -2464,6 +2524,11 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 self.error_tree.editItem(item, column)
 
     def check_key_presses(self, verbose=False):
+        """Decode ``self.stored_key_presses`` into
+        ``{'Control': bool, 'Shift': bool, 'Alt': bool}`` -- the
+        modifier keys that widen an error-tree edit to all components /
+        periods / sites.  With ``verbose`` it also prints which axis the
+        edit will span."""
         msg = ''
         retval = {'Control': False, 'Shift': False, 'Alt': False}
         if self.stored_key_presses == QtCore.Qt.ShiftModifier:
@@ -2500,9 +2565,13 @@ class DataMain(QMainWindow, Ui_MainWindow):
         return retval
 
     def update_error_tree(self):
+        """Rebuild the error tree: one top-level node per site, a child
+        per period, and a column per component holding that point's error
+        map multiplier.  Disconnects / reconnects the ``itemChanged``
+        signal around the rebuild so it doesn't fire during construction.
+        """
         try:
             self.error_tree.itemChanged.disconnect()
-            # print('Disconnecting tree')
         except TypeError:
             tree_connected = False
         else:
@@ -2543,7 +2612,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
             # print('Reconnecting tree')
 
     def expand_tree_nodes(self, to_expand, expand=True):
-        # idx = [self.dataset.data.site_names.index(site) for site in to_expand]
+        """Expand (or, with ``expand=False``, collapse) the error-tree
+        site nodes named in ``to_expand``."""
         for site in to_expand:
             sitenode = self.tree_dict[site]
             if (sitenode.isExpanded() and not expand):
@@ -2552,17 +2622,19 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 sitenode.setExpanded(True)
 
     def collapse_tree_nodes(self, to_collapse):
+        """Collapse every error-tree node (``to_collapse`` is ignored)."""
         self.error_tree.collapseAll()
-        # for site in to_collapse:
-        #     sitenode = self.tree_dict[site]
-        #     if sitenode.isExpanded():
-        #         sitenode.setExpanded(False)
 
     def post_edit_error(self, item, column):
-        # print(self.error_tree.columnCount())  # Number of components (+2 for site name and period)
-        # print(self.error_tree.topLevelItemCount())  # of sites
-        # print(item.childCount())
-        # This method shouldn't call itself... There's probably a better way.
+        """Apply an error-tree edit.
+
+        Parses the new integer multiplier, then -- widening the target
+        set by the modifier keys held during the edit (Ctrl = all
+        components, Shift = all periods, Alt = all sites) -- writes it
+        into ``data.errmap`` for every affected point and redraws.  A
+        zero or non-integer entry is rejected and the old value
+        restored.
+        """
         self.error_tree.itemChanged.disconnect()
         if column != self.current_tree_col or item != self.current_tree_item:
             return
@@ -2631,25 +2703,28 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                                         multiplicative=False)
 
         self.error_tree.itemChanged.connect(self.post_edit_error)
-        self.update_dpm(updated_sites=site_names, updated_comp=comps)
+        self.update_dpm(updated_sites=site_names, updated_comps=comps)
 
     def redraw(self, ax=None):
+        """Placeholder -- currently a no-op."""
         pass
-        # self.fig.redraw()
 
     def addmpl(self, fig):
-        self.canvas = FigureCanvas(fig)  # Make a canvas
+        """Embed ``fig`` in a canvas + navigation toolbar in the main
+        window's ``mplvl`` layout."""
+        self.canvas = FigureCanvas(fig)
         self.mplvl.addWidget(self.canvas)
         self.toolbar = NavigationToolbar(canvas=self.canvas,
                                          parent=self.mplwindow, coordinates=True)
         self.toolbar.setFixedHeight(36)
         self.toolbar.setIconSize(QtCore.QSize(36, 36))
-        # Connect check box to instance
         self.canvas.draw()
         self.mplvl.addWidget(self.toolbar)
 
     def select_points(self):
-        # self.select_points_state = not(self.select_points_state)
+        """"Select points" checkbox: connect / disconnect the
+        :meth:`onpick` pick handler (mutually exclusive with
+        :meth:`select_flagged_data`)."""
         if self.selectFlagged.checkState() and self.selectPoints.checkState():
             self.selectFlagged.setCheckState(False)
             self.canvas.mpl_disconnect(self.cid['DataSelect'])
@@ -2659,6 +2734,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.cid['DataSelect'] = self.canvas.mpl_connect('pick_event', self.onpick)
 
     def select_flagged_data(self):
+        """"Flag data" checkbox: connect / disconnect the
+        :meth:`onpick_flagged` pick handler (mutually exclusive with
+        :meth:`select_points`)."""
         if self.selectFlagged.checkState() and self.selectPoints.checkState():
             self.selectPoints.setCheckState(False)
             self.canvas.mpl_disconnect(self.cid['DataSelect'])
@@ -2668,6 +2746,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.cid['DataSelect'] = self.canvas.mpl_connect('pick_event', self.onpick_flagged)
 
     def onclick(self, event):
+        """Developer scratch button-press handler -- not connected."""
         if event.button == 1:
             print('Left mouse')
         if event.button == 2:
@@ -2681,13 +2760,15 @@ class DataMain(QMainWindow, Ui_MainWindow):
             print(event.xdata, event.ydata)
 
     def onpick(self, pick_event):
+        """Pick handler for "select points" mode.
+
+        On a raw-data point: left click adds that period to the inversion
+        data (unless one is already within ``pick_tol``); middle click
+        prints how many sites have it.  On an inversion-data point: right
+        click removes that period.  Response points are ignored.  (The
+        error tree is fully rebuilt afterwards rather than incrementally
+        updated.)
         """
-        Adds (on left click) or removes (on right click) periods from the data part of the dataset.
-        Needs to be fixed so that the error tree is updated when a period is added. This should only
-        add the new period, rather than do a full re-write of the tree.
-        """
-        # Due to a bug with mpl, if you pick an axis that has a legend outside, it double picks.
-        
         event = pick_event.mouseevent
         ax_index = next(ii for ii, ax in enumerate(self.dpm.axes) if ax == event.inaxes)
         site_name = self.dpm.site_names[ax_index]
@@ -2731,7 +2812,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
                     self.dataset.data.add_periods(toadd)
                     print('Adding period {}, freq {}'.format(period, 1 / period))
                     self.update_dpm(updated_sites=self.dpm.site_names,
-                                    updated_comp=self.dataset.data.components)
+                                    updated_comps=self.dataset.data.components)
                     self.update_map_data()
                     self.set_nparam_labels()
         if event.button == 2:
@@ -2762,13 +2843,13 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 self.set_nparam_labels()
 
     def onpick_flagged(self, pick_event):
+        """Pick handler for "flag data" mode.
+
+        On an inversion-data point: left click flags that period for all
+        impedance (or tipper) components by setting their used error to
+        ``REMOVE_FLAG``; right click restores the raw error.  Raw and
+        response points are ignored.
         """
-        Adds (on left click) or removes (on right click) periods from the data part of the dataset.
-        Needs to be fixed so that the error tree is updated when a period is added. This should only
-        add the new period, rather than do a full re-write of the tree.
-        """
-        # Due to a bug with mpl, if you pick an axis that has a legend outside, it double picks.
-        
         event = pick_event.mouseevent
         ax_index = next(ii for ii, ax in enumerate(self.dpm.axes) if ax == event.inaxes)
         site_name = self.dpm.site_names[ax_index]
@@ -2811,7 +2892,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 self.dataset.data.sites[site_name].used_error[comp][p_idx] = self.dataset.data.REMOVE_FLAG
         
             self.update_dpm(updated_sites=self.dpm.site_names,
-                                updated_comp=self.dataset.data.components)
+                                updated_comps=self.dataset.data.components)
             self.update_map_data()
             self.set_nparam_labels()
         if event.button == 2:
@@ -2827,73 +2908,49 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.set_nparam_labels()
 
     def disconnect_mpl_events(self):
+        """Disconnect every stored matplotlib callback id in ``self.cid``."""
         for key in self.cid.keys():
-            # try:
             self.canvas.mpl_disconnect(self.cid[key])
 
     def connect_mpl_events(self):
-        # Can change this later if I want to add something for clicking an axis and not a point
+        """Connect the pick handler that matches the current edit mode
+        (:meth:`onpick` for "select points", :meth:`onpick_flagged` for
+        "flag data")."""
         if self.selectPoints.checkState():
-            # self.cid['DataSelect'] = self.canvas.mpl_connect('button_press_event', self.onclick)
             self.cid['DataSelect'] = self.canvas.mpl_connect('pick_event', self.onpick)
         elif self.selectFlagged.checkState():
             self.cid['DataSelect'] = self.canvas.mpl_connect('pick_event', self.onpick_flagged)
 
 
-class MyTableModel(QtCore.QAbstractTableModel):
-    def __init__(self, datain, parent=None, *args):
-        QtCore.QAbstractTableModel.__init__(self, parent, *args)
-        self.arraydata = datain
-        self.headerdata = None
-        self.model = QtWidgets.QStandardItemModel(self)
-
-    def rowCount(self, parent):
-        return len(self.arraydata)
-
-    def columnCount(self, parent):
-        return len(self.arraydata[0])
-
-    def data(self, index, role):
-        if not index.isValid():
-            return None
-        if role == QtCore.Qt.DisplayRole:
-            i = index.row()
-            j = index.column()
-            return (self.arraydata[i][j])
-        else:
-            return None
-
-    def setData(self, index, value, role):
-        if self.flags(index):
-            self.arraydata[index.row()][index.column()] = value
-        return True
-
-    def flags(self, index):
-        if index.column() < 2:
-            return QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsEnabled | \
-                QtCore.Qt.ItemIsSelectable
-        else:
-            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
-
-
-
-# Should just modify this to allow for multiple lines of input, as well as a browse button.
-# The returned files can then be parsed by FileInputParser.
-
 def parse_commandline(args):
+    """Turn command-line arguments into a ``{dataset_name: files}`` dict.
+
+    Parameters
+    ----------
+    args : list of str
+        Argument list (``sys.argv``); see the module docstring for the
+        recognised flags.
+
+    Returns
+    -------
+    dict or None
+        ``{name: {'data': ..., 'list': ..., ...}}`` ready for
+        :class:`DataMain`, or ``None`` if the user asked for help / a
+        listing / cancelled, or no usable files were found.
+    """
     start_file = None
-    if '-d' in sys.argv:
+    if '-d' in args:
         start_file = 'pystart'
-    elif '-b' in sys.argv:
+    elif '-b' in args:
         start_file, response = FileInputParser.get_files_dialog()
-    elif '-n' in sys.argv:
-        idx = sys.argv.index('-n')
+    elif '-n' in args:
+        idx = args.index('-n')
         try:
-            start_file = sys.argv[idx + 1]
+            start_file = args[idx + 1]
         except IndexError:
             print('You must name your pystart file when using the -n option!')
             return None
-    elif '-h' in sys.argv:
+    elif '-h' in args:
         print('Options include: \n\t -d : Use default startup file "pystart"' +
               '\n\t -b : Browse for start file or data files (Not yet implemented)' +
               '\n\t -n : Specify the start file you wish to use' +
@@ -2903,25 +2960,23 @@ def parse_commandline(args):
         return None
     else:
         files, response = FileInputParser.get_files_dialog()
-    # if start_file == '':
-    #     start_file, response = FileInputParser.get_files_dialog()
     if isinstance(start_file, str):
         files = FileInputParser.read_pystart(start_file)
     if not files:
         return None
     # If you made it this far, I assume you have a good starting file.
-    if '-c' in sys.argv:
-        idx = sys.argv.index('-c')
-        if len(sys.argv) == idx + 1:
+    if '-c' in args:
+        idx = args.index('-c')
+        if len(args) == idx + 1:
             print('You need to specify the model you want with the -c option.')
             return None
-        dnames = sys.argv[idx + 1].split(':')
+        dnames = args[idx + 1].split(':')
         dset = {dname: dataset for dname, dataset in files.items() if dname in dnames}
         if not dset:
-            print('Dataset {} not found in {}'.format(sys.argv[idx + 1], start_file))
+            print('Dataset {} not found in {}'.format(args[idx + 1], start_file))
         else:
             files = dset
-    elif '-l' in sys.argv:
+    elif '-l' in args:
         print('Datasets contained in {} are: {}'.format(start_file, list(files.keys())))
         print('Load all [y], Load one [Dataset name], or Exit [n]?')
         while True:
@@ -2938,27 +2993,25 @@ def parse_commandline(args):
     return files
 
 
-# If this is run directly, launch the GUI
 def main():
+    """Console entry point: parse the command line, verify the files and
+    show the :class:`DataMain` window, then run the Qt event loop."""
     app = QtWidgets.QApplication(sys.argv)  # Starts GUI event loop
-    # These 3 options are mutually exclusive, as they all decide how to get the files
     files = parse_commandline(sys.argv)
     if files is None:
         return
     # If no option is specified, or if you tried one and it failed
     verify = FileInputParser.verify_files(files)
     if verify:
-        # Because files is a dictionary, the plotter may not load the same dataset first every time.
-        # The dataset that gets loaded first should be the same given the same start file.
-        mainGUI = DataMain(files)  # Instantiate a GUI window
+        # files is a dict, so the first dataset loaded is not guaranteed to be
+        # a particular one -- but it is stable for a given start file.
+        mainGUI = DataMain(files)
         mainGUI.setWindowIcon(QtGui.QIcon(data_plot_jpg))
-        mainGUI.show()  # Show it.
+        mainGUI.show()
         ret = app.exec_()
-        sys.exit(ret)  # Properly close the loop when the window is closed.
-        mainGUI.disconnect_mpl_events()
+        sys.exit(ret)  # closes the event loop when the window is closed
     print('Exiting')
 
 
 if __name__ == '__main__':
     main()
-    # print('Done.')
