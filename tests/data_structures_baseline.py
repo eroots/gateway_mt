@@ -33,21 +33,20 @@ from pyMT.data_structures import RawData, Data, Model, Dataset
 warnings.filterwarnings('ignore')
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-TD = os.path.join(THIS_DIR, os.pardir, 'test_data')
-CTD = os.path.join(TD, 'claude_test_data')
+SYN = os.path.join(THIS_DIR, 'data', 'synthetic')
 
-EDI_LIST = os.path.join(CTD, 'edis', 'allall.lst')
-MODEM_FILE = os.path.join(CTD, 'swz_test_modem.dat')
-GOFEM_FILE = os.path.join(CTD, 'swz_test_gofem.dat.gdat')
-MODEL_FILE = os.path.join(TD, 'testfile_ModEM.model')
-WS_FILE = os.path.join(TD, 'testfile_WS.data')
-MARE_FILE = os.path.join(TD, 'testfile_MARE2DEM.emdata')
+EDI_LIST = os.path.join(SYN, 'edis', 'synthetic.lst')
+MODEM_FILE = os.path.join(SYN, 'synthetic_modem.dat')
+GOFEM_FILE = os.path.join(SYN, 'synthetic_gofem.gdat')
+MODEL_FILE = os.path.join(SYN, 'synthetic.model')
+WS_FILE = os.path.join(SYN, 'synthetic_ws.data')
+MARE_FILE = os.path.join(SYN, 'synthetic_mare2dem.emdata')
 
 OUT_DIR = os.path.join(THIS_DIR, 'baseline_ds')
 PICKLE_PATH = os.path.join(OUT_DIR, 'ds_baseline.pkl')
 SUMMARY_PATH = os.path.join(OUT_DIR, 'ds_baseline_summary.txt')
 
-SAMPLE_SITES = ('SWZ001M', 'SWZ050M', 'e91003', 'g86001')
+SAMPLE_SITES = ('SYN001', 'SYN015', 'SYN029', 'SYN030')
 PT_DIFF_DEFS = ('booker', 'heise', 'hill', 'castro', 'roots_1', 'roots_2')
 
 

@@ -26,12 +26,14 @@ python tests/data_structures_baseline.py compare   # re-run and diff
 
 ## Inputs
 
-* `test_data/claude_test_data/edis/allall.lst` (85 EDIs) -> `RawData`
-* `test_data/claude_test_data/swz_test_modem.dat` -> `Data` / `Dataset` (ModEM)
-* `test_data/claude_test_data/swz_test_gofem.dat.gdat` -> `Data` (GoFEM)
-* `test_data/testfile_WS.data` -> `Data` (WSINV3DMT)
-* `test_data/testfile_MARE2DEM.emdata` -> `Data` (MARE2DEM)
-* `test_data/testfile_ModEM.model` -> `Model`
+All from `tests/data/synthetic/`:
+
+* `edis/synthetic.lst` (30 EDIs) -> `RawData`
+* `synthetic_modem.dat` -> `Data` / `Dataset` (ModEM)
+* `synthetic_gofem.gdat` -> `Data` (GoFEM)
+* `synthetic_ws.data` -> `Data` (WSINV3DMT)
+* `synthetic_mare2dem.emdata` -> `Data` (MARE2DEM)
+* `synthetic.model` -> `Model`
 
 ## Coverage
 
@@ -52,8 +54,10 @@ python tests/data_structures_baseline.py compare   # re-run and diff
 
 ## Known / expected
 
-* `mare/average_rho` records a `KeyError` -- the MARE2DEM sample data has no
-  `ZXYR` component, so `average_rho` (which needs the full impedance tensor)
-  legitimately fails. `compare` matches EXCEPTION == EXCEPTION.
-* No model response file for `swz_test_modem.dat` was available, so
-  `calculate_RMS` is baselined against a perturbed copy of the data.
+* `mare/load` records a `ValueError`: pyMT's own MARE2DEM writer puts
+  single spaces between the UTM zone and origin values in the header,
+  but the reader splits that line on two or more spaces, so pyMT cannot
+  re-read a MARE2DEM file it wrote with a real origin (known bug, not
+  fixed here). `compare` matches EXCEPTION == EXCEPTION.
+* `calculate_RMS` is baselined against a deterministically perturbed copy
+  of the data.

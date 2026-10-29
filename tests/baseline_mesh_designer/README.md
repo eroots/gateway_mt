@@ -6,7 +6,7 @@ Snapshot of `pyMT.ModelGUI.mesh_designer` behaviour, captured on the
 Unlike `model_viewer`, `mesh_designer` is a pure-matplotlib PyQt GUI and
 runs head-less (`QT_QPA_PLATFORM=offscreen` + Agg).
 `tests/mesh_designer_baseline.py` builds a real `model_viewer_2d` from
-`testfile_ModEM.model` + `swz_test_modem.dat`, drives a fixed script of
+`synthetic.model` + `synthetic_modem.dat`, drives a fixed script of
 handlers with the modal dialogs monkey-patched, and freezes:
 
 * the plan-view `pcolormesh` array / clim and the overlaid line data,
@@ -23,8 +23,8 @@ aspect ratio, write ModEM.
 
 ## Not driven
 
-`regenerate_mesh` (`Model.generate_mesh` from the 134 SWZ station
-locations) hangs on this fixture, and `generate_depths_decades`
+`regenerate_mesh` (`Model.generate_mesh`) hung on the original 134-site
+fixture, and `generate_depths_decades`
 (`Model.generate_zmesh`) needs a populated decade list. Both are heavy
 `data_structures` operations, out of scope for the mesh_designer
 docstring pass.

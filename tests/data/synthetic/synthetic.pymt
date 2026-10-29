@@ -1,0 +1,5 @@
+% synthetic
+list edis/synthetic.lst
+data synthetic_modem.dat
+resp synthetic_modem_resp.dat
+model synthetic.model

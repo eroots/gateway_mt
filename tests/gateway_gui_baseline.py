@@ -40,13 +40,12 @@ warnings.filterwarnings('ignore')
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(THIS_DIR, os.pardir))
-TESTDATA = os.path.join(REPO, 'test_data')
-CLAUDE = os.path.join(TESTDATA, 'claude_test_data')
+SYN = os.path.join(THIS_DIR, 'data', 'synthetic')
 
-DATA_FILE = os.path.join(CLAUDE, 'swz_test_modem.dat')
-RESP_FILE = os.path.join(CLAUDE, 'swz_test_modem_resp.dat')
-LIST_FILE = os.path.join(CLAUDE, 'edis', 'swz_test_modem.lst')
-MODEL_FILE = os.path.join(TESTDATA, 'testfile_ModEM.model')
+DATA_FILE = os.path.join(SYN, 'synthetic_modem.dat')
+RESP_FILE = os.path.join(SYN, 'synthetic_modem_resp.dat')
+LIST_FILE = os.path.join(SYN, 'edis', 'synthetic.lst')
+MODEL_FILE = os.path.join(SYN, 'synthetic.model')
 
 OUT_DIR = os.path.join(THIS_DIR, 'baseline_gateway_gui')
 SCRATCH = os.path.join(OUT_DIR, 'scratch')

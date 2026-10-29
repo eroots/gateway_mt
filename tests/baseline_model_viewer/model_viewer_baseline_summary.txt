@@ -1,0 +1,16 @@
+model/dimensionality                                 shape=() dtype=<U2 ['3d']
+model/isotropic                                      shape=() dtype=bool [ True]
+model/nxnynz                                         shape=(3,) dtype=int64 head=[32, 32, 35]
+no_res/rho_x/_call                                   'ok'
+no_res/rho_x/bounds                                  shape=(6,) dtype=float64 head=[-163773, 163773, -163773, 163773]
+no_res/rho_x/cell_data/Resistivity                   shape=(35840,) dtype=float64 head=[2, 2, 2, 2]
+no_res/rho_x/cell_data/Resolution                    shape=(35840,) dtype=float64 head=[0.99, 1, 1, 1]
+no_res/rho_x/dimensions                              shape=(3,) dtype=int64 head=[33, 33, 36]
+no_res/rho_x/n_cells                                 shape=() dtype=int64 head=[35840]
+with_res/rho_x/_call                                 'ok'
+with_res/rho_x/bounds                                shape=(6,) dtype=float64 head=[-163773, 163773, -163773, 163773]
+with_res/rho_x/cell_data/RawResolution               shape=(35840,) dtype=float64 head=[2.16593, 1.98983, 1.81374, 1.63765]
+with_res/rho_x/cell_data/Resistivity                 shape=(35840,) dtype=float64 head=[2, 2, 2, 2]
+with_res/rho_x/cell_data/Resolution                  shape=(35840,) dtype=float64 head=[1, 1, 1, 1]
+with_res/rho_x/dimensions                            shape=(3,) dtype=int64 head=[33, 33, 36]
+with_res/rho_x/n_cells                               shape=() dtype=int64 head=[35840]

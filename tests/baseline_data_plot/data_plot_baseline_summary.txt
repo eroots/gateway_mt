@@ -1,0 +1,385 @@
+construct                                                                shape=() dtype=<U2 head=[['ok']]
+final/dpm/axes/0/title                                                   shape=() dtype=<U6 head=[['SYN001']]
+final/dpm/axes/0/xy                                                      shape=(76, 2) dtype=float64 head=[-3, 0.0303056, -2.82824, 0.0300757]
+final/dpm/axes/0/ylim                                                    shape=(2,) dtype=float64 head=[0.00583676, 0.0965535]
+final/dpm/axes/1/title                                                   shape=() dtype=<U6 head=[['SYN002']]
+final/dpm/axes/1/xy                                                      shape=(76, 2) dtype=float64 head=[-3, 0.0379051, -2.82824, 0.0336645]
+final/dpm/axes/1/ylim                                                    shape=(2,) dtype=float64 head=[0.00191883, 0.106735]
+final/dpm/axes/2/title                                                   shape=() dtype=<U6 head=[['SYN003']]
+final/dpm/axes/2/xy                                                      shape=(76, 2) dtype=float64 head=[-3, 0.041096, -2.82824, 0.0399538]
+final/dpm/axes/2/ylim                                                    shape=(2,) dtype=float64 head=[-0.00172576, 0.115083]
+final/dpm/axes/3/title                                                   shape=() dtype=<U6 head=[['SYN004']]
+final/dpm/axes/3/xy                                                      shape=(76, 2) dtype=float64 head=[-3, 0.0387638, -2.82824, 0.0405258]
+final/dpm/axes/3/ylim                                                    shape=(2,) dtype=float64 head=[0.00267082, 0.110487]
+final/dpm/axes/4/title                                                   shape=() dtype=<U6 head=[['SYN005']]
+final/dpm/axes/4/xy                                                      shape=(76, 2) dtype=float64 head=[-3, 0.0549588, -2.82824, 0.0563087]
+final/dpm/axes/4/ylim                                                    shape=(2,) dtype=float64 head=[0.002956, 0.174719]
+final/dpm/axes/5/title                                                   shape=() dtype=<U6 head=[['SYN006']]
+final/dpm/axes/5/xy                                                      shape=(76, 2) dtype=float64 head=[-3, 0.0298852, -2.82824, 0.0313162]
+final/dpm/axes/5/ylim                                                    shape=(2,) dtype=float64 head=[0.00428837, 0.101966]
+final/dpm/components                                                     object array shape=(1,)
+final/dpm/errors                                                         object array shape=()
+final/dpm/link_axes_bounds                                               object array shape=()
+final/dpm/max_ylim                                                       object array shape=()
+final/dpm/min_ylim                                                       object array shape=()
+final/dpm/n_axes                                                         shape=() dtype=int64 head=[6]
+final/dpm/outlier_thresh                                                 object array shape=()
+final/dpm/plot_flagged_data                                              object array shape=()
+final/dpm/pt_units                                                       object array shape=()
+final/dpm/scale                                                          object array shape=()
+final/dpm/show_outliers                                                  object array shape=()
+final/dpm/site_counts                                                    shape=(5,) dtype=int64 head=[6, 6, 6, 6]
+final/dpm/site_names                                                     object array shape=(6,)
+final/dpm/tiling                                                         shape=(2,) dtype=int64 head=[2, 3]
+final/dpm/toggles                                                        shape=(5,) dtype=int64 head=[0, 1, 1, 1]
+final/dpm/which_errors                                                   object array shape=(2,)
+final/dpm/wrap_phase                                                     object array shape=()
+final/ds/NP_NS_NR                                                        shape=(3,) dtype=int64 head=[18, 30, 12]
+final/ds/SYN001/data/TZXI                                                shape=(18,) dtype=float64 head=[0.0464448, -0.00475072, 0.00115709, -0.0346597]
+final/ds/SYN001/data/TZXR                                                shape=(18,) dtype=float64 head=[0.0127218, 0.0244842, -0.0244402, -0.0252524]
+final/ds/SYN001/data/TZYI                                                shape=(18,) dtype=float64 head=[-0.0150958, -0.00524197, 0.0464297, -0.00373095]
+final/ds/SYN001/data/TZYR                                                shape=(18,) dtype=float64 head=[0.0144295, 0.00291899, -0.0481103, 0.0254718]
+final/ds/SYN001/data/ZXXI                                                shape=(18,) dtype=float64 head=[0.0421089, 0.0244746, -0.004143, -0.00574066]
+final/ds/SYN001/data/ZXXR                                                shape=(18,) dtype=float64 head=[0.0087715, -0.0191932, -0.00511159, -0.00850122]
+final/ds/SYN001/data/ZXYI                                                shape=(18,) dtype=float64 head=[-0.661512, -0.43921, -0.272037, -0.155236]
+final/ds/SYN001/data/ZXYR                                                shape=(18,) dtype=float64 head=[0.689928, 0.453006, 0.286731, 0.245272]
+final/ds/SYN001/data/ZYXI                                                shape=(18,) dtype=float64 head=[0.59403, 0.453287, 0.252567, 0.174458]
+final/ds/SYN001/data/ZYXR                                                shape=(18,) dtype=float64 head=[-0.613715, -0.439688, -0.299078, -0.229507]
+final/ds/SYN001/data/ZYYI                                                shape=(18,) dtype=float64 head=[0.0100892, 0.00881414, 0.00900547, -0.00797273]
+final/ds/SYN001/data/ZYYR                                                shape=(18,) dtype=float64 head=[0.00737984, 0.0139401, -0.00466649, 0.00360702]
+final/ds/SYN001/periods                                                  shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+final/ds/SYN001/used_error/TZXI                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN001/used_error/TZXR                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN001/used_error/TZYI                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN001/used_error/TZYR                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN001/used_error/ZXXI                                          shape=(18,) dtype=float64 head=[0.027149, 0.018935, 0.011796, 0.0086704]
+final/ds/SYN001/used_error/ZXXR                                          shape=(18,) dtype=float64 head=[0.027149, 0.018935, 0.011796, 0.0086704]
+final/ds/SYN001/used_error/ZXYI                                          shape=(18,) dtype=float64 head=[0.028675, 0.018929, 0.011857, 0.0087081]
+final/ds/SYN001/used_error/ZXYR                                          shape=(18,) dtype=float64 head=[0.028675, 0.018929, 0.011857, 0.0087081]
+final/ds/SYN001/used_error/ZYXI                                          shape=(18,) dtype=float64 head=[0.025624, 0.018945, 0.011744, 0.0086486]
+final/ds/SYN001/used_error/ZYXR                                          shape=(18,) dtype=float64 head=[0.025624, 0.018945, 0.011744, 0.0086486]
+final/ds/SYN001/used_error/ZYYI                                          shape=(18,) dtype=float64 head=[0.027149, 0.018935, 0.011796, 0.0086704]
+final/ds/SYN001/used_error/ZYYR                                          shape=(18,) dtype=float64 head=[0.027149, 0.018935, 0.011796, 0.0086704]
+final/ds/SYN015/data/TZXI                                                shape=(18,) dtype=float64 head=[0.00134346, -0.0138333, 0.0123728, 0.0455976]
+final/ds/SYN015/data/TZXR                                                shape=(18,) dtype=float64 head=[0.00119951, -0.0340583, -0.0293185, -0.0208335]
+final/ds/SYN015/data/TZYI                                                shape=(18,) dtype=float64 head=[0.0102756, -0.0165993, 0.0141513, 0.0307043]
+final/ds/SYN015/data/TZYR                                                shape=(18,) dtype=float64 head=[0.0375995, 0.0252234, 0.0279575, -0.0255902]
+final/ds/SYN015/data/ZXXI                                                shape=(18,) dtype=float64 head=[-0.0441816, -0.0302338, -0.0170136, 0.0236389]
+final/ds/SYN015/data/ZXXR                                                shape=(18,) dtype=float64 head=[0.0573692, 0.00751976, 0.0429444, 0.036002]
+final/ds/SYN015/data/ZXYI                                                shape=(18,) dtype=float64 head=[-1.07003, -0.710906, -0.486297, -0.350285]
+final/ds/SYN015/data/ZXYR                                                shape=(18,) dtype=float64 head=[1.20011, 0.806392, 0.631836, 0.496697]
+final/ds/SYN015/data/ZYXI                                                shape=(18,) dtype=float64 head=[1.09831, 0.712207, 0.446883, 0.339723]
+final/ds/SYN015/data/ZYXR                                                shape=(18,) dtype=float64 head=[-1.20485, -0.886048, -0.677209, -0.517394]
+final/ds/SYN015/data/ZYYI                                                shape=(18,) dtype=float64 head=[0.0552818, 0.0273303, 0.0287277, -0.0179903]
+final/ds/SYN015/data/ZYYR                                                shape=(18,) dtype=float64 head=[-0.0164847, -0.0555903, 0.0041454, 0.0121836]
+final/ds/SYN015/periods                                                  shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+final/ds/SYN015/used_error/TZXI                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN015/used_error/TZXR                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN015/used_error/TZYI                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN015/used_error/TZYR                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN015/used_error/ZXXI                                          shape=(18,) dtype=float64 head=[0.048572, 0.033169, 0.024114, 0.018399]
+final/ds/SYN015/used_error/ZXXR                                          shape=(18,) dtype=float64 head=[0.048572, 0.033169, 0.024114, 0.018399]
+final/ds/SYN015/used_error/ZXYI                                          shape=(18,) dtype=float64 head=[0.048236, 0.03225, 0.023919, 0.018234]
+final/ds/SYN015/used_error/ZXYR                                          shape=(18,) dtype=float64 head=[0.048236, 0.03225, 0.023919, 0.018234]
+final/ds/SYN015/used_error/ZYXI                                          shape=(18,) dtype=float64 head=[0.04891, 0.034104, 0.024341, 0.018569]
+final/ds/SYN015/used_error/ZYXR                                          shape=(18,) dtype=float64 head=[0.04891, 0.034104, 0.024341, 0.018569]
+final/ds/SYN015/used_error/ZYYI                                          shape=(18,) dtype=float64 head=[0.048572, 0.033169, 0.024114, 0.018399]
+final/ds/SYN015/used_error/ZYYR                                          shape=(18,) dtype=float64 head=[0.048572, 0.033169, 0.024114, 0.018399]
+final/ds/SYN029/data/TZXI                                                shape=(18,) dtype=float64 head=[-0.0629976, 0.0153092, -0.0170364, 0.00330836]
+final/ds/SYN029/data/TZXR                                                shape=(18,) dtype=float64 head=[0.0420398, -0.00746222, 0.0250377, 0.0021135]
+final/ds/SYN029/data/TZYI                                                shape=(18,) dtype=float64 head=[-0.0091931, 0.0153618, -0.00917996, -0.00190841]
+final/ds/SYN029/data/TZYR                                                shape=(18,) dtype=float64 head=[0.000286118, 0.00544417, 0.00149161, -0.0254772]
+final/ds/SYN029/data/ZXXI                                                shape=(18,) dtype=float64 head=[0.0297143, -0.0189885, 0.0428975, -0.00800864]
+final/ds/SYN029/data/ZXXR                                                shape=(18,) dtype=float64 head=[0.0259289, -0.0272779, -0.0422599, -0.00646602]
+final/ds/SYN029/data/ZXYI                                                shape=(18,) dtype=float64 head=[-1.48782, -0.931435, -0.623706, -0.421555]
+final/ds/SYN029/data/ZXYR                                                shape=(18,) dtype=float64 head=[1.52695, 1.12343, 0.849777, 0.622843]
+final/ds/SYN029/data/ZYXI                                                shape=(18,) dtype=float64 head=[1.39456, 0.926457, 0.636274, 0.444133]
+final/ds/SYN029/data/ZYXR                                                shape=(18,) dtype=float64 head=[-1.44092, -1.13053, -0.820862, -0.613308]
+final/ds/SYN029/data/ZYYI                                                shape=(18,) dtype=float64 head=[0.00967355, -0.0429665, 0.00566319, -0.00779798]
+final/ds/SYN029/data/ZYYR                                                shape=(18,) dtype=float64 head=[0.0253084, 0.0477855, -0.0109171, -0.0459489]
+final/ds/SYN029/periods                                                  shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+final/ds/SYN029/used_error/TZXI                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN029/used_error/TZXR                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN029/used_error/TZYI                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN029/used_error/TZYR                                          shape=(18,) dtype=float64 head=[0.03, 0.03, 0.03, 0.03]
+final/ds/SYN029/used_error/ZXXI                                          shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+final/ds/SYN029/used_error/ZXXR                                          shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+final/ds/SYN029/used_error/ZXYI                                          shape=(18,) dtype=float64 head=[0.063958, 0.04378, 0.031623, 0.022563]
+final/ds/SYN029/used_error/ZXYR                                          shape=(18,) dtype=float64 head=[0.063958, 0.04378, 0.031623, 0.022563]
+final/ds/SYN029/used_error/ZYXI                                          shape=(18,) dtype=float64 head=[0.060158, 0.04385, 0.031158, 0.022717]
+final/ds/SYN029/used_error/ZYXR                                          shape=(18,) dtype=float64 head=[0.060158, 0.04385, 0.031158, 0.022717]
+final/ds/SYN029/used_error/ZYYI                                          shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+final/ds/SYN029/used_error/ZYYR                                          shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+final/ds/SYN030/data/TZXI                                                shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+final/ds/SYN030/data/TZXR                                                shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+final/ds/SYN030/data/TZYI                                                shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+final/ds/SYN030/data/TZYR                                                shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+final/ds/SYN030/data/ZXXI                                                shape=(18,) dtype=float64 head=[-0.050703, 0.0143421, -0.0335959, 0.0303174]
+final/ds/SYN030/data/ZXXR                                                shape=(18,) dtype=float64 head=[0.068728, -0.0244481, 0.059582, -0.0160002]
+final/ds/SYN030/data/ZXYI                                                shape=(18,) dtype=float64 head=[-1.21338, -0.741235, -0.561087, -0.355601]
+final/ds/SYN030/data/ZXYR                                                shape=(18,) dtype=float64 head=[1.26519, 0.896587, 0.701897, 0.546167]
+final/ds/SYN030/data/ZYXI                                                shape=(18,) dtype=float64 head=[1.16033, 0.83797, 0.557142, 0.357676]
+final/ds/SYN030/data/ZYXR                                                shape=(18,) dtype=float64 head=[-1.26175, -0.924284, -0.706568, -0.557101]
+final/ds/SYN030/data/ZYYI                                                shape=(18,) dtype=float64 head=[-0.0252216, -0.012569, 0.0203199, -0.0133004]
+final/ds/SYN030/data/ZYYR                                                shape=(18,) dtype=float64 head=[0.023523, -0.0656517, -0.00656157, -0.0103039]
+final/ds/SYN030/periods                                                  shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+final/ds/SYN030/used_error/TZXI                                          shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+final/ds/SYN030/used_error/TZXR                                          shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+final/ds/SYN030/used_error/TZYI                                          shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+final/ds/SYN030/used_error/TZYR                                          shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+final/ds/SYN030/used_error/ZXXI                                          shape=(18,) dtype=float64 head=[0.052005, 0.036154, 0.026976, 0.019706]
+final/ds/SYN030/used_error/ZXXR                                          shape=(18,) dtype=float64 head=[0.052005, 0.036154, 0.026976, 0.019706]
+final/ds/SYN030/used_error/ZXYI                                          shape=(18,) dtype=float64 head=[0.05259, 0.034899, 0.026958, 0.019552]
+final/ds/SYN030/used_error/ZXYR                                          shape=(18,) dtype=float64 head=[0.05259, 0.034899, 0.026958, 0.019552]
+final/ds/SYN030/used_error/ZYXI                                          shape=(18,) dtype=float64 head=[0.051425, 0.037428, 0.026994, 0.019861]
+final/ds/SYN030/used_error/ZYXR                                          shape=(18,) dtype=float64 head=[0.051425, 0.037428, 0.026994, 0.019861]
+final/ds/SYN030/used_error/ZYYI                                          shape=(18,) dtype=float64 head=[0.052005, 0.036154, 0.026976, 0.019706]
+final/ds/SYN030/used_error/ZYYR                                          shape=(18,) dtype=float64 head=[0.052005, 0.036154, 0.026976, 0.019706]
+final/ds/azimuth                                                         shape=() dtype=float64 head=[0]
+final/ds/components                                                      object array shape=(12,)
+final/ds/inv_type                                                        shape=() dtype=int64 head=[5]
+final/ds/rms_total                                                       shape=(30,) dtype=float64 head=[0.990758, 0.925521, 0.98764, 0.97059]
+final/map/allowed_std                                                    object array shape=()
+final/map/aniso_cax                                                      object array shape=(2,)
+final/map/annotate_sites                                                 object array shape=()
+final/map/colourmap                                                      object array shape=()
+final/map/coordinate_system                                              object array shape=()
+final/map/delta_cax                                                      object array shape=(2,)
+final/map/diff_cax                                                       object array shape=(2,)
+final/map/include_outliers                                               object array shape=()
+final/map/induction_cutoff                                               object array shape=()
+final/map/induction_error_tol                                            object array shape=()
+final/map/induction_scale                                                object array shape=()
+final/map/interpolant                                                    object array shape=()
+final/map/invert_cmap                                                    object array shape=()
+final/map/locations/active                                               shape=(6, 2) dtype=float64 head=[-10.5989, -11.4969, -10.5031, 3.27895]
+final/map/locations/all                                                  shape=(30, 2) dtype=float64 head=[-10.5989, -11.4969, -10.5031, 3.27895]
+final/map/locations/generic                                              shape=(24, 2) dtype=float64 head=[-5.85665, -2.16869, -5.4093, 2.11964]
+final/map/lut                                                            object array shape=()
+final/map/markersize                                                     object array shape=()
+final/map/min_pt_ratio                                                   object array shape=()
+final/map/model_cax                                                      object array shape=(2,)
+final/map/phase_cax                                                      object array shape=(2,)
+final/map/phase_split_cax                                                object array shape=(2,)
+final/map/plot_rms                                                       object array shape=()
+final/map/pt_difference_definition                                       object array shape=()
+final/map/pt_scale                                                       object array shape=()
+final/map/rho_cax                                                        object array shape=(2,)
+final/map/rms_cax                                                        object array shape=(2,)
+final/map/rms_plot_style                                                 object array shape=(1,)
+final/map/site_fill                                                      object array shape=()
+final/map/site_marker                                                    object array shape=()
+final/map/skew_cax                                                       object array shape=(2,)
+final/map/spatial_units                                                  object array shape=()
+final/map/tipper_cax                                                     object array shape=(2,)
+initial/dpm/axes/0/title                                                 shape=() dtype=<U6 head=[['SYN001']]
+initial/dpm/axes/0/xy                                                    shape=(76, 2) dtype=float64 head=[-3, 0.0303056, -2.82824, 0.0300757]
+initial/dpm/axes/0/ylim                                                  shape=(2,) dtype=float64 head=[-0.0203585, 0.101793]
+initial/dpm/axes/1/title                                                 shape=() dtype=<U6 head=[['SYN002']]
+initial/dpm/axes/1/xy                                                    shape=(76, 2) dtype=float64 head=[-3, 0.0379051, -2.82824, 0.0336645]
+initial/dpm/axes/1/ylim                                                  shape=(2,) dtype=float64 head=[-0.0223163, 0.111582]
+initial/dpm/axes/2/title                                                 shape=() dtype=<U6 head=[['SYN003']]
+initial/dpm/axes/2/xy                                                    shape=(76, 2) dtype=float64 head=[-3, 0.041096, -2.82824, 0.0399538]
+initial/dpm/axes/2/ylim                                                  shape=(2,) dtype=float64 head=[-0.0239038, 0.119519]
+initial/dpm/axes/3/title                                                 shape=() dtype=<U6 head=[['SYN004']]
+initial/dpm/axes/3/xy                                                    shape=(76, 2) dtype=float64 head=[-3, 0.0387638, -2.82824, 0.0405258]
+initial/dpm/axes/3/ylim                                                  shape=(2,) dtype=float64 head=[-0.0231294, 0.115647]
+initial/dpm/axes/4/title                                                 shape=() dtype=<U6 head=[['SYN005']]
+initial/dpm/axes/4/xy                                                    shape=(76, 2) dtype=float64 head=[-3, 0.0549588, -2.82824, 0.0563087]
+initial/dpm/axes/4/ylim                                                  shape=(2,) dtype=float64 head=[-0.036523, 0.182615]
+initial/dpm/axes/5/title                                                 shape=() dtype=<U6 head=[['SYN006']]
+initial/dpm/axes/5/xy                                                    shape=(76, 2) dtype=float64 head=[-3, 0.0298852, -2.82824, 0.0313162]
+initial/dpm/axes/5/ylim                                                  shape=(2,) dtype=float64 head=[-0.0214217, 0.107108]
+initial/dpm/components                                                   object array shape=(1,)
+initial/dpm/errors                                                       object array shape=()
+initial/dpm/link_axes_bounds                                             object array shape=()
+initial/dpm/max_ylim                                                     object array shape=()
+initial/dpm/min_ylim                                                     object array shape=()
+initial/dpm/n_axes                                                       shape=() dtype=int64 head=[6]
+initial/dpm/outlier_thresh                                               object array shape=()
+initial/dpm/plot_flagged_data                                            object array shape=()
+initial/dpm/pt_units                                                     object array shape=()
+initial/dpm/scale                                                        object array shape=()
+initial/dpm/show_outliers                                                object array shape=()
+initial/dpm/site_counts                                                  shape=(5,) dtype=int64 head=[6, 6, 6, 0]
+initial/dpm/site_names                                                   object array shape=(6,)
+initial/dpm/tiling                                                       shape=(2,) dtype=int64 head=[2, 3]
+initial/dpm/toggles                                                      shape=(5,) dtype=int64 head=[0, 1, 1, 1]
+initial/dpm/which_errors                                                 object array shape=(2,)
+initial/dpm/wrap_phase                                                   object array shape=()
+initial/ds/NP_NS_NR                                                      shape=(3,) dtype=int64 head=[18, 30, 12]
+initial/ds/SYN001/data/TZXI                                              shape=(18,) dtype=float64 head=[0.0464448, -0.00475072, 0.00115709, -0.0346597]
+initial/ds/SYN001/data/TZXR                                              shape=(18,) dtype=float64 head=[0.0127218, 0.0244842, -0.0244402, -0.0252524]
+initial/ds/SYN001/data/TZYI                                              shape=(18,) dtype=float64 head=[-0.0150958, -0.00524197, 0.0464297, -0.00373095]
+initial/ds/SYN001/data/TZYR                                              shape=(18,) dtype=float64 head=[0.0144295, 0.00291899, -0.0481103, 0.0254718]
+initial/ds/SYN001/data/ZXXI                                              shape=(18,) dtype=float64 head=[0.0421089, 0.0244746, -0.004143, -0.00574066]
+initial/ds/SYN001/data/ZXXR                                              shape=(18,) dtype=float64 head=[0.0087715, -0.0191932, -0.00511159, -0.00850122]
+initial/ds/SYN001/data/ZXYI                                              shape=(18,) dtype=float64 head=[-0.661512, -0.43921, -0.272037, -0.155236]
+initial/ds/SYN001/data/ZXYR                                              shape=(18,) dtype=float64 head=[0.689928, 0.453006, 0.286731, 0.245272]
+initial/ds/SYN001/data/ZYXI                                              shape=(18,) dtype=float64 head=[0.59403, 0.453287, 0.252567, 0.174458]
+initial/ds/SYN001/data/ZYXR                                              shape=(18,) dtype=float64 head=[-0.613715, -0.439688, -0.299078, -0.229507]
+initial/ds/SYN001/data/ZYYI                                              shape=(18,) dtype=float64 head=[0.0100892, 0.00881414, 0.00900547, -0.00797273]
+initial/ds/SYN001/data/ZYYR                                              shape=(18,) dtype=float64 head=[0.00737984, 0.0139401, -0.00466649, 0.00360701]
+initial/ds/SYN001/periods                                                shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+initial/ds/SYN001/used_error/TZXI                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN001/used_error/TZXR                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN001/used_error/TZYI                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN001/used_error/TZYR                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN001/used_error/ZXXI                                        shape=(18,) dtype=float64 head=[0.0279505, 0.018935, 0.011796, 0.0086704]
+initial/ds/SYN001/used_error/ZXXR                                        shape=(18,) dtype=float64 head=[0.0279505, 0.018935, 0.011796, 0.0086704]
+initial/ds/SYN001/used_error/ZXYI                                        shape=(18,) dtype=float64 head=[0.028675, 0.018929, 0.011857, 0.0087081]
+initial/ds/SYN001/used_error/ZXYR                                        shape=(18,) dtype=float64 head=[0.028675, 0.018929, 0.011857, 0.0087081]
+initial/ds/SYN001/used_error/ZYXI                                        shape=(18,) dtype=float64 head=[0.0279505, 0.018945, 0.011744, 0.0086486]
+initial/ds/SYN001/used_error/ZYXR                                        shape=(18,) dtype=float64 head=[0.0279505, 0.018945, 0.011744, 0.0086486]
+initial/ds/SYN001/used_error/ZYYI                                        shape=(18,) dtype=float64 head=[0.0279505, 0.018935, 0.011796, 0.0086704]
+initial/ds/SYN001/used_error/ZYYR                                        shape=(18,) dtype=float64 head=[0.0279505, 0.018935, 0.011796, 0.0086704]
+initial/ds/SYN015/data/TZXI                                              shape=(18,) dtype=float64 head=[0.00134346, -0.0138333, 0.0123728, 0.0455976]
+initial/ds/SYN015/data/TZXR                                              shape=(18,) dtype=float64 head=[0.00119951, -0.0340583, -0.0293185, -0.0208335]
+initial/ds/SYN015/data/TZYI                                              shape=(18,) dtype=float64 head=[0.0102756, -0.0165993, 0.0141513, 0.0307043]
+initial/ds/SYN015/data/TZYR                                              shape=(18,) dtype=float64 head=[0.0375995, 0.0252234, 0.0279575, -0.0255902]
+initial/ds/SYN015/data/ZXXI                                              shape=(18,) dtype=float64 head=[-0.0441816, -0.0302338, -0.0170136, 0.0236389]
+initial/ds/SYN015/data/ZXXR                                              shape=(18,) dtype=float64 head=[0.0573692, 0.00751976, 0.0429444, 0.036002]
+initial/ds/SYN015/data/ZXYI                                              shape=(18,) dtype=float64 head=[-1.07003, -0.710906, -0.486297, -0.350285]
+initial/ds/SYN015/data/ZXYR                                              shape=(18,) dtype=float64 head=[1.20011, 0.806392, 0.631836, 0.496697]
+initial/ds/SYN015/data/ZYXI                                              shape=(18,) dtype=float64 head=[1.09831, 0.712207, 0.446883, 0.339723]
+initial/ds/SYN015/data/ZYXR                                              shape=(18,) dtype=float64 head=[-1.20485, -0.886048, -0.677209, -0.517394]
+initial/ds/SYN015/data/ZYYI                                              shape=(18,) dtype=float64 head=[0.0552818, 0.0273303, 0.0287277, -0.0179903]
+initial/ds/SYN015/data/ZYYR                                              shape=(18,) dtype=float64 head=[-0.0164847, -0.0555903, 0.0041454, 0.0121836]
+initial/ds/SYN015/periods                                                shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+initial/ds/SYN015/used_error/TZXI                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN015/used_error/TZXR                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN015/used_error/TZYI                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN015/used_error/TZYR                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN015/used_error/ZXXI                                        shape=(18,) dtype=float64 head=[0.049688, 0.0333562, 0.024114, 0.018399]
+initial/ds/SYN015/used_error/ZXXR                                        shape=(18,) dtype=float64 head=[0.049688, 0.0333562, 0.024114, 0.018399]
+initial/ds/SYN015/used_error/ZXYI                                        shape=(18,) dtype=float64 head=[0.049688, 0.0333562, 0.024113, 0.0183003]
+initial/ds/SYN015/used_error/ZXYR                                        shape=(18,) dtype=float64 head=[0.049688, 0.0333562, 0.024113, 0.0183003]
+initial/ds/SYN015/used_error/ZYXI                                        shape=(18,) dtype=float64 head=[0.049688, 0.034104, 0.024341, 0.018569]
+initial/ds/SYN015/used_error/ZYXR                                        shape=(18,) dtype=float64 head=[0.049688, 0.034104, 0.024341, 0.018569]
+initial/ds/SYN015/used_error/ZYYI                                        shape=(18,) dtype=float64 head=[0.049688, 0.0333562, 0.024114, 0.018399]
+initial/ds/SYN015/used_error/ZYYR                                        shape=(18,) dtype=float64 head=[0.049688, 0.0333562, 0.024114, 0.018399]
+initial/ds/SYN029/data/TZXI                                              shape=(18,) dtype=float64 head=[-0.0629976, 0.0153092, -0.0170364, 0.00330836]
+initial/ds/SYN029/data/TZXR                                              shape=(18,) dtype=float64 head=[0.0420398, -0.00746222, 0.0250377, 0.0021135]
+initial/ds/SYN029/data/TZYI                                              shape=(18,) dtype=float64 head=[-0.0091931, 0.0153618, -0.00917996, -0.00190841]
+initial/ds/SYN029/data/TZYR                                              shape=(18,) dtype=float64 head=[0.000286118, 0.00544417, 0.00149161, -0.0254772]
+initial/ds/SYN029/data/ZXXI                                              shape=(18,) dtype=float64 head=[0.0297143, -0.0189885, 0.0428975, -0.00800864]
+initial/ds/SYN029/data/ZXXR                                              shape=(18,) dtype=float64 head=[0.0259289, -0.0272779, -0.0422599, -0.00646602]
+initial/ds/SYN029/data/ZXYI                                              shape=(18,) dtype=float64 head=[-1.48782, -0.931435, -0.623706, -0.421555]
+initial/ds/SYN029/data/ZXYR                                              shape=(18,) dtype=float64 head=[1.52695, 1.12343, 0.849777, 0.622843]
+initial/ds/SYN029/data/ZYXI                                              shape=(18,) dtype=float64 head=[1.39456, 0.926457, 0.636274, 0.444133]
+initial/ds/SYN029/data/ZYXR                                              shape=(18,) dtype=float64 head=[-1.44092, -1.13053, -0.820862, -0.613308]
+initial/ds/SYN029/data/ZYYI                                              shape=(18,) dtype=float64 head=[0.00967355, -0.0429665, 0.00566319, -0.00779798]
+initial/ds/SYN029/data/ZYYR                                              shape=(18,) dtype=float64 head=[0.0253084, 0.0477855, -0.0109171, -0.0459489]
+initial/ds/SYN029/periods                                                shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+initial/ds/SYN029/used_error/TZXI                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN029/used_error/TZXR                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN029/used_error/TZYI                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN029/used_error/TZYR                                        shape=(18,) dtype=float64 head=[0.02, 0.02, 0.02, 0.02]
+initial/ds/SYN029/used_error/ZXXI                                        shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+initial/ds/SYN029/used_error/ZXXR                                        shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+initial/ds/SYN029/used_error/ZXYI                                        shape=(18,) dtype=float64 head=[0.063958, 0.04378, 0.031623, 0.022563]
+initial/ds/SYN029/used_error/ZXYR                                        shape=(18,) dtype=float64 head=[0.063958, 0.04378, 0.031623, 0.022563]
+initial/ds/SYN029/used_error/ZYXI                                        shape=(18,) dtype=float64 head=[0.0612493, 0.04385, 0.031158, 0.022717]
+initial/ds/SYN029/used_error/ZYXR                                        shape=(18,) dtype=float64 head=[0.0612493, 0.04385, 0.031158, 0.022717]
+initial/ds/SYN029/used_error/ZYYI                                        shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+initial/ds/SYN029/used_error/ZYYR                                        shape=(18,) dtype=float64 head=[0.062058, 0.043815, 0.031388, 0.022637]
+initial/ds/SYN030/data/TZXI                                              shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+initial/ds/SYN030/data/TZXR                                              shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+initial/ds/SYN030/data/TZYI                                              shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+initial/ds/SYN030/data/TZYR                                              shape=(18,) dtype=float64 head=[-99999, -99999, -99999, -99999]
+initial/ds/SYN030/data/ZXXI                                              shape=(18,) dtype=float64 head=[-0.050703, 0.0143421, -0.0335959, 0.0303174]
+initial/ds/SYN030/data/ZXXR                                              shape=(18,) dtype=float64 head=[0.068728, -0.0244481, 0.059582, -0.0160002]
+initial/ds/SYN030/data/ZXYI                                              shape=(18,) dtype=float64 head=[-1.21338, -0.741235, -0.561087, -0.355601]
+initial/ds/SYN030/data/ZXYR                                              shape=(18,) dtype=float64 head=[1.26519, 0.896587, 0.701897, 0.546167]
+initial/ds/SYN030/data/ZYXI                                              shape=(18,) dtype=float64 head=[1.16033, 0.83797, 0.557142, 0.357676]
+initial/ds/SYN030/data/ZYXR                                              shape=(18,) dtype=float64 head=[-1.26175, -0.924284, -0.706568, -0.557101]
+initial/ds/SYN030/data/ZYYI                                              shape=(18,) dtype=float64 head=[-0.0252216, -0.012569, 0.0203199, -0.0133004]
+initial/ds/SYN030/data/ZYYR                                              shape=(18,) dtype=float64 head=[0.023523, -0.0656517, -0.00656157, -0.0103039]
+initial/ds/SYN030/periods                                                shape=(18,) dtype=float64 head=[0.0022057, 0.0048649, 0.01073, 0.023667]
+initial/ds/SYN030/used_error/TZXI                                        shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+initial/ds/SYN030/used_error/TZXR                                        shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+initial/ds/SYN030/used_error/TZYI                                        shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+initial/ds/SYN030/used_error/TZYR                                        shape=(18,) dtype=float64 head=[1.23457e+06, 1.23457e+06, 1.23457e+06, 1.23457e+06]
+initial/ds/SYN030/used_error/ZXXI                                        shape=(18,) dtype=float64 head=[0.0534804, 0.0363336, 0.026976, 0.0198265]
+initial/ds/SYN030/used_error/ZXXR                                        shape=(18,) dtype=float64 head=[0.0534804, 0.0363336, 0.026976, 0.0198265]
+initial/ds/SYN030/used_error/ZXYI                                        shape=(18,) dtype=float64 head=[0.0534804, 0.0363336, 0.026958, 0.0198265]
+initial/ds/SYN030/used_error/ZXYR                                        shape=(18,) dtype=float64 head=[0.0534804, 0.0363336, 0.026958, 0.0198265]
+initial/ds/SYN030/used_error/ZYXI                                        shape=(18,) dtype=float64 head=[0.0534804, 0.037428, 0.026994, 0.019861]
+initial/ds/SYN030/used_error/ZYXR                                        shape=(18,) dtype=float64 head=[0.0534804, 0.037428, 0.026994, 0.019861]
+initial/ds/SYN030/used_error/ZYYI                                        shape=(18,) dtype=float64 head=[0.0534804, 0.0363336, 0.026976, 0.0198265]
+initial/ds/SYN030/used_error/ZYYR                                        shape=(18,) dtype=float64 head=[0.0534804, 0.0363336, 0.026976, 0.0198265]
+initial/ds/azimuth                                                       shape=() dtype=float64 head=[0]
+initial/ds/components                                                    object array shape=(12,)
+initial/ds/inv_type                                                      shape=() dtype=int64 head=[5]
+initial/ds/rms_total                                                     shape=(30,) dtype=float64 head=[0.990758, 0.925521, 0.98764, 0.97059]
+initial/map/allowed_std                                                  object array shape=()
+initial/map/aniso_cax                                                    object array shape=(2,)
+initial/map/annotate_sites                                               object array shape=()
+initial/map/colourmap                                                    object array shape=()
+initial/map/coordinate_system                                            object array shape=()
+initial/map/delta_cax                                                    object array shape=(2,)
+initial/map/diff_cax                                                     object array shape=(2,)
+initial/map/include_outliers                                             object array shape=()
+initial/map/induction_cutoff                                             object array shape=()
+initial/map/induction_error_tol                                          object array shape=()
+initial/map/induction_scale                                              object array shape=()
+initial/map/interpolant                                                  object array shape=()
+initial/map/invert_cmap                                                  object array shape=()
+initial/map/locations/active                                             shape=(6, 2) dtype=float64 head=[-10.5989, -11.4969, -10.5031, 3.27895]
+initial/map/locations/all                                                shape=(30, 2) dtype=float64 head=[-10.5989, -11.4969, -10.5031, 3.27895]
+initial/map/locations/generic                                            shape=(24, 2) dtype=float64 head=[-5.85665, -2.16869, -5.4093, 2.11964]
+initial/map/lut                                                          object array shape=()
+initial/map/markersize                                                   object array shape=()
+initial/map/min_pt_ratio                                                 object array shape=()
+initial/map/model_cax                                                    object array shape=(2,)
+initial/map/phase_cax                                                    object array shape=(2,)
+initial/map/phase_split_cax                                              object array shape=(2,)
+initial/map/plot_rms                                                     object array shape=()
+initial/map/pt_difference_definition                                     object array shape=()
+initial/map/pt_scale                                                     object array shape=()
+initial/map/rho_cax                                                      object array shape=(2,)
+initial/map/rms_cax                                                      object array shape=(2,)
+initial/map/rms_plot_style                                               object array shape=(1,)
+initial/map/site_fill                                                    object array shape=()
+initial/map/site_marker                                                  object array shape=()
+initial/map/skew_cax                                                     object array shape=(2,)
+initial/map/spatial_units                                                object array shape=()
+initial/map/tipper_cax                                                   object array shape=(2,)
+step/azimuth_0                                                           'ok'
+step/azimuth_10                                                          'ok'
+step/back                                                                'ok'
+step/components_phase                                                    'ok'
+step/components_rho                                                      'ok'
+step/components_z                                                        'ok'
+step/flag_a_period                                                       'ok'
+step/forward                                                             'ok'
+step/map_coord_local                                                     'ok'
+step/map_coord_utm                                                       'ok'
+step/map_induction_data                                                  'ok'
+step/map_planview                                                        'ok'
+step/map_planview_off                                                    'ok'
+step/map_pseudo_data                                                     'ok'
+step/map_pseudo_off                                                      'ok'
+step/map_pt_data                                                         'ok'
+step/map_pt_none                                                         'ok'
+step/phase_wrap_off                                                      'ok'
+step/scaling_log                                                         'ok'
+step/scaling_sqrt                                                        'ok'
+step/sort_default                                                        'ok'
+step/sort_south_north                                                    'ok'
+step/toggle_outliers_off                                                 'ok'
+step/toggle_outliers_on                                                  'ok'
+step/toggle_response_off                                                 'ok'
+step/toggle_response_on                                                  'ok'
+step/unflag_a_period                                                     'ok'
+step/write_gofem                                                         'ok'
+step/write_list                                                          'ok'
+step/write_modem                                                         'ok'
+step/write_wsinv                                                         'ok'
+steps_run                                                                object array shape=(31,)
+written/frequencies                                                      text len=234 crc32=3f01fa8f
+written/out_gofem.gdat                                                   text len=5261 crc32=23efee28
+written/out_list.lst                                                     text len=332 crc32=73d89e3a
+written/out_modem.dat                                                    text len=10875 crc32=c2d8a8fd
+written/out_modem_removed.dat                                            text len=10875 crc32=1084b32c
+written/out_wsinv.data                                                   text len=3193 crc32=0a365533

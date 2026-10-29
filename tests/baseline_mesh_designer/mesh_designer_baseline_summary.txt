@@ -1,0 +1,47 @@
+construct                                                shape=() dtype=<U2 ['ok']
+final/labels                                             shape=(3,) dtype=object ['NX : 33' 'NY : 32' 'NZ : 35']
+final/model/dx                                           shape=(34,) dtype=float64 head=[-163773, -112516, -78343.8, -55562.5]
+final/model/dy                                           shape=(33,) dtype=float64 head=[-163773, -112516, -78343.8, -55562.5]
+final/model/dz                                           shape=(36,) dtype=float64 head=[0, 50, 110, 182]
+final/model/nxnynz                                       shape=(3,) dtype=int64 head=[33, 32, 35]
+final/model/vals_stats                                   shape=(5,) dtype=float64 head=[1000, 1000, 1000, 0]
+final/plan/aspect                                        shape=() dtype=<U3 ['1.0']
+final/plan/line0                                         shape=(30, 2) dtype=float64 head=[-11496.9, -10598.9, -6662.2, -9563.45]
+final/plan/mesh_array                                    shape=(33, 32) dtype=float64 head=[3, 3, 3, 3]
+final/plan/mesh_clim                                     shape=(2,) dtype=float64 head=[1, 5]
+final/plan/xlim                                          shape=(2,) dtype=float64 head=[-163773, 163773]
+final/plan/ylim                                          shape=(2,) dtype=float64 head=[-163773, 163773]
+initial/labels                                           shape=(3,) dtype=object ['NX : 32' 'NY : 32' 'NZ : 35']
+initial/model/dx                                         shape=(33,) dtype=float64 head=[-163773, -112516, -78343.8, -55562.5]
+initial/model/dy                                         shape=(33,) dtype=float64 head=[-163773, -112516, -78343.8, -55562.5]
+initial/model/dz                                         shape=(36,) dtype=float64 head=[0, 50, 110, 182]
+initial/model/nxnynz                                     shape=(3,) dtype=int64 head=[32, 32, 35]
+initial/model/vals_stats                                 shape=(5,) dtype=float64 head=[3.36575, 3000.01, 1906.34, 1113.37]
+initial/plan/aspect                                      shape=() dtype=<U4 ['auto']
+initial/plan/line0                                       shape=(30, 2) dtype=float64 head=[-11496.9, -10598.9, -6662.2, -9563.45]
+initial/plan/line1                                       shape=(2, 2) dtype=float64 head=[0, -163773, 1, -163773]
+initial/plan/line2                                       shape=(2, 2) dtype=float64 head=[-163773, 0, -163773, 1]
+initial/plan/mesh_array                                  shape=(32, 32) dtype=float64 head=[2.08713, 2.25394, 2.49032, 2.54331]
+initial/plan/mesh_clim                                   shape=(2,) dtype=float64 head=[1, 5]
+initial/plan/xlim                                        shape=(2,) dtype=float64 head=[-163773, 163773]
+initial/plan/ylim                                        shape=(2,) dtype=float64 head=[-163773, 163773]
+step/add_pad_all                                         'ok'
+step/bg_rho                                              'ok'
+step/colourmap_bwr                                       'ok'
+step/colourmap_jet                                       'ok'
+step/delete_y_line                                       'ok'
+step/insert_x_line                                       'ok'
+step/insert_y_line                                       'ok'
+step/lock_aspect                                         'ok'
+step/marker_size                                         'ok'
+step/max_depth_edit                                      'ok'
+step/mesh_colour_white                                   'ok'
+step/min_depth_edit                                      'ok'
+step/remove_pad_all                                      'ok'
+step/smooth                                              'ok'
+step/write_modem                                         'ok'
+step/z_slice_0                                           'ok'
+step/z_slice_2                                           'ok'
+steps_run                                                shape=(17,) dtype=object ['z_slice_2' 'z_slice_0' 'colourmap_jet']
+written/out.model                                        text len=31006 crc32=f6eec325
+written/out.model.cov                                    text len=334 crc32=62894ec6

@@ -39,20 +39,19 @@ from pyMT.data_structures import Dataset, Data, RawData, Response, Model
 warnings.filterwarnings('ignore')
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-TD = os.path.join(THIS_DIR, os.pardir, 'test_data')
-CTD = os.path.join(TD, 'claude_test_data')
+SYN = os.path.join(THIS_DIR, 'data', 'synthetic')
 
-EDI_LIST = os.path.join(CTD, 'edis', 'allall.lst')
-MODEM_FILE = os.path.join(CTD, 'swz_test_modem.dat')
-RESP_FILE = os.path.join(CTD, 'swz_test_modem_resp.dat')
-MODEL_FILE = os.path.join(TD, 'testfile_ModEM.model')
+EDI_LIST = os.path.join(SYN, 'edis', 'synthetic.lst')
+MODEM_FILE = os.path.join(SYN, 'synthetic_modem.dat')
+RESP_FILE = os.path.join(SYN, 'synthetic_modem_resp.dat')
+MODEL_FILE = os.path.join(SYN, 'synthetic.model')
 
 OUT_DIR = os.path.join(THIS_DIR, 'baseline_gplot')
 PICKLE_PATH = os.path.join(OUT_DIR, 'gplot_baseline.pkl')
 SUMMARY_PATH = os.path.join(OUT_DIR, 'gplot_baseline_summary.txt')
 
 # A fixed handful of sites present in the ModEM data file.
-SAMPLE_SITES = ['SWZ001M', 'SWZ030M', 'SWZ070M', 'SWZ099M']
+SAMPLE_SITES = ['SYN001', 'SYN015', 'SYN029', 'SYN030']
 PERIOD_IDX = 10
 
 

@@ -5,8 +5,8 @@ Snapshot of `pyMT.DataGUI.data_plot` behaviour, captured on the
 
 `data_plot` is a PyQt GUI, so `tests/data_plot_baseline.py` runs it
 head-less (`QT_QPA_PLATFORM=offscreen`): it builds a real `DataMain`
-from `test_data/claude_test_data/pytest.pymt` (the SWZ ModEM list / data
-/ +10 % response / model), drives a fixed script of ~30 menu / toggle /
+from `tests/data/synthetic/synthetic.pymt` (the synthetic list / data /
+response / model), drives a fixed script of ~30 menu / toggle /
 sort / flag / coordinate / write handlers with every modal dialog
 monkey-patched to a canned answer, and freezes:
 
@@ -42,8 +42,8 @@ QT_QPA_PLATFORM=offscreen python tests/data_plot_baseline.py compare
 ```
 
 `compare` exits non-zero and lists every entry whose value moved outside
-tolerance. A full run is ~2 minutes (loads the 134-site raw EDI set and
-redraws the map several times).
+tolerance. A full run takes about a minute (loads the raw EDIs and redraws the
+map several times).
 
 ## History
 

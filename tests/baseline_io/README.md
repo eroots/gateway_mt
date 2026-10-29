@@ -28,8 +28,8 @@ written text changed.
 * `read_data` for **modem / gofem / wsinv3dmt / mare2dem** -- `other_info`
   plus per-site `data` / `errors` / `periods` / `locations` for the sample
   sites.
-* `read_raw_data` from the 85 EDIs.
-* `read_model` (`testfile_ModEM.model`), `read_data_header` (modem/ws/mare),
+* `read_raw_data` from the 30 synthetic EDIs.
+* `read_model` (`synthetic.model`), `read_data_header` (modem/ws/mare),
   `read_sites`, `read_freqset`, `get_components`.
 * `write_data` round-trips (write -> re-read -> compare parsed data, plus a
   normalised copy of the written text) for all four data formats.

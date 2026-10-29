@@ -26,10 +26,12 @@ python tests/utils_baseline.py compare   # re-run and diff against the snapshot
 
 ## Inputs
 
-* `test_data/claude_test_data/edis/allall.lst` (85 EDI files) -> `RawData`
-* `test_data/claude_test_data/swz_test_modem.dat` -> ModEM `Data`
-* `test_data/claude_test_data/swz_test_gofem.dat.gdat` -> GoFEM `Data`
-* `test_data/testfile_ModEM.model` -> `Model` (for `regrid_model`)
+All from the synthetic dataset in `tests/data/synthetic/` (see its README):
+
+* `edis/synthetic.lst` (30 EDI files) -> `RawData`
+* `synthetic_modem.dat` -> ModEM `Data`
+* `synthetic_gofem.gdat` -> GoFEM `Data`
+* `synthetic.model` -> `Model` (for `regrid_model`)
 * frozen synthetic arrays defined in `_frozen_synthetic_inputs()`
 
 ## Coverage notes

@@ -40,8 +40,9 @@ warnings.filterwarnings('ignore')
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(THIS_DIR, os.pardir))
-MODEL_FILE = os.path.join(REPO, 'test_data', 'testfile_ModEM.model')
-DATA_FILE = os.path.join(REPO, 'test_data', 'claude_test_data', 'swz_test_modem.dat')
+SYN = os.path.join(THIS_DIR, 'data', 'synthetic')
+MODEL_FILE = os.path.join(SYN, 'synthetic.model')
+DATA_FILE = os.path.join(SYN, 'synthetic_modem.dat')
 
 OUT_DIR = os.path.join(THIS_DIR, 'baseline_mesh_designer')
 SCRATCH = os.path.join(OUT_DIR, 'scratch')

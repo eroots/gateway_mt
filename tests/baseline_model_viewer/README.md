@@ -13,7 +13,7 @@ harness isn't possible here. Per CLAUDE.md, GUIs are verified with a
 
 What *is* automatable is the module's one reusable, render-free entry
 point: `model_to_rectgrid(model, resolution=None, rho_axis='rho_x')`.
-This harness freezes its output for `test_data/testfile_ModEM.model`:
+This harness freezes its output for `tests/data/synthetic/synthetic.model`:
 
 * the `pyvista.RectilinearGrid` `dimensions`, `n_cells`, `bounds`,
 * every `cell_data` array (`Resistivity`, `Resolution`, and

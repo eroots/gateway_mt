@@ -35,7 +35,7 @@ warnings.filterwarnings('ignore')
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(THIS_DIR, os.pardir))
-MODEL_FILE = os.path.join(REPO, 'test_data', 'testfile_ModEM.model')
+MODEL_FILE = os.path.join(THIS_DIR, 'data', 'synthetic', 'synthetic.model')
 
 OUT_DIR = os.path.join(THIS_DIR, 'baseline_model_viewer')
 PICKLE_PATH = os.path.join(OUT_DIR, 'model_viewer_baseline.pkl')

@@ -35,23 +35,22 @@ from pyMT.data_structures import Data, Model
 warnings.filterwarnings('ignore')
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-TD = os.path.join(THIS_DIR, os.pardir, 'test_data')
-CTD = os.path.join(TD, 'claude_test_data')
+SYN = os.path.join(THIS_DIR, 'data', 'synthetic')
 
-EDI_LIST = os.path.join(CTD, 'edis', 'allall.lst')
-EDI_DIR = os.path.join(CTD, 'edis')
-MODEM_FILE = os.path.join(CTD, 'swz_test_modem.dat')
-GOFEM_FILE = os.path.join(CTD, 'swz_test_gofem.dat.gdat')
-WS_FILE = os.path.join(TD, 'testfile_WS.data')
-MARE_FILE = os.path.join(TD, 'testfile_MARE2DEM.emdata')
-MODEL_FILE = os.path.join(TD, 'testfile_ModEM.model')
+EDI_LIST = os.path.join(SYN, 'edis', 'synthetic.lst')
+EDI_DIR = os.path.join(SYN, 'edis')
+MODEM_FILE = os.path.join(SYN, 'synthetic_modem.dat')
+GOFEM_FILE = os.path.join(SYN, 'synthetic_gofem.gdat')
+WS_FILE = os.path.join(SYN, 'synthetic_ws.data')
+MARE_FILE = os.path.join(SYN, 'synthetic_mare2dem.emdata')
+MODEL_FILE = os.path.join(SYN, 'synthetic.model')
 
 OUT_DIR = os.path.join(THIS_DIR, 'baseline_io')
 SCRATCH = os.path.join(OUT_DIR, 'scratch')
 PICKLE_PATH = os.path.join(OUT_DIR, 'io_baseline.pkl')
 SUMMARY_PATH = os.path.join(OUT_DIR, 'io_baseline_summary.txt')
 
-SAMPLE_SITES = ('SWZ001M', 'SWZ050M', 'e91003', 'g86001')
+SAMPLE_SITES = ('SYN001', 'SYN015', 'SYN029', 'SYN030')
 
 # Volatile substrings to blank out of written text before snapshotting.
 _DATE_RE = re.compile(r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?')
@@ -125,7 +124,8 @@ def exercise_read_data(results):
                 except (TypeError, ValueError):
                     results['read_data/{}/other/{}'.format(tag, k)] = np.asarray(str(other[k]))
         # drop the raw tuple (unpicklable-friendly / noisy)
-        results.pop('read_data/{}/_call'.format(tag), None)
+        if not isinstance(results.get('read_data/{}/_call'.format(tag)), str):  # keep EXCEPTION entries
+            results.pop('read_data/{}/_call'.format(tag), None)
 
 
 def exercise_read_raw_data(results):
@@ -136,7 +136,8 @@ def exercise_read_raw_data(results):
     got = _store(results, 'read_raw_data/_call', _do)
     if isinstance(got, dict):
         _freeze_sites(results, 'read_raw_data', got)
-    results.pop('read_raw_data/_call', None)
+    if not isinstance(results.get('read_raw_data/_call'), str):  # keep EXCEPTION entries
+        results.pop('read_raw_data/_call', None)
 
 
 def exercise_read_model(results):
@@ -151,13 +152,14 @@ def exercise_read_model(results):
         v = np.asarray(mod['vals'], dtype=float)
         results['read_model/vals_stats'] = np.asarray(
             [v.min(), v.max(), v.mean(), v.std(), len(np.unique(v)), v.shape[0], v.shape[1], v.shape[2]])
-    results.pop('read_model/_call', None)
+    if not isinstance(results.get('read_model/_call'), str):  # keep EXCEPTION entries
+        results.pop('read_model/_call', None)
 
 
 def exercise_misc_readers(results):
     _store(results, 'read_sites/list', lambda: np.array(sorted(IO.read_sites(EDI_LIST))))
     _store(results, 'read_sites/single_edi',
-           lambda: np.array(IO.read_sites(os.path.join(EDI_DIR, 'SWZ001M.edi'))))
+           lambda: np.array(IO.read_sites(os.path.join(EDI_DIR, 'SYN001.edi'))))
     _store(results, 'read_data_header/modem',
            lambda: np.asarray(IO.read_data_header(MODEM_FILE, file_format='modem')))
     _store(results, 'read_data_header/ws',
@@ -186,7 +188,7 @@ def exercise_write_roundtrips(results):
              ('gofem', GOFEM_FILE, 'gofem', '.gdat'),
              ('mare', MARE_FILE, 'mare2dem', '.emdata'))
     # GoFEM re-reading needs a receiver file next to the .gdat
-    _RECV = os.path.join(CTD, 'receivers_projected.csv')
+    _RECV = os.path.join(SYN, 'receivers_projected.csv')
     if os.path.exists(_RECV):
         shutil.copy(_RECV, os.path.join(SCRATCH, 'receivers_projected.csv'))
     for tag, path, fmt, ext in specs:
@@ -206,7 +208,8 @@ def exercise_write_roundtrips(results):
             results['roundtrip/{}/periods'.format(tag)] = np.asarray(sites[name]['periods'])
             if os.path.exists(out):
                 results['roundtrip/{}/written_text'.format(tag)] = _norm_text(out)
-        results.pop('roundtrip/{}/_call'.format(tag), None)
+        if not isinstance(results.get('roundtrip/{}/_call'.format(tag)), str):  # keep EXCEPTION entries
+            results.pop('roundtrip/{}/_call'.format(tag), None)
 
 
 def exercise_write_model_roundtrip(results):
@@ -225,7 +228,8 @@ def exercise_write_model_roundtrip(results):
         results['roundtrip/model/vals_stats'] = np.asarray([v.min(), v.max(), v.mean(), v.std()])
         if os.path.exists(out):
             results['roundtrip/model/written_text_head'] = _norm_text(out)[:4000]
-    results.pop('roundtrip/model/_call', None)
+    if not isinstance(results.get('roundtrip/model/_call'), str):  # keep EXCEPTION entries
+        results.pop('roundtrip/model/_call', None)
 
 
 def exercise_covariance_roundtrip(results):
@@ -243,7 +247,8 @@ def exercise_covariance_roundtrip(results):
                                                    np.ravel(sz)[0]])
         if os.path.exists(out):
             results['covariance/written_text'] = _norm_text(out)
-    results.pop('covariance/_call', None)
+    if not isinstance(results.get('covariance/_call'), str):  # keep EXCEPTION entries
+        results.pop('covariance/_call', None)
 
 
 def exercise_vtk_and_csv(results):
@@ -257,7 +262,8 @@ def exercise_vtk_and_csv(results):
     mvf = mv + '_model.vtk'
     if os.path.exists(mvf):
         results['model_to_vtk/text_head'] = _norm_text(mvf)[:6000]
-    results.pop('model_to_vtk/_call', None)
+    if not isinstance(results.get('model_to_vtk/_call'), str):  # keep EXCEPTION entries
+        results.pop('model_to_vtk/_call', None)
 
     sv = os.path.join(SCRATCH, 'sites')
     _store(results, 'sites_to_vtk/_call',
@@ -265,28 +271,32 @@ def exercise_vtk_and_csv(results):
     svf = sv + '_sites.vtk'
     if os.path.exists(svf):
         results['sites_to_vtk/text'] = _norm_text(svf)
-    results.pop('sites_to_vtk/_call', None)
+    if not isinstance(results.get('sites_to_vtk/_call'), str):  # keep EXCEPTION entries
+        results.pop('sites_to_vtk/_call', None)
 
     pt = os.path.join(SCRATCH, 'pt')
     _store(results, 'write_phase_tensors/_call',
            lambda: IO.write_phase_tensors(d, pt, verbose=True))
     if os.path.exists(pt + '.csv'):
         results['write_phase_tensors/text'] = _norm_text(pt + '.csv')
-    results.pop('write_phase_tensors/_call', None)
+    if not isinstance(results.get('write_phase_tensors/_call'), str):  # keep EXCEPTION entries
+        results.pop('write_phase_tensors/_call', None)
 
     ia = os.path.join(SCRATCH, 'ia')
     _store(results, 'write_induction_arrows/_call',
            lambda: IO.write_induction_arrows(d, ia, verbose=True))
     if os.path.exists(ia + '.csv'):
         results['write_induction_arrows/text'] = _norm_text(ia + '.csv')
-    results.pop('write_induction_arrows/_call', None)
+    if not isinstance(results.get('write_induction_arrows/_call'), str):  # keep EXCEPTION entries
+        results.pop('write_induction_arrows/_call', None)
 
     loc = os.path.join(SCRATCH, 'locs.csv')
     _store(results, 'write_locations/_call',
            lambda: IO.write_locations(d, out_file=loc, file_format='csv', verbose=1))
     if os.path.exists(loc):
         results['write_locations/text'] = _norm_text(loc)
-    results.pop('write_locations/_call', None)
+    if not isinstance(results.get('write_locations/_call'), str):  # keep EXCEPTION entries
+        results.pop('write_locations/_call', None)
 
     # write_edi for one site (from raw data, which carries Lat/Long)
     from pyMT.data_structures import RawData
@@ -296,20 +306,23 @@ def exercise_vtk_and_csv(results):
     _store(results, 'write_edi/_call', lambda: IO.write_edi(rd.sites[sname], edi))
     if os.path.exists(edi):
         results['write_edi/text'] = _norm_text(edi)
-    results.pop('write_edi/_call', None)
+    if not isinstance(results.get('write_edi/_call'), str):  # keep EXCEPTION entries
+        results.pop('write_edi/_call', None)
 
     # write_response (legacy WS format) + write_list
     resp = os.path.join(SCRATCH, 'resp.dat')
     _store(results, 'write_response/_call', lambda: IO.write_response(d, resp))
     if os.path.exists(resp):
         results['write_response/text'] = _norm_text(resp)
-    results.pop('write_response/_call', None)
+    if not isinstance(results.get('write_response/_call'), str):  # keep EXCEPTION entries
+        results.pop('write_response/_call', None)
 
     lst = os.path.join(SCRATCH, 'out.lst')
     _store(results, 'write_list/_call', lambda: IO.write_list(d, lst))
     if os.path.exists(lst):
         results['write_list/text'] = _norm_text(lst)
-    results.pop('write_list/_call', None)
+    if not isinstance(results.get('write_list/_call'), str):  # keep EXCEPTION entries
+        results.pop('write_list/_call', None)
 
 
 def collect():

@@ -1,0 +1,23 @@
+construct                                    shape=() dtype=<U2 ['ok']
+init/cols                                    shape=() dtype=int64 head=[6]
+init/empty_table                             shape=() dtype=bool [False]
+init/file_to_index                           shape=() dtype=object ["{'dataset': 0, 'list': 1, 'data': 2, 'response': 3, 'model': 4, 'resolution': 5}"]
+init/get_locs_from                           shape=() dtype=object ['definemeas']
+init/headers                                 shape=(6,) dtype=object ['Dataset' 'List' 'Data' 'Response']
+init/index_to_file                           shape=() dtype=object ["{0: 'dataset', 1: 'list', 2: 'data', 3: 'response', 4: 'model', 5: 'resolution'}"]
+init/rows                                    shape=() dtype=int64 head=[1]
+read_pystart/roundtrip                       "{'first': {'list': 'a.lst', 'data': 'a.dat', 'response': 'a_resp.dat', 'model': 'a.model'}, 'second': {'data': 'b.data'}}"
+sort_files/data_only                         "{'data': 'C://Users//eroots//work//my_modules//pyMT_claude//tests//data//synthetic//synthetic_modem.dat'}"
+sort_files/ext_only                          "{'model': '/x/c.zani', 'list': '/x/e.list', 'resolution': '/x/g.resolution', 'response': '/x/h.resp'}"
+sort_files/real_mixed                        text len=317 crc32=7ffd17e9
+sort_files/resp_by_line                      "{'data': 'C://Users//eroots//work//my_modules//pyMT_claude//tests//data//synthetic//synthetic_modem_resp.dat'}"
+sort_files/unknown_ext                       '{}'
+table/active_datasets_row0                   text len=457 crc32=c6e8252f
+table/active_datasets_row1                   "{'ds_data_only': {'list': '', 'data': 'C://Users//eroots//work//my_modules//pyMT_claude//tests//data//synthetic//synthetic_modem.dat', 'response': '', 'model': '', 'resolution': ''}}"
+table/dataset_dict                           text len=724 crc32=4c803ada
+table/dataset_index_none                     shape=(0,) dtype=object []
+table/dataset_index_row0                     shape=(1,) dtype=object [0]
+table/empty_table                            shape=() dtype=bool [False]
+table/rows_after_fill                        shape=() dtype=int64 head=[3]
+write_project/call                           'ok'
+write_project/text                           '% first\nlist a.lst\ndata a.dat\nresp a_resp.dat\nmodel a.model\n% second\ndata b.data\nresolution b.reso\n'

@@ -1,0 +1,2 @@
+# Generated test data: keep LF so make_synthetic.py reproduces it byte-for-byte
+tests/data/synthetic/** text eol=lf

@@ -40,13 +40,12 @@ pyproj / interpolation / geometry).
 
 ## Inputs
 
-* `test_data/claude_test_data/edis/allall.lst` (+ the SWZ EDIs) -- raw data
-* `test_data/claude_test_data/swz_test_modem.dat` -- inverted data
-* `test_data/claude_test_data/swz_test_modem_resp.dat` -- synthetic response
-  (data + 10 % noise)
-* `test_data/testfile_ModEM.model` -- model for the plan / slice plots
-  (does not spatially overlap the SWZ survey; used only for reproducible
-  coverage of the model-plotting code paths)
+All from `tests/data/synthetic/`:
+
+* `edis/synthetic.lst` (+ the EDIs) -- raw data
+* `synthetic_modem.dat` -- inversion data
+* `synthetic_modem_resp.dat` -- noise-free response
+* `synthetic.model` -- model for the plan / slice plots
 
 `interpolant` is pinned to `linear` and `numpy`'s RNG is seeded so the run
 is deterministic; colourbars are left off (they mutate figure-level state

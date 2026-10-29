@@ -42,10 +42,10 @@ from pyMT.data_structures import RawData, Data
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(THIS_DIR, os.pardir, 'test_data', 'claude_test_data')
-EDI_LIST = os.path.join(DATA_DIR, 'edis', 'allall.lst')
-MODEM_FILE = os.path.join(DATA_DIR, 'swz_test_modem.dat')
-GOFEM_FILE = os.path.join(DATA_DIR, 'swz_test_gofem.dat.gdat')
+DATA_DIR = os.path.join(THIS_DIR, 'data', 'synthetic')
+EDI_LIST = os.path.join(DATA_DIR, 'edis', 'synthetic.lst')
+MODEM_FILE = os.path.join(DATA_DIR, 'synthetic_modem.dat')
+GOFEM_FILE = os.path.join(DATA_DIR, 'synthetic_gofem.gdat')
 FREQ_FILE = os.path.join(DATA_DIR, 'frequencies')
 RECEIVER_FILE = os.path.join(DATA_DIR, 'receivers_projected.csv')
 
@@ -58,7 +58,7 @@ RHO_PHA_COMPS = ('xy', 'yx', 'xx', 'yy', 'det', 'gav', 'aav', 'ssq')
 BOST_METHODS = ('phase', 'bostick', 'phase-bostick')
 
 # Sites picked out for the per-site numeric snapshot (kept small + deterministic).
-SAMPLE_SITES = ('SWZ001M', 'SWZ050M', 'e91003', 'g86001')
+SAMPLE_SITES = ('SYN001', 'SYN015', 'SYN029', 'SYN030')
 
 
 # --------------------------------------------------------------------------- #
@@ -286,7 +286,7 @@ def exercise_projection_crosscheck(results, raw, modem):
 
 
 def exercise_regrid(results):
-    model_file = os.path.join(THIS_DIR, os.pardir, 'test_data', 'testfile_ModEM.model')
+    model_file = os.path.join(DATA_DIR, 'synthetic.model')
     if not os.path.exists(model_file):
         results['regrid_model'] = 'SKIPPED: no model file'
         return

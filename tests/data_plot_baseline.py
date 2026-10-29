@@ -2,7 +2,7 @@
 
 A GUI has no natural numeric output, so this harness runs it head-less
 (``QT_QPA_PLATFORM=offscreen``): it builds a real ``DataMain`` from the
-SWZ ModEM fixtures, drives a fixed script of menu / toggle handlers with
+synthetic test dataset, drives a fixed script of menu / toggle handlers with
 the modal dialogs monkey-patched to canned answers, and freezes
 
 * the ``DataPlotManager`` / ``MapView`` configuration state and the
@@ -41,8 +41,8 @@ warnings.filterwarnings('ignore')
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(THIS_DIR, os.pardir))
-CTD = os.path.join(REPO, 'test_data', 'claude_test_data')
-PYSTART = os.path.join(CTD, 'pytest.pymt')
+SYN = os.path.join(THIS_DIR, 'data', 'synthetic')
+PYSTART = os.path.join(SYN, 'synthetic.pymt')
 
 OUT_DIR = os.path.join(THIS_DIR, 'baseline_data_plot')
 SCRATCH = os.path.join(OUT_DIR, 'scratch')
@@ -188,7 +188,7 @@ MAP_ATTRS = ('rho_cax', 'phase_cax', 'phase_split_cax', 'delta_cax', 'diff_cax',
              'induction_scale', 'induction_cutoff', 'induction_error_tol',
              'pt_scale', 'min_pt_ratio', 'pt_difference_definition', 'spatial_units',
              'interpolant', 'include_outliers', 'allowed_std')
-SAMPLE_SITES = ('e91003', 'SWZ001M', 'SWZ050M', 'SWZ131L')
+SAMPLE_SITES = ('SYN001', 'SYN015', 'SYN029', 'SYN030')
 
 
 def _snapshot(results, prefix, gui):
@@ -251,6 +251,9 @@ def _run(results):
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
     files = FileInputParser.read_pystart(PYSTART)
+    for ds_files in files.values():   # paths in the .pymt are relative to it
+        for key, path in ds_files.items():
+            ds_files[key] = os.path.join(SYN, path)
 
     holder = {'path': ''}
 

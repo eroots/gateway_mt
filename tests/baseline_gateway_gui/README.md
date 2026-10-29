@@ -26,8 +26,8 @@ real `NewProject` with the open-project dialog stubbed and freezes:
 
 * `sort_files` classifies `.dat` data-vs-response by looking for
   `"response"` in the first line; pyMT-written ModEM response files do
-  not contain that word, so `swz_test_modem_resp.dat` is filed as
-  `data`.
+  not contain that word, so `synthetic_modem_resp.dat` is filed
+  as `data`.
 * `write_project` writes `resolution <path>` lines, but
   `FileInputParser.read_pystart` does not list `resolution` in its
   accepted keywords, so it prints `Unrecognized keyword: resolution` and
