@@ -18,3 +18,4 @@ outcmaes/
 # verification-harness scratch output
 tests/baseline_data_plot/scratch/
 tests/baseline_mesh_designer/scratch/
+tests/baseline_gateway_gui/scratch/
