@@ -39,11 +39,11 @@ Note that any station / model rotations will have to be handled manually.
 autogen_report
 ^^^^^^^^^^^^^^
 
-Writes a misfit report for an inversion result: a text summary (input files, inversion type, overall and per-component RMS, worst-fitting sites, the inverted periods, and blank fields for your own notes) and one PDF of data vs. response curves per component group.
+Writes a misfit report for an inversion result: a text summary (input files, inversion type, overall and per-component RMS, worst-fitting sites, the inverted periods, and blank fields for your own notes) and a PDF of data vs. response curves, four sites per page. Each site shows apparent resistivity and phase, or the impedance tensor with ``--plot impedance``, with the tipper underneath when present.
 
 Usage::
 
-	autogen_report -d <data file> -r <response file> [-l <list file>] [-m <model file>] [-o <report folder>]
+	autogen_report -d <data file> -r <response file> [-l <list file>] [-m <model file>] [-o <report folder>] [--plot rho-phase|impedance]
 
-Any data format pyMT can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). Give the list file to add the raw data to the plots, or to name the sites when the data format doesn't store names (WSINV3DMT).
+Any data format pyMT can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). Give the list file to name the sites when the data format doesn't store names (WSINV3DMT).
 
