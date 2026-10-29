@@ -1,5 +1,5 @@
-from scipy.interpolate import interp1d, interp2d, RegularGridInterpolator
-from matplotlib import colors, cm
+from scipy.interpolate import interp1d
+from matplotlib import colors, colormaps
 import numpy as np
 from gateway_mt.e_colours.utils import rgb2hls, hls2rgb
 import colorcet  # This needs to be imported to register the cet colourmaps into mpl
@@ -46,40 +46,47 @@ def jet_plus_r(N=64):
     return jet_plus
 
 
+def mpl_cmap(name, lut=None):
+    # Stands in for matplotlib.cm.get_cmap, which matplotlib 3.11 removed.
+    # Raises KeyError for an unknown name.
+    cmap = colormaps[name]
+    return cmap.resampled(lut) if lut else cmap
+
+
 def jet(N=64):
-    return cm.get_cmap('jet', lut=N)
+    return mpl_cmap('jet', lut=N)
 
 
 def jet_r(N=64):
-    return cm.get_cmap('jet_r', lut=N)
+    return mpl_cmap('jet_r', lut=N)
 
 
 def hsv(N=64):
-    return cm.get_cmap('hsv', lut=N)
+    return mpl_cmap('hsv', lut=N)
 
 
 def bgy(N=64):
-    return cm.get_cmap('cet_bgy', lut=N)
+    return mpl_cmap('cet_bgy', lut=N)
 
 
 def bgy_r(N=64):
-    return cm.get_cmap('cet_bgy_r', lut=N)
+    return mpl_cmap('cet_bgy_r', lut=N)
 
 
 def bwr(N=64):
-    return cm.get_cmap('bwr', lut=N)
+    return mpl_cmap('bwr', lut=N)
 
 
 def bwr_r(N=64):
-    return cm.get_cmap('bwr_r', lut=N)
+    return mpl_cmap('bwr_r', lut=N)
 
 
 def greys(N=64):
-    return cm.get_cmap('gray', lut=N)
+    return mpl_cmap('gray', lut=N)
 
 
 def greys_r(N=64):
-    return cm.get_cmap('gray_r', lut=N)
+    return mpl_cmap('gray_r', lut=N)
 
 
 def turbo(N=64):
@@ -393,13 +400,13 @@ def get_cmap(cmap, N=64, invert=True):
             output = output[::-1]
         new_cmap = colors.ListedColormap(output)
     elif cmap in ('colorwheel', 'cet_colorwheel'):
-        new_cmap = cm.get_cmap('cet_colorwheel', lut=N)
+        new_cmap = mpl_cmap('cet_colorwheel', lut=N)
     else:
         try:
-            output = cm.get_cmap(cmap, lut=N)
-        except ValueError:
+            output = mpl_cmap(cmap, lut=N)
+        except KeyError:
             # output = colors.LinearSegmentedColormap(cmap, colorcet.cm[cmap], N)
-            output = cm.get_cmap('cet_' + cmap, lut=N)
+            output = mpl_cmap('cet_' + cmap, lut=N)
         new_cmap = output
     if invert:
         new_cmap = new_cmap.reversed()

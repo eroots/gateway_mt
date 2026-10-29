@@ -1,12 +1,22 @@
 """Plotting layer (gplot): sounding-curve plots and map views draw what the data says."""
 import numpy as np
 import pytest
+from matplotlib.colors import Colormap
 from matplotlib.figure import Figure
 
 import gateway_mt.gplot as gplot
 import gateway_mt.utils as utils
+from gateway_mt.e_colours import colourmaps
 
 PERIOD_IDX = 8          # ~6 s
+
+
+@pytest.mark.parametrize('name', colourmaps.COLOUR_MAPS + ('viridis', 'fire'))
+def test_colour_maps_resolve(name):
+    """Every colour map the GUIs offer, plus matplotlib and (unprefixed) colorcet names, can be built."""
+    cmap = colourmaps.get_cmap(name, N=32)
+    assert isinstance(cmap, Colormap)
+    assert len(cmap(0.5)) == 4             # an RGBA colour
 
 
 @pytest.fixture
