@@ -1,19 +1,35 @@
-# TODO
-# Menu for point options (marker shape, size, annotations)
-# Inclusion of data plotting (induction arrows, phase tensors, etc.)
-# Will eventually want to be able to save images.
-# File entry for new model files
-#   - Which also means a mechanism to switch between models
-# Single rotated slices?
-# Single rotated slices? Path slice?
-# Bring in data and start plotting sites, RMS, tipper, etc...
-# 2-D views. Can each tab be run separately? e.g., when in images. 3-D tab, halt updates
-# Colour map LUT (currently just uses default)
-# 2-D views. Can each tab be run separately? e.g., when in 3-D tab, halt updates
-# to 2-D views and vice-versa?
-# Still have to do above
-# Can also think about separate tabs for X, Y, Z slices to be plotted on their own
-# Can these plots just be copies (linked) to the original ones? That way they auto-update?
+"""3-D / 2-D viewer for ModEM resistivity models.
+
+``model_viewer`` is a PyQt window for inspecting a ModEM model: a 3-D
+PyVista (`pyvistaqt.QtInteractor`) render view with orthogonal slice
+planes, volume clipping, isosurfaces, an optional mesh overlay, and an
+interactively-picked transect, alongside a matplotlib tab that draws the
+plan / X / Y slices (through :class:`pyMT.gplot.MapView`) plus a separate
+transect figure.  It can overlay station locations (from a data file)
+and shade the model by a resolution / sensitivity volume.
+
+ModEM-only, and largely superseded by ParaView for general 3-D
+inspection; kept for the tightly-integrated 2-D slice + transect views.
+
+Launching
+---------
+Installed as the ``model_viewer`` console script (:func:`main`).  Takes
+positional file paths in any order; :func:`pyMT.utils.sort_files`
+classifies them by extension into ``{'model', 'data'/'response',
+'list', 'resolution', ...}``.  Only a model file is required.
+
+Relation to the rest of pyMT
+----------------------------
+Reads models / data through :mod:`pyMT.data_structures`; reuses
+:class:`pyMT.gplot.MapView` for the 2-D matplotlib panels; colour maps
+from :mod:`pyMT.e_colours.colourmaps`; menus from
+:mod:`pyMT.GUI_common.classes`.
+
+Notes
+-----
+Importing this module sets global PyVista theme state
+(``pv.set_plot_theme('dark')`` and a few ``pv.global_theme`` fields).
+"""
 from os import path as ospath
 import sys
 from copy import deepcopy
@@ -33,11 +49,9 @@ from pyMT import resources
 from PyQt5.uic import loadUiType
 from pyMT.IO import debug_print
 from scipy.interpolate import RegularGridInterpolator as RGI
-# from PyQt5 import QtWidgets
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
 from PyQt5 import QtWidgets, QtGui, QtCore
-# from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
     NavigationToolbar2QT as NavigationToolbar)
@@ -51,14 +65,43 @@ path = ospath.dirname(ospath.realpath(__file__))
 
 with pkg_resources.path(resources, 'model_viewer.jpg') as p:
     model_viewer_jpg = str(p)
-# model_viewer_jpg = str(next(pkg_resources.path(resources, 'model_viewer.jpg').func(resources, 'model_viewer.jpg')))
-# model_viewer_jpg = path + '/../resources/images/data_plot.jpg'
-# Ui_MainWindow, QMainWindow = loadUiType(ospath.join(path, 'data_plot.ui'))
-# UiPopupMain, QPopupWindow = loadUiType(ospath.join(path, 'saveFile.ui'))
 UI_ModelWindow, QModelWindow = loadUiType(ospath.join(path, 'model_viewer.ui'))
 
 
 def model_to_rectgrid(model, resolution=None, rho_axis='rho_x'):
+    """Convert a :class:`pyMT.data_structures.Model` to a PyVista grid.
+
+    Parameters
+    ----------
+    model : pyMT.data_structures.Model
+        The model to convert.  Its cell-edge coordinates ``dx`` / ``dy``
+        / ``dz`` become the grid axes (``dz`` is negated so depth points
+        down).
+    resolution : pyMT.data_structures.Model, optional
+        A resolution / sensitivity volume on the same mesh.  When given,
+        two extra cell-data arrays are added: ``'RawResolution'``
+        (:math:`\\log_{10}` of the raw values) and ``'Resolution'`` (the
+        values divided by cell volume, clipped at the median, then
+        standardised into roughly ``[0, 1]`` for use as a PyVista opacity
+        field).  When omitted, ``'Resolution'`` is all ones.
+    rho_axis : str, optional
+        Model attribute to take resistivities from -- ``'rho_x'``
+        (default), ``'rho_y'``, ``'rho_z'``, or ``'a / b'`` for the ratio
+        of two attributes (anisotropic models only).
+
+    Returns
+    -------
+    pyvista.RectilinearGrid
+        Cell data ``'Resistivity'`` holds :math:`\\log_{10}\\rho` with the
+        model's ``(nx, ny, nz)`` array transposed / flipped into PyVista's
+        ``(y, x, -z)`` Fortran order.
+
+    Raises
+    ------
+    ValueError
+        If ``rho_axis`` names a ratio and one of the attributes is empty
+        (e.g. ``'rho_x/rho_y'`` on an isotropic model).
+    """
     if '/' in rho_axis:
         rho_axis = rho_axis.split('/')
         v1 = getattr(model, rho_axis[0].strip())
@@ -90,8 +133,59 @@ def model_to_rectgrid(model, resolution=None, rho_axis='rho_x'):
 
 
 class ModelWindow(QModelWindow, UI_ModelWindow):
+    """Main viewer window (``model_viewer.ui``).
+
+    Owns the model / dataset, a :class:`pyvistaqt.QtInteractor` 3-D view
+    (``self.vtk_widget``), and a :class:`pyMT.gplot.MapView` driving the
+    2-D matplotlib panels (``self.map``).  The menu actions, sliders and
+    text boxes read GUI widgets, update ``self.model`` / ``self.clip_model``
+    / ``self.rect_grid`` / colour state, and call one of the redraw
+    entry points -- :meth:`render_3D` (3-D), :meth:`update_2D_X` /
+    :meth:`update_2D_Y` / :meth:`update_plan_view` (2-D), or
+    :meth:`update_all` (both).
+
+    Parameters
+    ----------
+    files : dict
+        ``{'model': ..., 'data'/'response': ..., 'list': ...,
+        'resolution': ...}`` from :func:`pyMT.utils.sort_files`.  Only
+        ``'model'`` is required.
+    parent : QtWidgets.QWidget, optional
+
+    Attributes
+    ----------
+    dataset : pyMT.data_structures.Dataset
+    model, clip_model : pyMT.data_structures.Model
+        The full model and the clipped copy actually rendered.
+    rect_grid : pyvista.RectilinearGrid
+        ``clip_model`` as a PyVista grid (see :func:`model_to_rectgrid`).
+    map : pyMT.gplot.MapView
+        Backs the 2-D plan / X / Y panels.
+    x_slice, y_slice, z_slice : int
+        Current slice indices (properties; the setter also updates the
+        slice labels).
+    cax, rho_cax, resolution_cax, aniso_cax : list of float
+        Colour-axis ranges; ``cax`` is the active one.
+    use_scalar : {'Resistivity', 'RawResolution'}
+    rho_axis : str
+        Passed to :func:`model_to_rectgrid`.
+
+    Notes
+    -----
+    The slice widgets follow one shape and are not documented
+    individually: ``<axis>_text_change`` / ``<axis>_slider_change`` read
+    the edit box / slider, clamp the value, set the ``<axis>_slice``
+    property and call ``<axis>_slice_change``, which re-adds that slice
+    actor in 3-D and refreshes the matching 2-D panel.  ``clip_x`` /
+    ``clip_y`` / ``clip_z`` likewise just validate the two clip counts
+    for that axis (the actual re-clip happens in :meth:`clip_volume`).
+    """
+
     closed = QtCore.pyqtSignal(QModelWindow)
+
     def __init__(self, files, parent=None):
+        """Load the model / data, build the 3-D and 2-D views, wire the
+        widgets and draw the initial slices."""
         super(ModelWindow, self).__init__()
         self.setupUi(self)
         # This is needed to ensure the window gets deleted, and doesn't trigger a doom loop with the VTK window trying to update itself after closure
@@ -110,18 +204,11 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         # If there is a list, get it but don't load it until needed
         if files.get('list', None):
             self.list_file = files['list']
-            # self.progress_bar = classes.PopUpProgress()
         else:
             self.list_file = None
         self.raw_data_initalized = False
-        # try:
-            # self.dataset = DS.Dataset(modelfile=files['model'],
-                                        # datafile=files['data'])
-        # except KeyError:
-            # self.dataset = DS.Dataset(modelfile=files['model'])
         if self.dataset.model.dimensionality == '2d':
-            # idx = np.argmin(abs(np.array(self.dataset.model.dy)))
-            self.dataset.data.locations[:, 1] += self.dataset.model.dy[0] #sum(self.dataset.model.dy[:idx])
+            self.dataset.data.locations[:, 1] += self.dataset.model.dy[0]
         if files.get('resolution', None):
             try:
                 self.resolution = DS.Model(files['resolution'])
@@ -135,10 +222,13 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                                                                        self.resolution.nx]), [2, 1, 0])
                     self.use_resolution = 'Resolution'
             except KeyError:
-                self.resolution = None            
-                # self.resolution.vals = np.ones(self.dataset.model.vals.shape)
+                self.resolution = None
         else:
             self.resolution = None
+        # NOTE: this unconditionally overrides the 'Resolution' value set
+        # above, so a resolution file has no effect until the user ticks
+        # the resolution checkbox.  Left as-is (changing it would alter
+        # first-render output); flagged in the changelog.
         self.use_resolution = 1
         self.use_scalar = 'Resistivity'
         self.rho_axis = 'rho_x'
@@ -147,14 +237,11 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.clip_resolution = deepcopy(self.resolution)
         # Make sure the frame fills the tab
         vlayout3D = QtWidgets.QVBoxLayout()
-        # add the pyvista interactor object
         self.vtk_widget = QtInteractor(self.frame3D)
         self.vtk_widget.background_color = 'paraview'
-        # self.vtk_widget.auto_update = 0
         vlayout3D.addWidget(self.vtk_widget)
         self.frame3D.setLayout(vlayout3D)
         self.pv_default_background = 'paraview'
-        # simple menu to demo functions
         mainMenu = self.menuBar()
         fileMenu = mainMenu.addMenu('File')
         self.colourMenu = classes.ColourMenu(self)
@@ -163,7 +250,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         mainMenu.addMenu(self.coordinateMenu)
         self.spatial_units = self.coordinateMenu.default_units
         self.coordinate_system = self.coordinateMenu.default_system
-        self.spatial_units = self.coordinateMenu.default_units
         self.dataset.spatial_units = self.spatial_units
         self.model.spatial_units = self.spatial_units
         self.clip_model.spatial_units = self.spatial_units
@@ -219,10 +305,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.toolbar = {'2D': [], 'transect': []}
         self.fig_2D = Figure()
         self.spec = {'X': [], 'Y': [], 'Z': []}
-        # self.spec['Y'] = GridSpec(3, 3).new_subplotspec((0, 2), colspan=1, rowspan=2)
-        # self.spec['X'] = GridSpec(3, 3).new_subplotspec((2, 0), colspan=2, rowspan=1)
-        # self.spec['Z'] = GridSpec(3, 3).new_subplotspec((0, 0), colspan=2, rowspan=2)
-        # self.spec['colorbar'] = GridSpec(3, 3).new_subplotspec((2, 2), colspan=1, rowspan=1)
         self.spec['Y'] = GridSpec(12, 12).new_subplotspec((0, 8), colspan=4, rowspan=8)
         self.spec['X'] = GridSpec(12, 12).new_subplotspec((8, 0), colspan=8, rowspan=4)
         self.spec['Z'] = GridSpec(12, 12).new_subplotspec((0, 0), colspan=8, rowspan=8)
@@ -249,40 +331,19 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.update_2D_Y()
         self.update_2D_colorbar()
 
-    # def closeEvent(self, event):
-    #     # super().closeEvent(event)
-        
-    #     print('Close event triggered')     
-        
-    #     if event.spontaneous():
-    #         print(event.spontaneous())
-    #         print('Ignoring')
-    #         event.ignore()
-    #         self.force_close()
-
-    #         # return
-    #         # self.close()
-    #     if event:
-    #         print('Finalizing qt')
-    #         # self.vtk_widget.Finalize()
-    #         print('Done.')
-    #         event.accept()
-    #         print('Accepted')
-    #     else:
-    #         print('Closing again')
-    #         self.close()
-    #     # event.accept()
-    #     # self.closed.emit(self)
-
     def closeEvent(self, event):
-        # This setup seems to work for both File -> exit, ctrl+Q, and X click exits
-        # Seems to also finally work for having multiple windows open and / or closing and reopening a window
+        """Finalize the VTK widget on close so it doesn't keep trying to
+        redraw itself (works for File->Exit, Ctrl+Q and the window's X,
+        and for closing / reopening multiple windows)."""
         super().closeEvent(event)
         self.vtk_widget.Finalize()
         self.close()
 
     @property
     def x_slice(self):
+        """int: Current X (northing) slice index.  Setting it also
+        refreshes the ``xSliceLabel`` text.  ``y_slice`` / ``z_slice``
+        behave the same for the other two axes."""
         return self._x_slice
 
     @x_slice.setter
@@ -312,6 +373,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                                                       self.dataset.spatial_units))
 
     def add_mpl(self, fig, tab='2D'):
+        """Embed ``fig`` (canvas + navigation toolbar) in the ``'2D'`` or
+        ``'transect'`` tab layout."""
         self.canvas[tab] = FigureCanvas(fig)
         if tab == '2D':
             frame = self.widget2D
@@ -324,6 +387,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         frame.addWidget(self.toolbar[tab])
 
     def init_map(self, dataset):
+        """Load ``dataset`` into ``self.map`` and compute the initial site
+        locations for the 2-D plan panel."""
         self.map.dataset = dataset
         self.map.data = dataset.data
         self.map.raw_data = dataset.raw_data
@@ -340,6 +405,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.map.site_locations['all'] = self.map.get_locations(self.map.site_names)
 
     def update_2D_X(self):
+        """Redraw the bottom (X / northing) 2-D panel for the current
+        ``x_slice`` via :meth:`pyMT.gplot.MapView.plot_x_slice`.
+        :meth:`update_2D_Y` is the equivalent for the right-hand panel."""
         self.map.window['axes'][2].clear()
         self.map.plot_x_slice(x_slice=self.x_slice,
                               ax=self.map.window['axes'][2],
@@ -362,42 +430,18 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.map.set_axis_limits(ax=self.map.window['axes'][1], bounds=bounds)
         self.map.window['axes'][1].yaxis.tick_right()
         self.map.window['axes'][1].yaxis.set_label_position('right')
-        # if not self.map.window['axes'][1].yaxis_inverted():
-        #     self.map.window['axes'][1].invert_yaxis()
         self.canvas['2D'].draw()
 
     def update_plan_view(self):
-        # Currently redraws the whole map every time
-        # This should be changed to just destroy and redraw whatever features are needed
-        # print(self.map.site_locations['generic'])
-        # Also there should be a mechanism that makes sure this is only redrawn if something changes
+        """Redraw the plan (Z / depth) 2-D panel for the current
+        ``z_slice``: the model layer via
+        :meth:`pyMT.gplot.MapView.plot_plan_view`, the X / Y slice
+        indicator lines, station markers, the transect line / markers,
+        and the depth title.  Full redraw every call."""
         self.map.window['axes'][0].clear()
         if self.map.window['colorbar']:
             self.map.window['colorbar'].remove()
             self.map.window['colorbar'] = None
-        # DEBUG
-        # print('I am updating the map')
-        # pseudosection_toggles = self.get_pseudosection_toggles()
-        # if pseudosection_toggles['data'] and pseudosection_toggles['fill']:
-        #     fill_param = ''.join([pseudosection_toggles['fill'],
-        #                           pseudosection_toggles['component']])
-        #     self.map.plan_pseudosection(data_type=pseudosection_toggles['data'],
-        #                                 fill_param=fill_param,
-        #                                 period_idx=self.active_period,
-        #                                 n_interp=self.nInterp.value())
-        # self.map.plot_rms = self.plotRMS.checkState()
-        # self.map.plot_locations()
-        # PT_toggles = self.get_PT_toggles()
-        # if 'None' not in PT_toggles['data']:
-        #     self.map.plot_phase_tensor(data_type=PT_toggles['data'],
-        #                                fill_param=PT_toggles['fill'],
-        #                                period_idx=self.active_period)
-        # induction_toggles = self.get_induction_toggles()
-        # if induction_toggles['data']:
-        #     self.map.plot_induction_arrows(data_type=induction_toggles['data'],
-        #                                    normalize=induction_toggles['normalize'],
-        #                                    period_idx=self.active_period)
-        # self.toolbar.update()
         # self.toolbar.push_current()
         bounds = np.array([self.clip_model.dy[0], self.clip_model.dy[-1],
                            self.clip_model.dx[0], self.clip_model.dx[-1]])
@@ -415,10 +459,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.canvas['2D'].draw()
 
     def update_2D_colorbar(self):
+        """Redraw the shared horizontal colour bar (4th axis of the 2-D
+        figure) for the current ``cax`` / ``cmap`` / ``lut``."""
         self.map.window['axes'][3].clear()
-        # fake_vals = np.linspace(self.cax[0], self.cax[1], self.lut)
-        # fake_im = self.map.window['axes'][3].scatter(range(self.lut), range(self.lut),
-                                                     # c=fake_vals, cmap=self.cmap)
         fake_vals = np.linspace(self.cax[0], self.cax[1], self.lut)
         fake_im = self.map.window['axes'][3].scatter(range(self.lut), range(self.lut), s=10, marker='.',
                                                      c=fake_vals, cmap=self.cmap)
@@ -429,6 +472,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.canvas['2D'].draw()
 
     def update_plan_title(self):
+        """Set the plan-panel title to the layer number and its centre
+        depth (``depthLabelCenter``) or depth range (``depthLabelRange``)."""
         if self.depthLabelCenter.isChecked():
             self.map.window['axes'][0].set_title('Layer ' + str(self.z_slice) +
                                                  ', Depth = '+'{:.3g}'.format((self.model.dz[self.z_slice]+self.model.dz[self.z_slice-1])/2)+' {}'.format(self.spatial_units), fontsize=self.map.label_fontsize)
@@ -439,6 +484,10 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.canvas['2D'].draw()
 
     def update_slice_indicators(self, direction='xy', redraw=True):
+        """Draw or move the white dashed lines on the plan panel that mark
+        where the X and Y slices cut.  ``direction`` selects which
+        line(s); ``redraw=False`` just moves existing lines instead of
+        re-creating them."""
         x_slice_loc = self.model.dx[self.x_slice]
         y_slice_loc = self.model.dy[self.y_slice]
         x_slice_limits = (self.clip_model.dy[0], self.clip_model.dy[-1])
@@ -457,7 +506,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.plot_data['Y_indicator'].set_xdata((y_slice_loc, y_slice_loc))
 
     def init_widgets(self):
-        # Set up all the slicing widgets
+        """Set the initial state of every slice / clip / interpolation
+        widget from the model dimensions, and enable the resolution /
+        elevation checkboxes only when that data is available."""
         self.x_slice = 1
         self.y_slice = 1
         self.z_slice = 1
@@ -504,7 +555,10 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
 
 
     def connect_widgets(self):
-        # Slicer widgets
+        """Wire every slider / edit box / checkbox / menu action to its
+        handler.  Coordinate-system options beyond ``local`` are disabled
+        unless a list file was supplied; the rho-axis group is enabled
+        only for anisotropic models."""
         self.xSliceEdit.editingFinished.connect(self.x_text_change)
         self.ySliceEdit.editingFinished.connect(self.y_text_change)
         self.zSliceEdit.editingFinished.connect(self.z_text_change)
@@ -583,6 +637,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.rho_axis_group.triggered.connect(self.change_rho_axis)
 
     def set_spatial_units(self):
+        """Switch the model / dataset / grid between metres and
+        kilometres, rescale the stored camera position to match, and
+        redraw everything."""
         if self.spatial_units == self.coordinateMenu.unitGroup.checkedAction().text().lower():
             return
         self.spatial_units = self.coordinateMenu.unitGroup.checkedAction().text().lower()
@@ -603,9 +660,10 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
 
 
     def load_raw_data(self):
-        # Check to see if the list has been loaded already
+        """Coordinate-system menu handler: lazily load the raw EDI data
+        (needed for UTM / lat-long / Lambert) via a progress popup the
+        first time, then :meth:`set_coordinate_system`."""
         if not self.raw_data_initalized:
-            # If not, load it
             if self.list_file:
                 try:
                     self.popup = classes.PopUpProgress(file_dict={'list': self.list_file})
@@ -618,6 +676,10 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.set_coordinate_system()
 
     def set_coordinate_system(self):
+        """Reproject the model and station locations into the selected
+        coordinate system (local / UTM / lat-long / Lambert), re-clip and
+        redraw.  Warns and reverts to local if the target can't be
+        verified."""
         can_do = 1
         coord_system = self.coordinateMenu.systemGroup.checkedAction().text().lower()
         if coord_system == 'local':
@@ -650,13 +712,17 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.coordinateMenu.all_systems['Local'].setChecked(True)
 
     def collect_from_popup(self):
+        """Progress-popup callback: store the loaded ``raw_data`` and
+        continue into :meth:`set_coordinate_system`."""
         self.dataset.raw_data = self.popup.ret_val['raw_data']
         self.raw_data_initalized = True
         self.map.site_data['raw_data'] = self.dataset.raw_data
-        # QtWidgets.QMessageBox.warning(self, '...', 'Data collected successfully')
         self.set_coordinate_system()
 
     def change_rho_axis(self):
+        """Switch which model attribute (or ratio) is displayed
+        (anisotropic models), pick the matching colour axis, rebuild the
+        grid and redraw."""
         self.rho_axis = self.rho_axis_group.checkedAction().text().lower()
         if '/' in self.rho_axis:
             self.cax = self.aniso_cax
@@ -665,27 +731,28 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.rect_grid = model_to_rectgrid(self.clip_model, self.clip_resolution, rho_axis=self.rho_axis)
         self.update_all(reset_camera=False)
 
-
     def change_background(self):
+        """Set the PyVista render background from the menu selection."""
         color = self.pv_background_group.checkedAction().text().lower()
         if color != 'default':
             self.vtk_widget.background_color = color
         else:
             self.vtk_widget.background_color = deepcopy(self.pv_default_background)
-        # self.render_3D(reset_camera=False)
 
     def set_station_elevation(self):
+        """Toggle whether station markers sit at their true elevation
+        (from the data) or on the z = 0 plane, and redraw the 3-D view."""
         if self.elevationCheckBox.checkState():
-            # self.locs_3D = np.zeros((len(self.dataset.data.locations), 3))
-            # self.plot_data['stations'] = pv.PolyData(self.locs_3D)
-            # self.locs_3D[:, 0] = self.dataset.data.locations[:, 1]
-            # self.locs_3D[:, 1] = self.dataset.data.locations[:, 0]
             self.locs_3D[:, 2] = np.array([-self.dataset.data.sites[site].locations['elev'] / 1000 for site in self.dataset.data.site_names])
         else:
             self.locs_3D[:, 2] = 0
         self.render_3D(reset_camera=False)
 
     def set_resolution_plot(self):
+        """Tri-state resolution checkbox: 0 = plain resistivity,
+        1 = resistivity with resolution as opacity, 2 = raw resolution as
+        the scalar.  Sets ``use_scalar`` / ``use_resolution`` / ``cax``
+        accordingly and redraws the 3-D view."""
         if self.resolutionCheckBox.checkState() == 0:
             self.use_scalar = 'Resistivity'
             self.use_resolution = 1
@@ -701,8 +768,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.render_3D(reset_camera=False)
 
     def generate_isosurface(self):
-        # if self.actors['isosurface']:
-            # self.vtk_widget.remove_actor(self.actors['isosurface'])
+        """Compute resistivity isosurfaces between the low / high spin-box
+        values (``isoNum`` of them) and show them (:meth:`update_isosurface`)."""
         low_val = self.isoLow.value()
         high_val = self.isoHigh.value()
         if not (low_val <= high_val):
@@ -719,10 +786,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.update_isosurface()
 
     def update_isosurface(self):
-        # print(self.isoPlot.checkState())
-        # print(self.actors['isosurface'])
-        # print(self.contours)
-        # self.vtk_widget.remove_actor(self.actors['isosurface'])
+        """Add / update the isosurface actor from ``self.contours`` at the
+        current opacity (or unchecks ``isoPlot`` if there are no
+        contours)."""
         if self.isoPlot.checkState():
             if self.contours:
                 opacity = self.isoOpacity.value()
@@ -734,16 +800,15 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                                                                          name='isosurface')
                 except RuntimeError:
                     self.isoPlot.setCheckState(0)
-                    # QtWidgets.QMessageBox.warning(self, 'Unable to change coordinate system.')
                     QtWidgets.QMessageBox.warning(self, '...', 'No model values fit the requested contour.')
                     return
             else:
                 self.isoPlot.setCheckState(0)
-
-        # self.vtk_widget.update()
         self.show_bounds()
 
     def show_mesh(self):
+        """Toggle the cell-edge mesh overlay on the 2-D panels and
+        redraw."""
         if self.meshOn.isChecked():
             self.map.mesh = True
         else:
@@ -751,6 +816,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.update_all()
 
     def set_nInterp(self):
+        """Apply the transect interpolation-point count from ``nInterp``
+        and regenerate the transect if one is picked."""
         try:
             N = int(self.nInterp.text())
             self.n_interp = N
@@ -763,6 +830,10 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.debugLabel.setText('# of interp points must be an integer')
 
     def transect_pick(self):
+        """"Select points" button: on the first press, connect the plan
+        panel click handler (:meth:`click_2D`) so the user can lay down
+        transect vertices; on the second press, disconnect it and build
+        the 2-D / 3-D transect from the picked points."""
         if not self.cid['transect_2D']:
             self.cid['transect_2D'] = self.canvas['2D'].mpl_connect('button_release_event', self.click_2D)
             self.tabWidget_2.setCurrentIndex(1)
@@ -780,25 +851,17 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.interpCheckbox.setCheckState(2)
             self.toggle_transect3D()
             self.tabWidget_2.setCurrentIndex(0)
-            # self.plot_transect()
-            # print(self.len(transect_plot['easting']) > 1)
-            # print(self.transect_plot['northing'])
-        # if self.transect_picking:
-        #     self.vtk_widget.enable_cell_picking()
-        #     self.transect_picking = False
-        #     print('Done picking')
-        #     print(self.picks[0].points)
-        # else:
-        #     self.transect_picking = True
-        #     self.picks = []
-        #     print('Start picking')
-        #     self.vtk_widget.enable_cell_picking(mesh=self.slices['Z'], callback=self.save_picks)
 
     def save_picks(self, picks):
+        """Callback for PyVista cell-picking (currently unused -- the
+        commented-out ``enable_cell_picking`` path in
+        :meth:`transect_pick`)."""
         self.picks.append(picks)
         print('Saving picks')
 
     def change_cmap(self):
+        """Rebuild the colour map from the Colour menu (name + invert +
+        LUT) and redraw both views."""
         self.colourmap = self.colourMenu.action_group.checkedAction().text()
         self.cmap = cm.get_cmap(self.colourMenu.action_group.checkedAction().text(),
                                 self.lut,
@@ -808,13 +871,16 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.update_all(reset_camera=False)
 
     def set_lut(self):
+        """Prompt for the number of colour levels and apply it via
+        :meth:`change_cmap`."""
         inputs, ret = self.colourMenu.set_lut(initial=self.lut)
         if ret:
             self.lut = inputs
             self.change_cmap()
-            # self.update_all()
 
     def set_clim(self):
+        """Prompt for the ``[lower, upper]`` colour-axis limits and apply
+        them to both views."""
         inputs, ret = self.colourMenu.set_clim(initial_1=str(self.cax[0]),
                                                initial_2=str(self.cax[1]))
         lower, upper = inputs
@@ -828,6 +894,10 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                 print('Bad inputs to clim')
 
     def clip_x(self):
+        """Validate the two X clip-count edit boxes (0/1 = layers trimmed
+        from each end); reject if they exceed ``nx``.  ``clip_y`` /
+        ``clip_z`` do the same for the other axes.  The trim itself
+        happens in :meth:`clip_volume`."""
         try:
             x0 = int(self.x0ClipEdit.text())
             x1 = int(self.x1ClipEdit.text())
@@ -842,16 +912,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         else:
             self.x_clip[0] = x0
             self.x_clip[1] = x1
-        # if x0 > np.ceil(self.model.nx):
-        #     self.x0ClipEdit.setText(str(self.x_clip[0]))
-        # else:
-        #     self.x_clip[0] = x0
-        # if x1 > np.ceil(self.model.nx):
-        #     self.x1ClipEdit.setText(str(self.x_clip[1]))
-        # else:
-        #     self.x_clip[1] = x1
-        # self.clip_volume()
-        # self.render_3D()
 
     def clip_y(self):
         try:
@@ -865,17 +925,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         if y0 + y1 > self.model.ny:
             self.y0ClipEdit.setText(str(self.y_clip[0]))
             self.y1ClipEdit.setText(str(self.y_clip[1]))
-        # if y0 > np.ceil(self.model.ny):
-        #     self.y0ClipEdit.setText(str(self.y_clip[0]))
-        # else:
-        #     self.y_clip[0] = y0
-        # if y1 > np.ceil(self.model.ny):
-        #     self.y1ClipEdit.setText(str(self.y_clip[1]))
         else:
             self.y_clip[0] = y0
             self.y_clip[1] = y1
-        # self.clip_volume()
-        # self.render_3D()
 
     def clip_z(self):
         try:
@@ -892,8 +944,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         else:
             self.z_clip[0] = z0
             self.z_clip[1] = z1
-        # self.clip_volume()
-        # self.render_3D()
 
     def x_text_change(self):
         try:
@@ -950,11 +1000,11 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.z_slice_change()
 
     def x_slice_change(self):
-        # self.vtk_widget.remove_actor(self.actors['X'])
+        """Re-take the X slice: add / remove its 3-D actor per the
+        ``xSliceCheckbox`` and refresh the 2-D X panel + the plan-view
+        indicator line.  ``y_slice_change`` / ``z_slice_change`` are the
+        equivalents for the other axes (``z`` refreshes the plan panel)."""
         if self.xSliceCheckbox.checkState():
-            # x_slice = self.clip_model.dx[self.x_slice] 
-            # self.slices['X'] = self.rect_grid.slice(normal='y',
-            #                                         origin=(0, x_slice, 0))
             self.slices['X'] = self.generate_slice('x')
             self.actors['X'] = self.vtk_widget.add_mesh(self.slices['X'],
                                                         cmap=self.cmap,
@@ -1013,6 +1063,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         # self.show_bounds()
 
     def generate_slice(self, normal='X'):
+        """Return the ``rect_grid`` slice normal to ``'x'`` / ``'y'`` /
+        ``'z'`` at the current slice index, its origin offset to the
+        clipped-volume corner."""
         ox = max(0, self.model.dx[self.x_clip[0]])
         oy = max(0, self.model.dy[self.y_clip[0]])
         if normal == 'x':
@@ -1030,11 +1083,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         return gen_slice
 
     def clip_volume(self):
-        # x = [self.model.dx[self.x_clip[0]], self.model.dx[self.model.nx - self.x_clip[1]]]
-        # y = [self.model.dy[self.y_clip[0]], self.model.dy[self.model.ny - self.y_clip[1]]]
-        # z = [self.model.dz[self.z_clip[0]], self.model.dz[self.model.nz - self.z_clip[1]]]
-        # clip = [x[0], x[1], y[0], y[1], z[0], z[1]]
-        # self.clipped_volume = self.rect_grid.clip_box(clip)
+        """Rebuild ``clip_model`` / ``clip_resolution`` / ``rect_grid``
+        by deleting the requested number of layers from each end of each
+        axis, then re-range the slice sliders and redraw."""
         self.clip_model = deepcopy(self.model)
         self.clip_resolution = deepcopy(self.resolution)
         for ix in range(self.x_clip[0]):
@@ -1064,7 +1115,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         # self.map.model = self.clip_model
         self.rect_grid = model_to_rectgrid(self.clip_model, self.clip_resolution, rho_axis=self.rho_axis)
         self.validate_slice_locations()
-        # debug_print([self.model.dy[self.y_slice], self.model.dy[self.y_clip[0]], self.model.dy[self.model.ny]], 'C:/Users/eric/Desktop/debug.log')
         self.xSliceSlider.setMinimum(self.x_clip[0] + 1)
         self.ySliceSlider.setMinimum(self.y_clip[0] + 1)
         self.zSliceSlider.setMinimum(self.z_clip[0] + 1)
@@ -1074,6 +1124,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.update_all()
 
     def validate_slice_locations(self):
+        """Clamp each slice index into the clipped-volume range,
+        temporarily disconnecting the slider / edit-box signals so the
+        corrections don't retrigger a redraw."""
         self.xSliceSlider.valueChanged.disconnect(self.x_slider_change)
         self.ySliceSlider.valueChanged.disconnect(self.y_slider_change)
         self.zSliceSlider.valueChanged.disconnect(self.z_slider_change)
@@ -1112,9 +1165,12 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.zSliceEdit.editingFinished.connect(self.z_text_change)
 
     def render_3D(self, reset_camera=True):
+        """Full 3-D redraw: clear the render window and re-add the enabled
+        slice actors, the transect, and the station points, then show the
+        axis bounds (and reset the camera unless ``reset_camera`` is
+        ``False``).  Slices are regenerated even when their checkbox is
+        off so they stay trimmed to the clip box."""
         self.vtk_widget.clear()
-        # This method is a full redraw - but slices should still be taken again even
-        # if checks are off otherwise they will not get trimmed
         if self.xSliceCheckbox.checkState():
             self.slices['X'] = self.generate_slice('x')
             self.actors['X'] = self.vtk_widget.add_mesh(self.slices['X'],
@@ -1156,10 +1212,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.vtk_widget.reset_camera()
 
     def show_bounds(self):
-        # pass
-        # print('Show bounds called')
-        # print(self.clip_model.spatial_units)
-        # print(round(self.clip_model.dy[0], -1))
+        """(Re)draw the labelled 3-D axes / grid box around the clipped
+        model extent."""
         self.vtk_widget.show_bounds(bounds=[self.clip_model.dy[0], self.clip_model.dy[-1],
                                             self.clip_model.dx[0], self.clip_model.dx[-1],
                                            -self.clip_model.dz[-1], self.clip_model.dz[0]],
@@ -1173,28 +1227,21 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                                     grid=True,
                                     location='outer',
                                     use_3d_text=False)
-                                  # font_size=10)
-                                  # padding=0.1)
 
     def view_xy(self):
+        """Snap the 3-D camera to the top-down (XY) view.  ``view_xz`` /
+        ``view_yz`` are the side views."""
         self.vtk_widget.view_xy()
-        # self.vtk_widget.view_vector([0, 0, 1])
-        # self.vtk_widget.view_xy()
-        # self.vtk_widget.update()
 
     def view_xz(self):
         self.vtk_widget.view_xz()
-        # self.vtk_widget.view_vector([0, 0, 1])
-        # self.vtk_widget.view_xy()
-        # self.vtk_widget.update()
 
     def view_yz(self):
         self.vtk_widget.view_yz()
-        # self.vtk_widget.view_vector([0, 0, 1])
-        # self.vtk_widget.view_xy()
-        # self.vtk_widget.update()
 
     def update_all(self, reset_camera=True):
+        """Redraw everything: all three 2-D panels, the colour bar and
+        the 3-D view."""
         self.update_2D_X()
         self.update_2D_Y()
         self.update_plan_view()
@@ -1202,6 +1249,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.render_3D(reset_camera)
 
     def click_2D(self, event):
+        """Plan-panel click handler while transect picking is on: append
+        the clicked (easting, northing) to the transect vertex list."""
         if self.map.window['axes'][0] == event.inaxes:
             self.transect_plot['easting'].append(event.xdata)
             self.transect_plot['northing'].append(event.ydata)
@@ -1211,6 +1260,14 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             return
 
     def interpolate_between_points(self, E, N):
+        """Densify a polyline of ``(E, N)`` vertices to ~``n_interp``
+        points, distributing them between segments by length.
+
+        Returns
+        -------
+        qx, qy : numpy.ndarray
+            The interpolated easting / northing coordinates.
+        """
         qx = []
         qy = []
         distance = []
@@ -1221,7 +1278,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         total_distance = np.sum(distance)
         N_per_segment = np.int64(np.ceil(self.n_interp * distance / total_distance))
         for ii in range(len(E) - 1):
-            # E1, E2 = (min(E[ii], E[ii + 1]), max(E[ii], E[ii + 1]))
             if E[ii] > E[ii + 1]:
                 E0, E1 = E[ii + 1], E[ii]
                 N0, N1 = N[ii + 1], N[ii]
@@ -1237,10 +1293,13 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             qy.append(Y)
         qx = np.concatenate(qx).ravel()
         qy = np.concatenate(qy).ravel()
-        # debug_print((qx, qy), 'debugT.log')
         return qx, qy
 
     def generate_transect2D(self):
+        """Build the 2-D transect section: densify the picked polyline,
+        sample :math:`\\log_{10}\\rho` along it at every model depth with a
+        :class:`~scipy.interpolate.RegularGridInterpolator`, store the
+        result and hand it to :meth:`plot_transect2D`."""
         if not (self.transect_plot['easting'] and self.transect_plot['northing']):
             return
         qx, qy = self.interpolate_between_points(self.transect_plot['easting'],
@@ -1268,8 +1327,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.interpolator = RGI((cell_E, cell_N, cell_z),
                                 vals, bounds_error=False, fill_value=None)
         interp_vals = self.interpolator(query_points)
-        # self.map.window['axes'][0].plot(qx, qy, 'k--')
-        # self.canvas['2D'].draw()
         self.interp_vals = np.reshape(interp_vals, [len(qx), len(qz)])
         self.qx = qx
         self.qy = qy
@@ -1279,14 +1336,14 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.plot_transect2D(redraw=True)
 
     def generate_transect3D(self, redraw=True):
+        """Build the 3-D transect surface by slicing ``rect_grid`` along
+        each polyline segment and clipping to the model depth range, then
+        :meth:`plot_transect3D`."""
         query_points = deepcopy(self.query_points)
         query_points[:, 2] *= -1
         qp = np.vstack([self.transect_plot['easting'],
                         self.transect_plot['northing'],
                         np.zeros((len(self.transect_plot['easting'])))]).T
-        # line = pv.Line(pointa=qp[0, :], pointb=qp[1, :], resolution=10)
-        # for ii in range(len(qp[1:-1])):
-            # line = line.merge(pv.Line(pointa=qp[ii+1, :], pointb=qp[ii+2, :], resolution=10))
         for ii in range(len(qp) - 1):
             line = pv.Line(pointa=qp[ii, :], pointb=qp[ii+1, :], resolution=10)
             if ii == 0:
@@ -1301,27 +1358,17 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                                                                                              self.clip_model.dz[0])),
                                               merge_points=False,
                                               inplace=True)
-        # spline = pv.Spline(qp, 50)
-        # self.slices['transect'] = self.rect_grid.slice_along_line(line).clip_box(invert=False, 
-                                                                                 # bounds=line.bounds[:4] +
-                                                                                        # (-self.clip_model.dz[-1],
-                                                                                          # self.clip_model.dz[0]))
-        # self.slices['transect'] = pv.PolyData(query_points, self.faces)
         self.plot_transect3D(redraw=redraw)
 
     def plot_transect2D(self, redraw=True):
+        """Draw the interpolated transect section (linear distance vs
+        depth) on the transect figure, then overlay the pick line /
+        markers on the plan panel."""
         self.fig_transect.axes[0].clear()
         linear_x = np.zeros((len(self.qx)) + 1)
         linear_x[1:-1] = np.sqrt((self.qx[1:] - self.qx[:-1]) ** 2 + (self.qy[1:] - self.qy[:-1]) ** 2)
         linear_x = np.cumsum(linear_x)
-        # Hack to get dimesniosn right
-        linear_x[-1] += (linear_x[-1] - linear_x[-1])
-        # qz = list(qz)
-        # qz = list(self.qz)
-        # qz.append(qz[-1] + 1)
-        # qz = np.array(qz)
-        # sub the hack into call to pcolormesh below, replacing self.qz 
-        
+        linear_x[-1] += (linear_x[-1] - linear_x[-1])  # legacy no-op, kept for parity
         self.fig_transect.axes[0].clear()
         self.fig_transect.axes[0].pcolormesh(linear_x, np.array(list(self.qz) + [self.qz[-1] + 1]),
                                              self.interp_vals.T,
@@ -1335,25 +1382,23 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.plot_transect_markers()
 
     def plot_transect3D(self, redraw=False):
-        # if redraw and self.actors['transect']:
-            
+        """Add or remove the 3-D transect-surface actor per the
+        ``interpCheckbox`` state."""
         if self.interpCheckbox.checkState():
-            # self.vtk_widget.remove_actor(self.actors['transect'])
-            # self.slices['transect'] = self.generate_slice('z')
             self.actors['transect'] = self.vtk_widget.add_mesh(self.slices['transect'],
                                                                style='surface',
-                                                               # scalars=self.interp_vals,
-                                                               # axis=0,
                                                                cmap=self.cmap,
                                                                clim=self.cax,
                                                                name='transect')
         else:
             self.vtk_widget.remove_actor(self.actors['transect'])
         if redraw:
-            # self.vtk_widget.update()
             self.show_bounds()
 
     def plot_transect_line(self, redraw=False):
+        """Draw / move the dashed transect line on the plan panel.
+        :meth:`plot_transect_markers` does the same for the vertex
+        markers."""
         if self.show_transect_line and self.transect_plot['easting']:
             if not self.transect_artists['line'] or redraw:
                 self.transect_artists['line'], = self.map.window['axes'][0].plot(self.qx, self.qy, 'k--')
@@ -1372,41 +1417,31 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             else:
                 self.transect_artists['markers'].set_xdata(self.transect_plot['easting'])
                 self.transect_artists['markers'].set_ydata(self.transect_plot['northing'])
-            #     self.debugLabel.setText('Redrawing markers')
             self.canvas['2D'].draw()
-        # self.map.plot_y_slice(y_slice=self.y_slice,
-        #                       ax=self.map.window['axes'][1],
-        #                       orientation='zx')
-        # bounds = np.array([self.clip_model.dz[0], self.clip_model.dz[-1],
-        #                    self.clip_model.dx[0], self.clip_model.dx[-1]])
-        # self.map.set_axis_limits(ax=self.map.window['axes'][1], bounds=bounds)
-        # self.map.window['axes'][1].yaxis.tick_right()
-        # self.map.window['axes'][1].yaxis.set_label_position('right')
 
     def toggle_transect3D(self):
+        """``interpCheckbox`` handler: show / hide the 3-D transect
+        surface (unchecks itself if no transect has been generated yet)."""
         if self.slices['transect'] != []:
             if self.interpCheckbox.checkState():
                 self.plot_transect3D(redraw=True)
             else:
                 self.vtk_widget.remove_actor(self.actors['transect'])
-                # self.vtk_widget.update()
                 self.show_bounds()
         else:
             self.interpCheckbox.setCheckState(False)
 
 
 def main():
+    """Console entry point: classify the positional file arguments with
+    :func:`pyMT.utils.sort_files`, require a model file, and show the
+    :class:`ModelWindow`."""
     files = sys.argv[1:]
     for file in files:
         if not check_file(file):
             print('File {} not found.'.format(file))
             return
     files = sort_files(files=files)
-    # try:
-    #     data = DS.Data(datafile=files['dat'])
-    # except KeyError:
-    #     print('No data file given. Site locations will not be available.')
-    #     data = None
     try:
         model = DS.Model(files['model'])
     except KeyError:
@@ -1415,8 +1450,6 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     viewer = ModelWindow(files)
     viewer.setWindowIcon(QtGui.QIcon(model_viewer_jpg))
-    # viewer.setWindowTitle('Model Viewer - {}'.format(ospath.abspath(files['model'])))
-
     viewer.show()
     ret = app.exec_()
     sys.exit(ret)
@@ -1424,5 +1457,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
-    # window.disconnect_mpl_events()
