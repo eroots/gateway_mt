@@ -10,3 +10,4 @@ pyMT/scripts/crooked_model_slice.py
 pyMT/scripts/personal_use
 pyMT/scripts/test_outputs
 tests/baseline_ds/roundtrip_*
+tests/baseline_io/scratch/

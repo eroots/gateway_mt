@@ -1,3 +1,42 @@
+"""File-format I/O for :mod:`pyMT`.
+
+This is the read/write layer.  It has no classes -- just module-level
+functions -- and holds all knowledge of the on-disk formats.
+:mod:`pyMT.data_structures` delegates every file operation here; it does no
+parsing of its own.
+
+Supported formats
+-----------------
+====================  ==========================================  ===================
+Kind                  Read                                        Write
+====================  ==========================================  ===================
+Inversion data        :func:`read_data` (ModEM, WSINV3DMT,         :func:`write_data`
+                      MARE2DEM, EM3DANI, GoFEM)
+Raw transfer fns      :func:`read_raw_data` (EDI, j-format)        :func:`write_edi`
+3-D / 2-D model       :func:`read_model` (ModEM 3D/2D, EM3DANI,    :func:`write_model`
+                      MT3DANI)
+Covariance            :func:`read_covariance`                      :func:`write_covariance`
+Site list             :func:`read_sites`                           :func:`write_list`
+VTK                   --                                          :func:`model_to_vtk`,
+                                                                  :func:`sites_to_vtk`
+Phase tensors / tip   --                                          :func:`write_phase_tensors`,
+                                                                  :func:`write_induction_arrows`
+Locations             --                                          :func:`write_locations` (csv/shp)
+====================  ==========================================  ===================
+
+Conventions
+-----------
+* :data:`REMOVE_FLAG` (``1234567``) marks a data point excluded from
+  inversion; it is written into error columns.
+* :data:`INVERSION_TYPES` maps the numeric inversion type (1-19) to its
+  ordered component tuple; :mod:`pyMT.data_structures` imports this.
+* :func:`read_data` returns ``(sites, other_info)`` where ``sites`` is
+  ``{name: {'data', 'errors', 'periods', 'locations', 'azimuth', ...}}`` and
+  ``other_info`` carries ``inversion_type``, ``site_names``, ``origin``,
+  ``UTM_zone`` and ``dimensionality``.
+* Several interactive helpers (:func:`verify_input`) prompt on stdin -- used
+  by the command-line scripts, not the GUIs.
+"""
 from pyMT.WSExceptions import WSFileError
 import pyMT.utils as utils
 import numpy as np
@@ -8,6 +47,7 @@ import shapefile
 import datetime
 from collections import OrderedDict
 
+#: Value written into an error column to mark a data point as excluded.
 REMOVE_FLAG = 1234567
 
 
@@ -70,6 +110,7 @@ INVERSION_TYPES = {1: ('ZXXR', 'ZXXI',  # 1-5 are WS formats
                         'TZYR', 'TZYI')}
 
 
+#: Path separator used for the hand-rolled path joins in this module.
 if os.name == 'nt':
     PATH_CONNECTOR = '\\'
 else:
@@ -77,6 +118,10 @@ else:
 
 
 def debug_print(items, file):
+    """Append a timestamp and ``repr(items)`` to ``file`` (opened in ``a+`` mode).
+
+    A lightweight logging helper used by the GUIs during development.
+    """
     with open(file, 'a+') as f:
         datetime_obj = datetime.datetime.now()
         f.write(str(datetime_obj) + '\n')
@@ -84,14 +129,20 @@ def debug_print(items, file):
 
 
 def get_components(invType=None, NR=None):
-    """Summary
+    """Return the impedance/tipper components for an inversion type or count.
 
-    Args:
-        invType (TYPE): Description
-        NR (TYPE): Description
+    Parameters
+    ----------
+    invType : int, optional
+        Numeric inversion type (1-5 handled here).
+    NR : int, optional
+        Number of components (4, 8 or 12); used only when ``invType`` is not
+        given.
 
-    Returns:
-        TYPE: Description
+    Returns
+    -------
+    list
+        ``[components_tuple, index_tuple]``.
     """
     possible = ('ZXXR', 'ZXXI',
                 'ZXYR', 'ZXYI',
@@ -99,7 +150,6 @@ def get_components(invType=None, NR=None):
                 'ZYYR', 'ZYYI',
                 'TZXR', 'TZXI',
                 'TZYR', 'TZYI')
-    # print(invType)
     if not NR:
         NR = 0
     if (NR == 8 and not invType) or (invType == 1):
@@ -111,38 +161,36 @@ def get_components(invType=None, NR=None):
     elif invType == 3:
         comps = [possible[8:], tuple(range(4))]
     elif invType == 4:
-        # comps = [possible[2, 3, 4, 5, 8, 9, 10, 11],
         comps = [possible[2:6] + possible[8:12],
                  tuple(range(8))]
-        # tuple(range(8))]
-    elif invType == 5:
-        comps = possible
+    else:
+        raise ValueError('Cannot resolve components for invType={}, NR={}'.format(invType, NR))
     return comps
 
 
 def model_to_vtk(model, outfile=None, origin=None, UTM=None, azi=0, sea_level=0):
-    """
-    Write model to VTK ascii format
-    VTK format has X running west-east, Y running south-north, so model dimensions
-    need to be swapped.
-    Model origin should be archived throughout the process, i.e. stuffed into model
-    or data files so it can be recovered at any time. Positive Z goes UP, so model needs to
-    be flipped in Z.
-    This also can accept a data file so that a seperate VTK file is written with site
-    locations. Because of the fact that 2 files can be read, you should also look for
-    UTM coordinates in both, if necessary / possible.
-    Want this process to be as easy as possible, so there should probably be
-    several possible ways of reading. You could specify directly the model and data files,
-    specify a file containing the names of the files, you can specify nothing and it could
-    look for the model with the best RMS and use that, or there could just be a browser.
-    For now I'll just have to do things manually until I get it all built and moved to the
-    cluster.
-    Usage on the cluster will probably have to be a call to a script which creates instances
-    of the data and model from the passed files, then passes these to this function.
-    That might be overkill though, so another option might just to be to have a lightweight
-    version of this that just does what is necessary to spit out the VTK file.
-    All of Model, Data, and Dataset should probably have wrapper methods for this though that
-    just redirect the data to here.
+    """Write a :class:`~pyMT.data_structures.Model` to a VTK ASCII structured grid.
+
+    VTK has X running west-east and Y south-north (the opposite of the model),
+    and positive Z upward, so the array is transposed and flipped in Z on the
+    way out.  If ``model.resolution`` is set, extra scalar arrays
+    (``Raw_Resolution``, ``Modified_Resolution``) are written alongside
+    ``Resistivity``.
+
+    Parameters
+    ----------
+    model : pyMT.data_structures.Model
+    outfile : str, optional
+        Base name; ``'_model.vtk'`` is appended.  Defaults to the model's own
+        file name.
+    origin : tuple of float, optional
+        ``(x, y)`` offset added to the mesh (georeferencing).
+    UTM : str, optional
+        UTM zone string, written into the header.
+    azi : float, optional
+        Rotation applied to the mesh before writing.  Default 0.
+    sea_level : float, optional
+        Z datum.  Default 0.
     """
     def prep_model(model):
         values = copy.deepcopy(model)
@@ -245,7 +293,28 @@ def model_to_vtk(model, outfile=None, origin=None, UTM=None, azi=0, sea_level=0)
 
 
 def read_covariance(cov_file):
-    # Currently does not support actual smoothing exceptions, just air and ocean masks.
+    """Read a ModEM covariance file.
+
+    Parameters
+    ----------
+    cov_file : str
+
+    Returns
+    -------
+    nx, ny, nz : int
+        Mesh dimensions.
+    sigma_x, sigma_y, sigma_z : list of float
+        Per-direction smoothing coefficients.
+    num_smooth : int
+        Number of smoothing passes.
+    cov_exceptions : numpy.ndarray
+        Per-cell exception codes (air / ocean masks); all ones for a plain
+        covariance file with no exception blocks.
+
+    Notes
+    -----
+    Only air / ocean masks are handled, not general smoothing exceptions.
+    """
     with open(cov_file, 'r') as f:
         for ii in range(16):
             f.readline()
@@ -267,34 +336,61 @@ def read_covariance(cov_file):
             for ii in range(nz):
                 idx1, idx2 = [int(x) for x in covlines[ii + ii * nx].strip().split()]
                 for jj in range(nx):
-                    cov_exceptions[model.nx - jj - 1, :, idx1-1:idx2] = np.expand_dims(np.array([int(x) for x in covlines[jj + 1 + ii * (nx + 1)].split()]), axis=1)
+                    cov_exceptions[nx - jj - 1, :, idx1-1:idx2] = np.expand_dims(np.array([int(x) for x in covlines[jj + 1 + ii * (nx + 1)].split()]), axis=1)
         except IndexError:
-            cov_expections = 0
+            # No exception block -- a plain covariance file. Keep the all-ones array.
+            pass
         return nx, ny, nz, sigma_x, sigma_y, sigma_z, num_smooth, cov_exceptions
 
 
 def read_freqset(path='./'):
+    """Read the period list from a ``freqset`` file in directory ``path``.
+
+    The first line (a count) is ignored; the rest are read as floats.
+
+    Parameters
+    ----------
+    path : str, optional
+        Directory containing the ``freqset`` file.
+
+    Returns
+    -------
+    list of float
+    """
     freqset = PATH_CONNECTOR.join([path, 'freqset'])
     with open(freqset, 'r') as f:
         lines = f.readlines()
-        # nf = int(lines[0])
         periods = [float(x) for x in lines[1:]]
-        # if len(periods) != nf:
-        #     print('Quoted number of periods, {}, is not equal to the actual number, {}'.format(
-        #           nf, len(periods)))
-        #     while True:
-        #         resp = input('Continue anyways? (y/n)')
-        #         if resp not in ('yn'):
-        #             print('Try again.')
-        #         else:
-        #             break
     return periods
 
 
 def read_model(modelfile='', file_format='modem3d'):
+    """Read a resistivity model file.
+
+    Parameters
+    ----------
+    modelfile : str
+        Path to the model.  A ``.zani`` extension forces the MT3DANI reader.
+    file_format : {'modem3d', 'modem2d', 'em3dani', 'mt3dani'}, optional
+        Default ``'modem3d'``, which also auto-falls-back to 2-D then EM3DANI
+        on a parse error.
+
+    Returns
+    -------
+    mod : dict
+        ``{'xCS', 'yCS', 'zCS', 'vals'}`` (plus ``'rho_x'``/``'rho_y'``/
+        ``'rho_z'`` and ``'strike'``/``'dip'``/``'slant'`` for anisotropic
+        formats).  ``vals`` is an ``(nx, ny, nz)`` resistivity array.
+    dimensionality : {'2d', '3d'}
+
+    Raises
+    ------
+    pyMT.WSExceptions.WSFileError
+        If the file is not found.
+    """
 
     def read_em3dani(modelfile):
-        # Not fully written - probably won't work for general anisotropy yet.
+        """Read an EM3DANI model file into the ``mod`` dict (incomplete for general anisotropy)."""
         with open(modelfile, 'r') as f:
             mod = {'xCS': [], 'yCS': [], 'zCS': [], 'vals': [], 
                   'rho_x': [], 'rho_y': [], 'rho_z': [], 'zAir': [],
@@ -345,6 +441,8 @@ def read_model(modelfile='', file_format='modem3d'):
             return mod, False
 
     def read_3d(modelfile):
+        """Read a 3-D ModEM model: header ``NX NY NZ [MODTYPE [LOGE]]`` then the
+        cell sizes and the value array (``F``-order, flipped in X)."""
         with open(modelfile, 'r') as f:
             mod = {'xCS': [], 'yCS': [], 'zCS': [], 'vals': []}
             # Skip any comment lines at the top
@@ -380,6 +478,7 @@ def read_model(modelfile='', file_format='modem3d'):
         return mod, loge_flag
 
     def read_2d(modelfile):
+        """Read a 2-D ModEM model (header ``NY NZ MODTYPE``); X is faked as 10 x 100 m cells."""
         with open(modelfile, 'r') as f:
             mod = {'xCS': [100] * 10, 'yCS': [], 'zCS': [], 'vals': []}
             # while True:
@@ -409,8 +508,10 @@ def read_model(modelfile='', file_format='modem3d'):
         return mod, loge_flag
    
     def read_mt3dani(modelfile, n_param=3):
+        """Read an MT3DANI (``.zani``) anisotropic model: ``n_param`` value arrays
+        (``rho_x``, ``rho_y``, ``rho_z``, ``strike``, ``dip``, ``slant``)."""
         with open(modelfile, 'r') as f:
-            mod = {'xCS': [], 'yCS': [], 'zCS': [], 'vals': [], 
+            mod = {'xCS': [], 'yCS': [], 'zCS': [], 'vals': [],
                   'rho_x': [], 'rho_y': [], 'rho_z': [],
                   'strike': [], 'dip': [], 'slant': []}
             # Skip any comment lines at the top
@@ -489,21 +590,42 @@ def read_model(modelfile='', file_format='modem3d'):
 
 
 def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_bar=None):
-    """Summary
+    """Read raw transfer functions from EDI or j-format station files.
 
-    Args:
-        site_names (TYPE): Description
-        datpath (str, optional): Description
+    Parameters
+    ----------
+    site_names : list of str
+        Station names (file basenames without extension).
+    datpath : str, optional
+        Directory holding the station files.
+    edi_locs_from : {'definemeas', ...}, optional
+        Which EDI block to take site coordinates from.
+    progress_bar : optional
+        Qt progress-bar widget for the GUIs.
 
-    Returns:
-        TYPE: Description
+    Returns
+    -------
+    dict
+        ``{name: {'data', 'errors', 'locations', 'periods', 'azimuth'}}``.
+
+    Raises
+    ------
+    pyMT.WSExceptions.WSFileError
+        On a missing file, or inconsistent period counts within a file.
     """
     RAW_COMPONENTS = ('ZXX', 'ZXY',
                       'ZYX', 'ZYY',
                       'TZX', 'TZY')
 
     def read_dat(file, long_origin=999):
+        """Read one j-format (``.dat``) station file.
 
+        Header ``>`` lines give azimuth / lat / long / elevation; lat/long are
+        converted to UTM (:func:`pyMT.utils.geo2utm`).  Each ``ZXX``/``TZX``...
+        block is followed by its point count and ``period real imag error``
+        rows; the imaginary part is negated for the pyMT sign convention.
+        Returns ``(site_dict, long_origin)``.
+        """
         try:
             with open(file, 'r') as f:
                 siteData_dict = {}
@@ -533,7 +655,6 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
                 lines = f.read().splitlines()
                 comps = [(ii, comp[:3]) for ii, comp in enumerate(lines)
                          if comp[:3] in RAW_COMPONENTS]
-                ns = [int(lines[int(ii[0]) + 1]) for ii in comps]
                 ns_cache = []
                 for ii, comp in comps:
                     ns = int(lines[ii + 1])
@@ -566,14 +687,14 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
                      }
         return site_dict, long_origin
 
-        # For now I'm only concerned with reading impedances and tipper
-        # I make some assumptions, that may have to be changed later:
-        #   Rotation angles are all the same
     def read_edi(file, long_origin=999, edi_locs_from='definemeas'):
-        # For now I'm only concerned with reading impedances and tipper
-        # I make some assumptions, that may have to be changed later:
-        #   Rotation angles are all the same
-        #   Negatives in Lat/Long are ignored
+        """Read one SEG EDI station file.
+
+        Only impedance and tipper are read.  Assumes a single rotation angle
+        for the whole file.  Site coordinates come from the ``=DEFINEMEAS``
+        block by default (``edi_locs_from``); errors are ``sqrt`` of the
+        ``.VAR`` blocks.  Returns ``(site_dict, long_origin)``.
+        """
         def extract_blocks(lines):
             blocks = {'HEAD': [],
                       'ZROT': [],
@@ -894,13 +1015,24 @@ def read_raw_data(site_names, datpath='', edi_locs_from='definemeas', progress_b
 
 
 def read_sites(listfile):
-    """Summary
+    """Return the station names listed in ``listfile``.
 
-    Args:
-        listfile (TYPE): Description
+    A lone ``.edi`` path returns a one-element list.  Otherwise the first line
+    is treated as an optional count (kept as a name if it isn't an integer),
+    and ``.dat`` / ``.edi`` extensions are stripped from every name.
 
-    Returns:
-        TYPE: Description
+    Parameters
+    ----------
+    listfile : str
+
+    Returns
+    -------
+    list of str
+
+    Raises
+    ------
+    pyMT.WSExceptions.WSFileError
+        If ``listfile`` does not exist.
     """
     # If the given file is just a single EDI, set the list to just that file
     if listfile.endswith('.edi'):
@@ -913,19 +1045,28 @@ def read_sites(listfile):
             try:
                 ns = int(ns)
             except ValueError:
-                site_names.insert(0, ns.replace('.edi','').replace('.dat','').strip())
+                site_names.insert(0, ns.replace('.edi', '').replace('.dat', '').strip())
             site_names = [name.replace('.dat', '') for name in site_names]
             site_names = [name.replace('.edi', '') for name in site_names]
-
-            # if ns != len(site_names):
-            #     raise(WSFileError(ID='int', offender=listfile,
-            #                       extra='# Sites does not match length of list.'))
         return site_names
     except FileNotFoundError:
         raise(WSFileError('fnf', offender=listfile))
 
 
 def read_startup(file=None):
+    """Read selected keys from a WSINV3DMT ``startup`` file.
+
+    Parameters
+    ----------
+    file : str, optional
+        Path to the startup file.  Defaults to ``'startup'`` in the CWD.
+
+    Returns
+    -------
+    dict
+        Any of ``'inv_type'``, ``'errFloorZ'``, ``'errFloorT'``, ``'datafile'``
+        that were present.
+    """
     s_dict = {}
     if not file:
         file = 'startup'
@@ -943,105 +1084,27 @@ def read_startup(file=None):
     return s_dict
 
 
-def read_occam_data(datafile):
-    with open(datafile, 'r') as f:
-        lines = f.readlines()
-        for ii, line in enumerate(lines):
-            if 'sites' in line.lower():
-                NS = int(line.split(':')[1].strip())
-                site_line = ii + 1
-            if 'offsets' in line.lower():
-                off_line = ii + 1
-            if 'frequencies' in line.lower():
-                NF = int(line.split(':')[1].strip())
-                freq_line = ii + 1
-                break
-        frequencies = []
-        offsets = []
-        for line in lines[off_line: off_line + NS]:
-            if 'frequencies' in line.lower():
-                break
-            else:
-                offsets.append(line)
-        for ii, line in enumerate(lines[freq_line: freq_line + NF]):
-            if 'DATA' in line.upper():
-                ND = int(line.split(':')[1].strip())
-                data_line = ii + 2
-                break
-            else:
-                frequencies.append(line)
-        frequencies = utils.flatten_list([x.split() for x in frequencies])
-        # frequencies = [item for sublist in frequencies for item in sublist]
-        # frequencies = [float(x) for x in frequencies]
-        frequencies = np.array([float(f) for f in frequencies])
-        sites = lines[site_line: site_line + NS]
-        sites = [site.strip() for site in sites]
-        offsets = utils.flatten_list([x.split() for x in offsets])
-        offsets = [float(x) for x in offsets]
-        all_data = np.zeros((ND, 5))
-        for ii, line in enumerate(lines[data_line:]):
-            all_data[ii, :] = [float(x) for x in line.split()]
-        sites_dict = {}
-        for ii, site in enumerate(sites):
-            site_data = {'ZXYR': [], 'ZXYI': [], 'ZYXR': [], 'ZYXI': []}
-            rhoxy = all_data[np.bitwise_and(all_data[:, 2] == 1, all_data[:, 0] == ii + 1), 3]
-            rhoyx = all_data[np.bitwise_and(all_data[:, 2] == 5, all_data[:, 0] == ii + 1), 3]
-            phaxy = all_data[np.bitwise_and(all_data[:, 2] == 2, all_data[:, 0] == ii + 1), 3]
-            phayx = all_data[np.bitwise_and(all_data[:, 2] == 6, all_data[:, 0] == ii + 1), 3]
-            site_data['ZXYR'], site_data['ZXYI'] = utils.convert2impedance(rhoxy,
-                                                                           phaxy,
-                                                                           1 / frequencies,
-                                                                           'xy')
-            site_data['ZYXR'], site_data['ZYXI'] = utils.convert2impedance(rhoyx,
-                                                                           phayx,
-                                                                           1 / frequencies,
-                                                                           'yx')
-            site_errs = {'ZXYR': np.zeros((NF, 1)),
-                         'ZXYI': np.zeros((NF, 1)),
-                         'ZYXR': np.zeros((NF, 1)),
-                         'ZYXI': np.zeros((NF, 1))}
-            site_errmap = {'ZXYR': np.ones((NF, 1)),
-                           'ZXYI': np.ones((NF, 1)),
-                           'ZYXR': np.ones((NF, 1)),
-                           'ZYXI': np.ones((NF, 1))}
-            locations = {'X': 0, 'Y': offsets[ii]}
-            sites_dict.update({site: {
-                               'data': site_data,
-                               'errors': site_errs,
-                               'errmap': site_errmap,
-                               'periods': 1 / frequencies,
-                               'locations': locations,
-                               'azimuth': 0,
-                               'errFloorZ': None,
-                               'errFloorT': None}
-                               })
-    return sites_dict, sites
-
-
-def read_occam_response(respfile, data, sites):
-    all_data = np.loadtxt(respfile)
-    response = copy.deepcopy(data)
-    for ii, site in enumerate(sites):
-        rhoxy = all_data[np.bitwise_and(all_data[:, 2] == 1, all_data[:, 0] == ii + 1), 5]
-        rhoyx = all_data[np.bitwise_and(all_data[:, 2] == 5, all_data[:, 0] == ii + 1), 5]
-        phaxy = all_data[np.bitwise_and(all_data[:, 2] == 2, all_data[:, 0] == ii + 1), 5]
-        phayx = all_data[np.bitwise_and(all_data[:, 2] == 6, all_data[:, 0] == ii + 1), 5]
-        response[site]['data']['ZXYR'],
-        response[site]['data']['ZXYI'] = utils.convert2impedance(rhoxy,
-                                                                 phaxy,
-                                                                 data[site]['periods'],
-                                                                 'xy')
-        response[site]['data']['ZYXR'],
-        response[site]['data']['ZYXI'] = utils.convert2impedance(rhoyx,
-                                                                 phayx,
-                                                                 data[site]['periods'],
-                                                                 'yx')
-        return response
-
-
 def read_data_header(datafile=None, file_format=None):
-    # Just read whatever is necessary to get the number of sites, periods, components from the file
+    """Read just enough of a data file to get ``(NS, NP)``.
 
+    Parameters
+    ----------
+    datafile : str
+    file_format : str, optional
+        Inferred from the extension if omitted.  ``'wsinv3dmt'`` tries the
+        WSINV, EM3DANI and ModEM headers in turn (they can share the ``.data``
+        extension).
+
+    Returns
+    -------
+    NS, NP : int
+        Number of sites and periods.
+
+    Raises
+    ------
+    pyMT.WSExceptions.WSFileError
+        If the format is not recognised.
+    """
     def read_ws_header(datafile):
         with open(datafile, 'r') as f:
             header = f.readline().strip().split()
@@ -1119,18 +1182,45 @@ def read_data_header(datafile=None, file_format=None):
 
 
 def read_data(datafile='', site_names='', file_format='modem', invType=None):
-    """Summary
+    """Read an inversion data file into a per-site dict.
 
-    Args:
-        datafile (str, optional): Description
-        site_names (str, optional): Description
-        filetype (str, optional): Description
-        invType (None, optional): Description
+    Dispatches to a nested per-format reader (``read_ws_data``,
+    ``read_modem_data``, ``read_mare2dem_data``, ``read_em3dani``,
+    ``read_gofem``).
 
-    Returns:
-        TYPE: Description
+    Parameters
+    ----------
+    datafile : str
+    site_names : list of str, optional
+        Names to assign, in file order (needed for formats that don't carry
+        names, e.g. WSINV3DMT).
+    file_format : {'wsinv3dmt', 'modem', 'mare2dem', 'em3dani', 'gofem'}, optional
+        Default ``'modem'``.
+    invType : int, optional
+        Force the inversion type instead of inferring it from the components.
+
+    Returns
+    -------
+    sites : dict
+        ``{name: {'data', 'errors', 'periods', 'locations', 'azimuth',
+        'errFloorZ', 'errFloorT'}}``.
+    other_info : dict
+        ``{'inversion_type', 'site_names', 'origin', 'UTM_zone',
+        'dimensionality'}``.
+
+    Raises
+    ------
+    pyMT.WSExceptions.WSFileError
+        On a missing file or an unsupported component set.
     """
     def read_ws_data(datafile='', site_names='', invType=None):
+        """Read a WSINV3DMT ``.data`` file.
+
+        Header is ``NS NP NR [background]``; then N-S and E-W station
+        locations, then ``DATA_Period`` / ``ERROR_Period`` / ``ERMAP_Period``
+        blocks.  WSINV files carry no station names, so ``site_names`` is used
+        (falling back to ``site_0``, ``site_1`` ...).
+        """
         try:
             with open(datafile, 'r') as f:
                 # Skip comment lines
@@ -1236,6 +1326,16 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
         return sites, other_info
 
     def read_modem_data(datafile='', site_names='', invType=None):
+        """Read a ModEM data file (3-D impedance/tipper/phase-tensor or 2-D TE/TM).
+
+        The file is split into ``# ...`` blocks; each block header gives the
+        data type, sign convention, units, azimuth, origin and ``NP NS``.
+        Impedance/tipper imaginary parts and errors are scaled by the unit
+        factor; a ``+iwt`` sign convention flips the imaginary sign.  Phase
+        tensor components are swapped X<->Y to the Caldwell et al. convention.
+        Missing period/component combinations are filled with dummy data
+        flagged with :data:`REMOVE_FLAG`.  Returns ``(sites, other_info)``.
+        """
         COMPONENTS_3D = ('Full_Impedance', 'Full_Vertical_Components',
                          'Off_Diagonal_Impedance', 'Phase_Tensor')
         COMPONENTS_2D = ('TE_Impedance', 'TM_Impedance')
@@ -1319,27 +1419,16 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
                             component = component[0] + 'Z' + component[1]
                         real, imag = [float(x) for x in line[8:10]]
                         error = float(line[10])
-
-
-                        # site_data[site_name].update({component + 'I': {period: imag}})
-                        # site_error[site_name].update({component + 'R': {period: error}})
-                        # site_error[site_name].update({component + 'I': {period: error}})
                         if component + 'R' not in site_data[site_name].keys():
                             site_data[site_name].update({component + 'R': {}})
-                        # if component + 'I' not in site_data[site_name].keys():
                             site_data[site_name].update({component + 'I': {}})
                         if component + 'R' not in site_error[site_name].keys():
                             site_error[site_name].update({component + 'R': {}})
-                        # if component + 'I' not in site_error[site_name].keys():
                             site_error[site_name].update({component + 'I': {}})
                         site_data[site_name][component + 'R'].update({period: scale_factor * real})
                         site_data[site_name][component + 'I'].update({period: sign_multiplier * scale_factor * imag})
                         site_error[site_name][component + 'R'].update({period: scale_factor * error})
                         site_error[site_name][component + 'I'].update({period: scale_factor * error})
-                        # site_data[site_name][component + 'R'].append(real)
-                        # site_data[site_name][component + 'I'].append(imag)
-                        # site_error[site_name][component + 'R'].append(error)
-                        # site_error[site_name][component + 'I'].append(error)
                     elif component.upper().startswith('PT'):
                         real = float(line[8])
                         error = float(line[9])
@@ -1487,234 +1576,14 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
                       'dimensionality': dimensionality}
         return sites, other_info
 
-    def read_modem_data_old(datafile='', site_names='', invType=None):
-        #  Will only ready Impedance and TF data so far, not rho/phase
-        # print('Inside read_modem_data')
-        try:
-            with open(datafile, 'r') as f:
-                lines = f.readlines()
-        except FileNotFoundError:
-            raise(WSFileError(ID='fnf', offender=datafile)) from None
-        marker = -10
-        block_start = []
-        periods = []
-        sites = {}
-        site_data = {}
-        site_error = {}
-        # site_errmap = {}
-        site_locations = {}
-        site_periods = {}
-        inv_type = 0
-        new_site_names = []
-        if site_names:
-            site_data = {site: {} for site in site_names}
-            site_error = {site: {} for site in site_names}
-            site_locations = {site: {'X': [], 'Y': [], 'elev': []} for site in site_names}
-            site_periods = {site: [] for site in site_names}
-        for ii, line in enumerate(lines):
-            if '#' in line and marker + 1 != ii:
-                marker = ii
-                block_start.append(ii)
-        block_start.append(len(lines))
-        for ii, line_number in enumerate(block_start[:-1]):
-            header = lines[line_number + 1]
-            if 'UTM Zone:' in header:
-                UTM_zone = header.split(':')[1]
-            else:
-                UTM_zone = 'Undefined'
-            data_type = lines[line_number + 2].split('>')[1].strip()
-            azimuth = float(lines[line_number + 5].split('>')[1].strip())
-            o_x, *o_y = [float(x) for x in lines[line_number + 6].split('>')[1].strip().split()]
-            o_y = o_y[0]
-            NP, NS = [int(x) for x in lines[line_number + 7].split('>')[1].strip().split()]
-            if data_type == 'Full_Impedance':
-                dimensionality = '3D'
-                if inv_type == 3:
-                    inv_type = 5
-                else:
-                    inv_type = 1
-            #     components = ('ZXX', 'ZYY', 'ZXY', 'ZYR')
-            elif data_type == 'Full_Vertical_Components':
-                dimensionality = '3D'
-                if inv_type == 1:
-                    inv_type = 5
-                elif inv_type == 2:
-                    inv_type = 4
-                elif inv_type == 6:
-                    inv_type = 7
-                else:
-                    inv_type = 3
-            #     components = ('TX', 'TY')
-            elif data_type == 'Off_Diagonal_Impedance':
-                dimensionality = '3D'
-                if inv_type == 3:
-                    inv_type = 4
-                else:
-                    inv_type = 2
-            #     # components = ('ZXY', 'ZYX')
-            elif data_type == 'Phase_Tensor':
-                dimensionality = '3D'
-                if inv_type == 3:
-                    inv_type = 7
-                else:
-                    inv_type = 6
-            elif data_type == 'TE_Impedance':
-                dimensionality = '2D'
-                if inv_type == 9:
-                    inv_type = 10
-                else:
-                    inv_type = 8
-            elif data_type == 'TM_Impedance':
-                dimensionality = '2D'
-                if inv_type == 8:
-                    inv_type = 10
-                else:
-                    inv_type = 9
-            if dimensionality == '3D':
-                for line_string in lines[block_start[ii] + 8: block_start[ii + 1]]:
-                    line = line_string.split()
-                    period = float(line[0])
-                    # periods.append(float(line[0]))
-                    site_name = line[1]
-                    X, Y, Z = [float(x) for x in line[4:7]]
-                    if site_name not in site_data.keys():
-                        site_data.update({site_name: {}})
-                        site_error.update({site_name: {}})
-                        site_locations.update({site_name: {'X': [],
-                                                           'Y': [],
-                                                           'elev': []}})
-                        site_periods.update({site_name: []})
-
-                    if site_name not in new_site_names:
-                        new_site_names.append(site_name)
-                    site_locations[site_name]['X'] = X
-                    site_locations[site_name]['Y'] = Y
-                    site_locations[site_name]['elev'] = Z
-                    if period not in site_periods[site_name]:
-                        site_periods[site_name].append(period)
-
-                    component = line[7]
-                    # if inv_type <= 5:
-                    if component.upper().startswith('Z') or component.upper().startswith('T'):
-                        real, imag = [float(x) for x in line[8:10]]
-                        error = float(line[10])
-                        if component == 'TX' or component == 'TY':
-                            component = component[0] + 'Z' + component[1]
-                        if component + 'R' not in site_data[site_name].keys():
-                            site_data[site_name].update({component + 'R': []})
-                        if component + 'I' not in site_data[site_name].keys():
-                            site_data[site_name].update({component + 'I': []})
-                        if component + 'R' not in site_error[site_name].keys():
-                            site_error[site_name].update({component + 'R': []})
-                        if component + 'I' not in site_error[site_name].keys():
-                            site_error[site_name].update({component + 'I': []})
-                        # if component not in site_errmap.keys():
-                        #     site_errmap[site_name].update({component + 'R': []})
-                        #     site_errmap[site_name].update({component + 'I': []})
-                        site_data[site_name][component + 'R'].append(real)
-                        site_data[site_name][component + 'I'].append(imag)
-                        site_error[site_name][component + 'R'].append(error)
-                        site_error[site_name][component + 'I'].append(error)
-                    elif component.upper().startswith('PT'):
-                        real = float(line[8])
-                        error = float(line[9])
-                        # For now we are swapping the X and Y's to conform with the Caldwell et al. definition
-                        swapped_component = component.replace('X', '1')
-                        swapped_component = swapped_component.replace('Y', 'X')
-                        swapped_component = swapped_component.replace('1', 'Y')
-                        if swapped_component not in site_data[site_name].keys():
-                            site_data[site_name].update({swapped_component: []})
-                        if swapped_component not in site_error[site_name].keys():
-                            site_error[site_name].update({swapped_component: []})
-                        site_data[site_name][swapped_component].append(real)
-                        site_error[site_name][swapped_component].append(error)
-                    # print(site_data[site_lookup[code]][component + 'R'])
-                    else:
-                        print('Component {} not understood. Skipping'.format(component))
-
-            elif dimensionality == '2D':
-                for line_string in lines[block_start[ii] + 8: block_start[ii + 1]]:
-                    line = line_string.split()
-                    periods.append(float(line[0]))
-                    site_name = line[1]
-                    X, Y, Z = [float(x) for x in line[4:7]]
-                    if site_name not in site_data.keys():
-                        site_data.update({site_name: {}})
-                        site_error.update({site_name: {}})
-                        site_locations.update({site_name: {'X': [],
-                                                           'Y': [],
-                                                           'elev': []}})
-                    if site_name not in new_site_names:
-                        new_site_names.append(site_name)
-                    site_locations[site_name]['X'] = X
-                    site_locations[site_name]['Y'] = Y
-                    site_locations[site_name]['elev'] = Z
-
-                    component = line[7]
-                    real, imag = [float(x) for x in line[8:10]]
-                    error = float(line[10])
-                    if component == 'TE':
-                        if 'ZXYR' not in site_data[site_name].keys():
-                            site_data[site_name].update({'ZXYR': []})
-                            site_data[site_name].update({'ZXYI': []})
-                            site_error[site_name].update({'ZXYR': []})
-                            site_error[site_name].update({'ZXYI': []})
-                        site_data[site_name]['ZXYR'].append(real)
-                        site_data[site_name]['ZXYI'].append(imag)
-                        site_error[site_name]['ZXYR'].append(error)
-                        site_error[site_name]['ZXYI'].append(error)
-                    if component == 'TM':
-                        if 'ZYXR' not in site_data[site_name].keys():
-                            site_data[site_name].update({'ZYXR': []})
-                            site_data[site_name].update({'ZYXI': []})
-                            site_error[site_name].update({'ZYXR': []})
-                            site_error[site_name].update({'ZYXI': []})
-                        site_data[site_name]['ZYXR'].append(real)
-                        site_data[site_name]['ZYXI'].append(imag)
-                        site_error[site_name]['ZYXR'].append(error)
-                        site_error[site_name]['ZYXI'].append(error)
-        # periods = np.unique(np.array(periods))
-        # print(site_data[site_names[0]])
-        # site_errmap[site][component] = np.array(site_errmap[site][component])
-        # print(site_data[site][component])
-        if not site_names:
-            site_names = new_site_names
-        elif site_names != new_site_names:
-            print('Site names specified in list file do not match those in {}\n'.format(datafile))
-            print('Proceeding with names set in list file.\n')
-            # site_names = new_site_names
-        all_periods = []
-        for site in new_site_names:
-            idx = np.argsort(site_periods[site])
-            periods = sorted(site_periods[site])
-            all_periods.append(periods)
-            for component in site_data[site].keys():
-                vals = site_data[site][component]
-                site_data[site][component] = np.array(vals)[idx]
-                vals = site_error[site][component]
-                site_error[site][component] = np.array(vals)[idx]
-        # Sites get named according to list file, but are here internally called
-        all_periods = np.unique(np.array(periods))
-        # according to the data file
-        for ii, site in enumerate(site_names):
-
-            sites.update({site: {
-                          'data': site_data[new_site_names[ii]],
-                          'errors': site_error[new_site_names[ii]],
-                          'periods': all_periods,
-                          'locations': site_locations[new_site_names[ii]],
-                          'azimuth': azimuth,
-                          'errFloorZ': 0,
-                          'errFloorT': 0}
-                          })
-        other_info = {'inversion_type': inv_type,
-                      'site_names': site_names,
-                      'origin': (o_x, o_y),
-                      'UTM_zone': UTM_zone,
-                      'dimensionality': dimensionality}
-        return sites, other_info
-
     def read_mare2dem_data(datafile='', site_names='', invType=None):
+        """Read a MARE2DEM ``.emdata`` file.
+
+        Parses the ``MT Frequencies`` / ``MT Receivers`` / ``Data`` sections;
+        numeric data-type codes (101-126) map to ``Rho``/``Phs`` component
+        names, which are converted to impedance via
+        :func:`pyMT.utils.convert2impedance`.
+        """
         data_type_lookup = {101: 'RhoZXX',
                             102: 'PhsZXX',
                             103: 'RhoZXY',
@@ -1912,6 +1781,12 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
         return site_dict, other_info
 
     def read_em3dani(datafile='', site_names=''):
+        """Read an EM3DANI ``.adat`` data file or ``.resp`` response file.
+
+        Format is chosen from the extension: a ``.resp`` file has no error
+        column (nested ``read_response_format``), otherwise ``read_data_format``
+        is used.  Frequency/receiver/component tables are read from the header.
+        """
         def read_data_format(lines, data, errors, site_names, components):
             for line in lines:
                 freqno, rxno, comp_no, real_val, imag_val, error_val = line.split()
@@ -2009,6 +1884,12 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
         return sites, other_info
 
     def read_gofem_locations(receiver_file='', backup_path=None):
+        """Read GoFEM receiver locations, trying several file names next to the data.
+
+        Falls back through ``receivers.csv`` / ``receivers_projected.csv`` in
+        ``backup_path`` and its parent before raising
+        :class:`~pyMT.WSExceptions.WSFileError`.
+        """
         def read_file(receiver_file):
             with open(receiver_file, 'r') as f:
                 lines = f.readlines()
@@ -2041,8 +1922,14 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
 
 
     def read_gofem(data_file, site_names=None, receiver_file=None):
+        """Read a GoFEM ``.gdat`` data file.
 
-        # This will need to be updated to allow phase tensor inversions later
+        Each line is ``DataType Frequency Source Receiver Value Error``.
+        Component names (``RealZxy``, ``ImagTzx`` ...) map to the pyMT names;
+        imaginary parts are negated for the pyMT sign convention.  Locations
+        come from a receiver file (see :func:`read_gofem_locations`).  Phase
+        tensor data is not yet handled.
+        """
         comp_dict = {'RealZxx': 'ZXXR',
                      'ImagZxx': 'ZXXI',
                      'RealZxy': 'ZXYR',
@@ -2193,23 +2080,33 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
 
 
 def write_locations(data, out_file=None, file_format='csv', verbose=0):
+    """Write site locations to CSV or a point shapefile.
+
+    Parameters
+    ----------
+    data : pyMT.data_structures.Data or RawData
+    out_file : str
+    file_format : {'csv', 'shp', 'kml'}, optional
+        ``'kml'`` is not implemented.  Default ``'csv'``.
+    verbose : int, optional
+        If truthy, also write ``Lat``/``Long`` columns (CSV only).
+    """
     def write_shapefile(data, outfile):
         if not outfile.endswith('.shp'):
             outfile += '.shp'
         if data.site_names:
             print('Writing shapefile with locations stored in data.locations')
-            w = shapefile.Writer(shapefile.POINT)
-            w.field('X', 'F', 10, 5)
-            w.field('Y', 'F', 10, 5)
-            w.field('Z', 'F', 10, 5)
-            w.field('Label')
-            for ii, site in enumerate(data.site_names):
-                X, Y, Z = (data.locations[ii, 1],
-                           data.locations[ii, 0],
-                           data.sites[site].locations['elev'])
-                w.point(X, Y, Z)
-                w.record(X, Y, Z, site)
-            w.save(outfile)
+            with shapefile.Writer(outfile, shapeType=shapefile.POINT) as w:
+                w.field('X', 'F', 10, 5)
+                w.field('Y', 'F', 10, 5)
+                w.field('Z', 'F', 10, 5)
+                w.field('Label')
+                for ii, site in enumerate(data.site_names):
+                    X, Y, Z = (data.locations[ii, 1],
+                               data.locations[ii, 0],
+                               data.sites[site].locations['elev'])
+                    w.point(X, Y)
+                    w.record(X, Y, Z, site)
 
     def write_csv(data, outfile):
         with open(outfile, 'w') as f:
@@ -2244,6 +2141,22 @@ def write_locations(data, out_file=None, file_format='csv', verbose=0):
 
 
 def sites_to_vtk(data, origin=None, outfile=None, UTM=None, sea_level=0, use_elevation=False):
+    """Write site locations as a VTK POLYDATA point set.
+
+    Parameters
+    ----------
+    data : pyMT.data_structures.Data
+    origin : tuple of float
+        ``(x, y)`` offset added to the locations.
+    outfile : str
+        Base name; ``'_sites.vtk'`` is appended if not already a ``.vtk`` path.
+    UTM : str
+        UTM zone string, written into the header (required).
+    sea_level : float, optional
+        Z value for all points (or datum, with ``use_elevation``).  Default 0.
+    use_elevation : bool, optional
+        Use each site's ``elev`` for Z instead of a flat ``sea_level``.
+    """
     errmsg = ''
     ox, oy = (0, 0)
     if isinstance(origin, str):
@@ -2254,9 +2167,9 @@ def sites_to_vtk(data, origin=None, outfile=None, UTM=None, sea_level=0, use_ele
         except TypeError:
             errmsg = '\n'.join([errmsg, 'Model origin must be properly specified.'])
     if not UTM:
-        errmsg = '\n'.join(['ERROR: UTM must be specified either in function call or in model'])
+        errmsg = '\n'.join([errmsg, 'ERROR: UTM must be specified either in function call or in model'])
     if errmsg:
-        print('\n'.join(errmsg))
+        print(errmsg)
         return
     version = '# vtk DataFile Version 3.0\n'
     if not outfile:
@@ -2288,6 +2201,27 @@ def sites_to_vtk(data, origin=None, outfile=None, UTM=None, sea_level=0, use_ele
 
 
 def verify_input(message, expected, default=None):
+        """Prompt on stdin until the input satisfies ``expected``.
+
+        Used by the command-line scripts.
+
+        Parameters
+        ----------
+        message : str
+            Prompt text.
+        expected : str or type
+            ``'read'`` / ``'write'`` (an existing / new file path, with an
+            overwrite sub-prompt), ``'numtuple'`` (comma/space separated
+            floats), a string of allowed single-character answers (e.g.
+            ``'yn'``), or a callable to convert with.
+        default : optional
+            Returned when the user just presses Enter.
+
+        Returns
+        -------
+        The validated / converted input, or ``False`` if the user declines an
+        overwrite.
+        """
         while True:
             ret = input(' '.join([message, '[Default: {}] > '.format(default)]))
             if ret == '' and default is not None:
@@ -2333,6 +2267,16 @@ def verify_input(message, expected, default=None):
                     print('Format error. Try again')
 
 def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=None):
+    """Write one :class:`~pyMT.data_structures.Site` to an SEG EDI file.
+
+    Parameters
+    ----------
+    site : pyMT.data_structures.Site
+        Must carry ``locations['Lat'/'Long']``.
+    out_file : str
+    info, header, mtsect, definemeas : dict, optional
+        Pre-built block contents to override the generated defaults.
+    """
     freqs = [round(1/x, 8) for x in site.periods]
     NP = len(freqs)
     scale_factor = 1 / (4 * np.pi / 10000)
@@ -2512,6 +2456,20 @@ def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=No
 
 
 def write_covariance(file_name, NX, NY, NZ, exceptions=None, sigma_x=0.3, sigma_y=0.3, sigma_z=0.3, num_smooth=1):
+    """Write a ModEM covariance file.
+
+    Parameters
+    ----------
+    file_name : str
+    NX, NY, NZ : int
+        Mesh dimensions.
+    exceptions : numpy.ndarray, optional
+        Per-cell exception codes; a block of them is written if given.
+    sigma_x, sigma_y, sigma_z : float or list of float, optional
+        Per-direction smoothing coefficients (a scalar is repeated).
+    num_smooth : int, optional
+        Number of smoothing passes.
+    """
     header = ['+', '|', '|', '|', '|', '|', '|', '|', '|',
               '|', '|', '|', '|', '|', '|', '+']
 
@@ -2560,10 +2518,30 @@ def write_covariance(file_name, NX, NY, NZ, exceptions=None, sigma_x=0.3, sigma_
 
 
 def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_elevation=False, include_flagged=True):
-    #  Writes out the contents of a Data object into format specified by 'file_format'
-    #  Currently implemented options include WSINV3DMT and ModEM3D.
+    """Write a :class:`~pyMT.data_structures.Data` object to file.
+
+    Dispatches to a nested per-format writer (``write_ws``, ``write_ModEM3D``,
+    ``write_ModEM2D``, ``write_MARE2DEM``, ``write_occam``, ``write_em3dani``,
+    ``write_gofem`` -- which also writes a ``frequencies`` sidecar -- or an
+    ``edi`` branch).
+
+    Parameters
+    ----------
+    data : pyMT.data_structures.Data
+    outfile : str
+    to_write : {'all', 'DATA', 'ERROR', 'ERMAP'}, optional
+        Which fields to write (WSINV3DMT).  Default all.
+    file_format : str, optional
+        ``'wsinv3dmt'``, ``'modem'``, ``'mare2dem'``, ``'occam'``,
+        ``'em3dani'``, ``'gofem'``, ``'edi'``.  Default ``'ModEM'``.
+    use_elevation : bool, optional
+        Write site elevations rather than zeros.
+    include_flagged : bool, optional
+        If ``False``, omit points whose error is :data:`REMOVE_FLAG`.
+    """
     #  Plans to implement OCCAM2D, MARE2DEM, and ModEM2D.
     def write_em3dani(data, outfile):
+        """Write an EM3DANI ``.adat`` data file (frequency/receiver/component tables + data block)."""
         if not outfile.lower().endswith('.adat'):
             outfile += '.adat'
         with open(outfile, 'w') as f:
@@ -2623,6 +2601,16 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
                                                                                                  errors[kk]))
 
     def write_ws(data, outfile, to_write):
+        """Write a WSINV3DMT ``.data`` file.
+
+        Header, N-S / E-W station locations, then ``DATA_Period`` and (unless
+        ``to_write`` restricts it) ``ERROR_Period`` / ``ERMAP_Period`` blocks.
+
+        Parameters
+        ----------
+        to_write : {'all', 'DATA', 'ERROR', 'ERMAP'} or None
+            Which blocks to emit.
+        """
         if '.data' not in outfile:
             outfile = ''.join([outfile, '.data'])
         if to_write == 'all' or to_write is None:
@@ -2687,6 +2675,13 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
                         f.write('\n')
 
     def write_ModEM3D(data, out_file, use_elevation=False, include_flagged=True):
+        """Write a 3-D ModEM data file (impedance / tipper / phase tensor).
+
+        One ``> ...`` block per data group present in ``data.inv_type``, each
+        with its own header, sign convention (``exp(-i\\omega t)``) and units.
+        Phase-tensor components are swapped back X<->Y on the way out.  With
+        ``include_flagged=False``, :data:`REMOVE_FLAG` points are omitted.
+        """
         if '.dat' not in out_file:
             out_file = ''.join([out_file, '.dat'])
         units = []
@@ -2694,12 +2689,12 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
         temp_inv_type = []
         actual_inv_type = copy.deepcopy(data.inv_type)
         with open(out_file, 'w') as f:
-            z_title = '# Written using pyMT. UTM Zone: {}\n' + \
-                      '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) ' + \
-                      'Component Real Imag Error\n'.format(data.UTM_zone)
-            pt_title = '# Written using pyMT. UTM Zone: {}\n' + \
-                       '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) ' + \
-                       'Component Value Error\n'.format(data.UTM_zone)
+            z_title = ('# Written using pyMT. UTM Zone: {}\n'
+                       '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) '
+                       'Component Real Imag Error\n').format(data.UTM_zone)
+            pt_title = ('# Written using pyMT. UTM Zone: {}\n'
+                        '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) '
+                        'Component Value Error\n').format(data.UTM_zone)
             if data.inv_type == 1:
                 data_type.append('> Full_Impedance\n')
                 units.append('> Ohm\n')
@@ -2870,6 +2865,7 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
         data.inv_type = actual_inv_type
 
     def write_MARE2DEM(data, out_file):
+        """Write a MARE2DEM ``.emdata`` file (frequencies, receivers, then the data block)."""
         data_type_lookup = {'RhoZXX': 101,
                             'PhsZXX': 102,
                             'RhoZXY': 103,
@@ -2935,7 +2931,11 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
                                     data.sites[site].used_error[component][jj]))
 
     def write_occam(data, outfile):
-        # Currently only writes Rho and Pha (can't choose) and sets static errors
+        """Write an Occam 2-D data file.
+
+        Only apparent resistivity and phase are written, with fixed static
+        errors.
+        """
         with open(outfile, 'w') as f:
             f.write('  FORMAT:         OCCAM2MTDATA_1.0\n')
             f.write('  MODEL:          {}\n'.format(outfile))
@@ -2992,6 +2992,11 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
                                                                                      error_point))
 
     def write_ModEM2D(data, out_file):
+        """Write a 2-D ModEM data file (``TE_Impedance`` / ``TM_Impedance``).
+
+        Used for ``inv_type`` 8 (TE), 9 (TM) or 10 (both).  Sites are placed
+        along the profile by their Y coordinate.
+        """
         if '.dat' not in out_file:
             out_file = ''.join([out_file, '.dat'])
         units = []
@@ -2999,9 +3004,9 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
         temp_inv_type = []
         actual_inv_type = copy.deepcopy(data.inv_type)
         with open(out_file, 'w') as f:
-            z_title = '# Written using pyMT. UTM Zone: {}\n' + \
-                      '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) ' + \
-                      'Component Real Imag Error\n'.format(data.UTM_zone)
+            z_title = ('# Written using pyMT. UTM Zone: {}\n'
+                       '# Period(s) Code GG_Lat GG_Lon X(m) Y(m) Z(m) '
+                       'Component Real Imag Error\n').format(data.UTM_zone)
             if data.inv_type == 10:
                 data_type.append('> TE_Impedance\n')
                 units.append('> Ohm\n')
@@ -3081,6 +3086,13 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
                                         site.used_error[component[:-1] + 'I'][jj])))
 
     def write_gofem(data, out_file):
+        """Write a GoFEM ``.gdat`` data file plus a ``frequencies`` sidecar.
+
+        One ``DataType Frequency Plane_wave Receiver Value Error`` line per
+        used component; imaginary parts are negated.  Flagged points are
+        dropped.  A ``frequencies`` file listing ``1 / period`` is written into
+        the same directory as ``out_file``.
+        """
         comp_dict = {'ZXXR': 'RealZxx',
                      'ZXXI': 'ImagZxx',
                      'ZXYR': 'RealZxy',
@@ -3157,6 +3169,16 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
 
 
 def write_response(data, outfile=None):
+    """Write a :class:`~pyMT.data_structures.Response` in the legacy WSINV response format.
+
+    Header (``NS NP NR azi``), N-S then E-W station locations, then one
+    ``DATA_Period`` block per period.
+
+    Parameters
+    ----------
+    data : pyMT.data_structures.Response
+    outfile : str
+    """
     NP = data.NP
     NR = data.NR
     NS = data.NS
@@ -3186,37 +3208,8 @@ def write_response(data, outfile=None):
                 f.write('\n')
 
 
-def write_errors(data, outfile=None):
-    NP = data.NP
-    NR = data.NR
-    NS = data.NS
-    azi = int(data.azimuth)
-    ordered_comps = {key: ii for ii, key in enumerate(data.ACCEPTED_COMPONENTS)}
-    comps_to_write = data.used_components
-    comps_to_write = sorted(comps_to_write, key=lambda d: ordered_comps[d])
-    if outfile is None:
-        print('You have to specify a file!')
-        return
-    with open(outfile, 'w') as f:
-        f.write('{}  {}  {}  {}\n'.format(NS, NP, NR, azi))
-        f.write('Station_Location: N-S\n')
-        for X in data.locations[:, 0]:
-            f.write('{}\n'.format(X))
-        f.write('Station_Locations: E-W\n')
-        for Y in data.locations[:, 1]:
-            f.write('{}\n'.format(Y))
-        for idx, period in enumerate(utils.to_list(data.periods)):
-            f.write(''.join(['ERROR_Period: ', '%0.5E\n' % float(period)]))
-            for site_name in data.site_names:
-                site = data.sites[site_name]
-                for comp in comps_to_write:
-                    to_print = getattr(site, 'used_error')[comp][idx]
-                    f.write('{:>14.7E}  '.format(to_print))
-                    # for point in getattr(site, that)[comp]:
-                f.write('\n')
-
-
 def write_list(data, outfile):
+    """Write ``data.site_names`` (each with a ``.dat`` suffix) to a ``.lst`` file."""
     if '.lst' not in outfile:
         outfile = ''.join([outfile, '.lst'])
     with open(outfile, 'w') as f:
@@ -3227,8 +3220,25 @@ def write_list(data, outfile):
 
 
 def write_model(model, outfile, file_format='modem', use_anisotropy=False, use_log=True, use_resistivity=True, n_param=3):
+    """Write a :class:`~pyMT.data_structures.Model` to file.
+
+    Parameters
+    ----------
+    model : pyMT.data_structures.Model
+    outfile : str
+    file_format : {'modem', 'modem2d', 'em3dani', 'mt3dani'}, optional
+        Default ``'modem'``.
+    use_anisotropy : bool, optional
+        Write the ``rho_x``/``rho_y``/``rho_z`` + angle arrays.
+    use_log : bool, optional
+        Write ``log`` values.  Default ``True``.
+    use_resistivity : bool, optional
+        Write resistivity rather than conductivity.  Default ``True``.
+    n_param : int, optional
+        Number of anisotropy parameters.  Default 3.
+    """
     def to_em3dani(model, outfile, use_log, use_resistivity, use_anisotropy):
-        # debug_print([use_log, use_resistivity], 'E:/phd/NextCloud/data/synthetics/EM3DANI/wst/aniso8/debug.log')
+        """Write the model in EM3DANI format (conductivity or resistivity, linear or log)."""
         value_dict = {'sigma': 'vals',
                       'sigmax': 'rho_x', 'sigmay': 'rho_y', 'sigmaz': 'rho_z',
                       'slant': 'slant', 'dip': 'dip', 'strike': 'strike'}
@@ -3363,6 +3373,8 @@ def write_model(model, outfile, file_format='modem', use_anisotropy=False, use_l
                 f.write('\n')
 
     def to_modem(model, outfile, file_format):
+        """Write the model in ModEM 3-D (or ``mt3dani``) format: header, cell sizes,
+        then the flipped log-resistivity array in ``F`` order."""
         if '.model' not in outfile:
             outfile = ''.join([outfile, '.model'])
         is_half_space = int(model.is_half_space())
@@ -3488,7 +3500,20 @@ def write_model(model, outfile, file_format='modem', use_anisotropy=False, use_l
         return
 
 def write_phase_tensors(data, out_file, verbose=False, scale_factor=1/50, period_idx=None):
+    """Write per-site, per-period phase-tensor ellipse parameters to a CSV.
 
+    Parameters
+    ----------
+    data : pyMT.data_structures.Data or RawData
+    out_file : str
+        ``.csv`` is appended if missing.
+    verbose : bool, optional
+        Also write ``Phi_1/2/3``, ``Det_Phi``, ``Alpha``, ``Beta``, ``Lambda``.
+    scale_factor : float, optional
+        Ellipse size relative to the station-array extent.  Default 1/50.
+    period_idx : array_like, optional
+        Periods to write (nearest within 10% kept).  ``None`` writes all.
+    """
     if not out_file.endswith('.csv'):
         out_file += '.csv'
     print('Writing phase tensor data to {}'.format(out_file))
@@ -3509,14 +3534,13 @@ def write_phase_tensors(data, out_file, verbose=False, scale_factor=1/50, period
         scale = np.sqrt((np.max(X_all) - np.min(X_all)) ** 2 +
                         (np.max(Y_all) - np.min(Y_all)) ** 2)
         scale *= scale_factor
+        write_all_periods = period_idx is None
         for site_name in data.site_names:
             site = data.sites[site_name]
             X, Y = site.locations[X_key], site.locations[Y_key]
-            if period_idx is None:
-                # period_idx = list(range(site.NP))
-                period_idx = site.periods
+            pidx = site.periods if write_all_periods else period_idx
             for ii, period in enumerate(site.periods):
-                if min(abs(period - period_idx)) < period * 0.1: # in period_idx:
+                if min(abs(period - pidx)) < period * 0.1:  # in pidx
                     phi_max = 1 * scale
                     phi_min = scale * site.phase_tensors[ii].phi_min / site.phase_tensors[ii].phi_max
                     f.write('{}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(site_name,
@@ -3542,10 +3566,27 @@ def write_phase_tensors(data, out_file, verbose=False, scale_factor=1/50, period
 
 
 def write_induction_arrows(data, out_file, period_idx=None, verbose=False, scale_factor=1):
+    """Write per-site, per-period induction-arrow (tipper) vectors to a CSV.
+
+    Writes the real/imaginary tipper components, their reversed counterparts,
+    and the arrow azimuth/magnitude.  Sites without tipper are skipped.
+
+    Parameters
+    ----------
+    data : pyMT.data_structures.Data or RawData
+    out_file : str
+        ``.csv`` is appended if missing.
+    period_idx : array_like, optional
+        Periods to write (nearest within 10% kept).  ``None`` writes all.
+    verbose : bool, optional
+        Currently unused.
+    scale_factor : float, optional
+        Currently unused.
+    """
     if not out_file.endswith('.csv'):
         out_file += '.csv'
     with open(out_file, 'w') as f:
-        header = header = ['Site', 'Period', 'Latitude', 'Longitude',
+        header = ['Site', 'Period', 'Latitude', 'Longitude',
                            'TXR', 'TYR', 'TXI', 'TYI', 'Rev. TXR', 'Rev. TYR', 'Rev. TXI', 'Rev. TYI',
                            'Azimuth_R', 'Azimuth_I', 'Magnitude_R', 'Magnitude_I']
 
@@ -3556,14 +3597,14 @@ def write_induction_arrows(data, out_file, period_idx=None, verbose=False, scale
             X_key, Y_key = 'Y', 'X'
         f.write(','.join(header))
         f.write('\n')
+        write_all_periods = period_idx is None
         for site_name in data.site_names:
             site = data.sites[site_name]
             X, Y = site.locations[X_key], site.locations[Y_key]
-            if period_idx is None:
-                period_idx = site.periods
+            pidx = site.periods if write_all_periods else period_idx
             if set(site.TIPPER_COMPONENTS).issubset(set(site.components)):
                 for ii, period in enumerate(site.periods):
-                    if min(abs(period - period_idx)) < period * 0.1:
+                    if min(abs(period - pidx)) < period * 0.1:
                         azi_R = np.rad2deg(np.arctan2(-site.data['TZYR'][ii], -site.data['TZXR'][ii]))
                         azi_I = np.rad2deg(np.arctan2(-site.data['TZYI'][ii], -site.data['TZXI'][ii]))
                         mag_R = np.sqrt(site.data['TZXR'][ii] ** 2 + site.data['TZYR'][ii] ** 2)
