@@ -33,7 +33,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/eroots/pyMT"
+Homepage = "https://github.com/eroots/gateway_mt"
 
 [project.scripts]
 # GUIs
