@@ -1,7 +1,11 @@
 """Plot Occam-2D data and model response.
 
-Pass the Occam data / response / iteration files as command-line
-arguments.  Installed via ``setup.py``'s ``scripts=[...]``.
+Usage::
+
+    python plot_occam.py <data file> <response file>
+
+Plots log10 apparent resistivity and phase (TE / TM) against log10 period,
+three sites per figure.
 """
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,22 +27,23 @@ def plot_data(data, response, sites=None):
             figc += 1
         ax = figs[figc].add_subplot(2, 3, jj)
         ax.set_title(site + ': Rho')
-        ax.errorbar(np.log10(data[site]['Freqs']), data[site]['RhoXY'], color='r', linestyle='',
+        periods = data[site]['Periods']
+        ax.errorbar(np.log10(periods['RhoXY']), data[site]['RhoXY'], color='r', linestyle='',
                     marker='o', label='XY', xerr=None, yerr=data[site]['RhoXY_errs'])
-        ax.errorbar(np.log10(data[site]['Freqs']), data[site]['RhoYX'], color='g', linestyle='',
+        ax.errorbar(np.log10(periods['RhoYX']), data[site]['RhoYX'], color='g', linestyle='',
                     marker='o', label='YX', xerr=None, yerr=data[site]['RhoYX_errs'])
-        ax.plot(np.log10(response[site]['Freqs']), response[site]['RhoXY'], 'r-')
-        ax.plot(np.log10(response[site]['Freqs']), response[site]['RhoYX'], 'g-')
+        ax.plot(np.log10(periods['RhoXY']), response[site]['RhoXY'], 'r-')
+        ax.plot(np.log10(periods['RhoYX']), response[site]['RhoYX'], 'g-')
         if jj == 1:
             ax.legend()
         ax = figs[figc].add_subplot(2, 3, jj + 3)
         ax.set_title(site + ': Phase')
-        ax.errorbar(np.log10(data[site]['Freqs']), data[site]['PhaXY'], color='r', linestyle='',
+        ax.errorbar(np.log10(periods['PhaXY']), data[site]['PhaXY'], color='r', linestyle='',
                     marker='o', label='XY', xerr=None, yerr=data[site]['PhaXY_errs'])
-        ax.errorbar(np.log10(data[site]['Freqs']), data[site]['PhaYX'], color='g', linestyle='',
+        ax.errorbar(np.log10(periods['PhaYX']), data[site]['PhaYX'], color='g', linestyle='',
                     marker='o', label='YX', xerr=None, yerr=data[site]['PhaYX_errs'])
-        ax.plot(np.log10(response[site]['Freqs']), response[site]['PhaXY'], 'r-')
-        ax.plot(np.log10(response[site]['Freqs']), response[site]['PhaYX'], 'g-')
+        ax.plot(np.log10(periods['PhaXY']), response[site]['PhaXY'], 'r-')
+        ax.plot(np.log10(periods['PhaYX']), response[site]['PhaYX'], 'g-')
         if jj == 1:
             ax.legend()
     plt.show()
@@ -84,8 +89,6 @@ def read_response(respfile, sites, freqs):
     all_resp = {}
     for ii, site in enumerate(sites):
         idx = site_nums == ii + 1
-        site_freqs = (np.unique(freq_num[idx])) - 1
-        actual_freqs = 1 / freqs[site_freqs.astype(int)]
         rhoXY_idx = d_type == 1
         rhoYX_idx = d_type == 5
         phaXY_idx = d_type == 2
@@ -103,17 +106,23 @@ def read_response(respfile, sites, freqs):
         phaYX_resp = resp_points[np.bitwise_and(idx, phaYX_idx)]
         phaYX_errs = error_bars[np.bitwise_and(idx, phaYX_idx)]
 
-        RMS = {'rhoXY': np.sqrt(np.sum(n_errors[np.bitwise_and(idx, rhoXY_idx)] ** 2)),
-               'rhoYX': np.sqrt(np.sum(n_errors[np.bitwise_and(idx, rhoYX_idx)] ** 2)),
-               'phaXY': np.sqrt(np.sum(n_errors[np.bitwise_and(idx, phaXY_idx)] ** 2)),
-               'phaYX': np.sqrt(np.sum(n_errors[np.bitwise_and(idx, phaYX_idx)] ** 2))}
+        RMS = {'rhoXY': np.sqrt(np.mean(n_errors[np.bitwise_and(idx, rhoXY_idx)] ** 2)),
+               'rhoYX': np.sqrt(np.mean(n_errors[np.bitwise_and(idx, rhoYX_idx)] ** 2)),
+               'phaXY': np.sqrt(np.mean(n_errors[np.bitwise_and(idx, phaXY_idx)] ** 2)),
+               'phaYX': np.sqrt(np.mean(n_errors[np.bitwise_and(idx, phaYX_idx)] ** 2))}
 
-        all_data.update({site: {'Number': ii + 1, 'Freqs': actual_freqs,
+        # Each data type can be missing at different frequencies, so keep a period list per type
+        periods = {}
+        for key, type_idx in (('RhoXY', rhoXY_idx), ('RhoYX', rhoYX_idx),
+                              ('PhaXY', phaXY_idx), ('PhaYX', phaYX_idx)):
+            periods[key] = 1 / freqs[(freq_num[np.bitwise_and(idx, type_idx)] - 1).astype(int)]
+
+        all_data.update({site: {'Number': ii + 1, 'Periods': periods,
                                 'RhoXY': rhoXY_data, 'RhoYX': rhoYX_data,
                                 'PhaXY': phaXY_data, 'PhaYX': phaYX_data,
                                 'RhoXY_errs': rhoXY_errs, 'RhoYX_errs': rhoYX_errs,
                                 'PhaXY_errs': phaXY_errs, 'PhaYX_errs': phaYX_errs}})
-        all_resp.update({site: {'Number': ii + 1, 'Freqs': actual_freqs,
+        all_resp.update({site: {'Number': ii + 1, 'Periods': periods,
                                 'RhoXY': rhoXY_resp, 'RhoYX': rhoYX_resp,
                                 'PhaXY': phaXY_resp, 'PhaYX': phaYX_resp,
                                 'RMS': RMS}})
@@ -121,21 +130,14 @@ def read_response(respfile, sites, freqs):
 
 
 def main():
-    datafile = None
-    respfile = None
-    for file_in in sys.argv:
-        if 'resp' in file_in.lower():
-            respfile = file_in
-        elif 'data' in file_in.lower():
-            datafile = file_in
-    if not respfile or not datafile:
-        print('Must specify both data and response files...')
+    if len(sys.argv) != 3:
+        print('Usage: python plot_occam.py <data file> <response file>')
         return
-    else:
-        sites, freqs = read_data(datafile)
-        data, resp = read_response(respfile, sites, freqs)
-        figs = plot_data(data, resp, sites)
-        return figs
+    datafile, respfile = sys.argv[1:3]
+    sites, freqs = read_data(datafile)
+    data, resp = read_response(respfile, sites, freqs)
+    figs = plot_data(data, resp, sites)
+    return figs
 
 
 if __name__ == '__main__':

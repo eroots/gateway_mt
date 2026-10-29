@@ -45,6 +45,7 @@ no `main()`. Several need packages **not** in `pyMT`'s
 | `plot_dataset_rhophatip.py` | -- | Rho / phase / tipper dataset plots (self-contained, does not use `gplot`). |
 | `plot_induction_map.py` | -- | Plan-view induction-arrow map (via `gplot.MapView`). |
 | `plot_misfit_curves.py` | -- | Per-component misfit-curve PDFs (function `generate_misfit_plots`). |
+| `plot_occam.py` | -- | Occam2D data vs response, TE / TM rho and phase (`plot_occam.py DATA RESPONSE`; does not use `pyMT`). |
 | `plot_slice_example.py` | -- | Worked example of interpolating an arbitrary slice through a model. |
 | `pseudosection_gplot.py` | -- | Batch pseudosections via `gplot`. |
 | `pt2csv.py` | `pandas` | Phase-tensor parameters for every site/period to CSV. |
