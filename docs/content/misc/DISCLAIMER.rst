@@ -45,5 +45,5 @@ Model Viewer GUI
 
 * The 2-D transect plot shows left-right in the order that was clicked.
 	* This means that if you select points from north to south, the figure will plot from north on the left to south on the right.
-* The 2-D transect plot does not respond to changes in the model trim. The workaround currently is to trim the volume, and then re-select the desired points for the transect plot.
+
 

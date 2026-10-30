@@ -453,11 +453,41 @@
               </item>
               <item row="3" column="4">
                <widget class="QPushButton" name="clearTransect">
-                <property name="enabled">
-                 <bool>false</bool>
+                <property name="toolTip">
+                 <string>Remove the transect</string>
                 </property>
                 <property name="text">
-                 <string>PushButton</string>
+                 <string>Clear Transect</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0" colspan="2">
+               <widget class="QCheckBox" name="snapToStations">
+                <property name="toolTip">
+                 <string>Move each picked (or dragged) transect point to the nearest station</string>
+                </property>
+                <property name="text">
+                 <string>Snap to stations</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QLabel" name="stationDistanceLabel">
+                <property name="text">
+                 <string>Station distance</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="4">
+               <widget class="QDoubleSpinBox" name="stationDistance">
+                <property name="toolTip">
+                 <string>Stations within this distance of the transect are marked on the section (0 to hide them)</string>
+                </property>
+                <property name="decimals">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <double>1000000.000000000000000</double>
                 </property>
                </widget>
               </item>

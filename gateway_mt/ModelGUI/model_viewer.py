@@ -244,10 +244,17 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.coordinateMenu = classes.CoordinateMenu(self)
         mainMenu.addMenu(self.coordinateMenu)
         self.spatial_units = self.coordinateMenu.default_units
-        self.coordinate_system = self.coordinateMenu.default_system
+        self.coordinate_system = self.coordinateMenu.default_system.lower()
         self.dataset.spatial_units = self.spatial_units
         self.model.spatial_units = self.spatial_units
         self.clip_model.spatial_units = self.spatial_units
+        self.exportVTK = QtWidgets.QAction('Export to ParaView (VTK)...', self)
+        self.exportVTK.triggered.connect(self.export_vtk)
+        fileMenu.addAction(self.exportVTK)
+        self.exportSection = QtWidgets.QAction('Export Transect Section (CSV)...', self)
+        self.exportSection.triggered.connect(self.export_section)
+        fileMenu.addAction(self.exportSection)
+        fileMenu.addSeparator()
         self.exitButton = QtWidgets.QAction('Exit', self)
         self.exitButton.setShortcut('Ctrl+Q')
         # Trigger close instead of closeEvent.
@@ -318,8 +325,11 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.fig_transect = Figure()
         self.add_mpl(self.fig_transect, 'transect')
         self.fig_transect.add_subplot(111)
-        # Click event hooks
-        self.cid = {'transect_2D': []}
+        # Plan-view mouse handlers: pick transect points, and drag them
+        self.drag_vertex = None
+        self.cid = [self.canvas['2D'].mpl_connect('button_press_event', self.transect_press),
+                    self.canvas['2D'].mpl_connect('motion_notify_event', self.transect_motion),
+                    self.canvas['2D'].mpl_connect('button_release_event', self.transect_release)]
 
         self.update_plan_view()
         self.update_2D_X()
@@ -543,6 +553,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.y1ClipEdit.setText('0')
         self.z1ClipEdit.setText('0')
         self.nInterp.setText(str(self.n_interp))
+        self.stationDistance.setValue(5 if self.spatial_units == 'km' else 5000)
         if not self.resolution:
             self.resolutionCheckBox.setEnabled(False)
         if self.plot_locations:
@@ -598,8 +609,8 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.viewYZ.triggered.connect(self.view_yz)
         # Interpolation widgets
         self.selectPoints.clicked.connect(self.transect_pick)
-        # Placeholder for a "Clear Transect" button that isn't implemented yet
-        self.clearTransect.hide()
+        self.clearTransect.clicked.connect(self.clear_transect)
+        self.stationDistance.valueChanged.connect(self.redraw_transect2D)
         self.nInterp.editingFinished.connect(self.set_nInterp)
         self.interpCheckbox.clicked.connect(self.toggle_transect3D)
         # Isosurface widgets
@@ -641,6 +652,10 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         if self.spatial_units == self.coordinateMenu.unitGroup.checkedAction().text().lower():
             return
         self.spatial_units = self.coordinateMenu.unitGroup.checkedAction().text().lower()
+        scale = 1 / 1000 if self.spatial_units == 'km' else 1000
+        for key in ('easting', 'northing'):
+            self.transect_plot[key] = [x * scale for x in self.transect_plot[key]]
+        self.stationDistance.setValue(self.stationDistance.value() * scale)
         self.dataset.spatial_units = self.spatial_units
         self.model.spatial_units = self.spatial_units
         self.clip_model.spatial_units = self.spatial_units
@@ -699,6 +714,9 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             else:
                 can_do = 0
         if can_do:
+            if coord_system != self.coordinate_system:
+                self.clear_transect()
+                self.coordinate_system = coord_system
             self.model = self.map.model
             self.map.set_locations()
             self.locs_3D[:, 0] = self.map.site_locations['all'][:, 1]
@@ -828,27 +846,136 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.debugLabel.setText('# of interp points must be an integer')
 
     def transect_pick(self):
-        """"Select points" button: on the first press, connect the plan
-        panel click handler (:meth:`click_2D`) so the user can lay down
-        transect vertices; on the second press, disconnect it and build
-        the 2-D / 3-D transect from the picked points."""
-        if not self.cid['transect_2D']:
-            self.cid['transect_2D'] = self.canvas['2D'].mpl_connect('button_release_event', self.click_2D)
+        """"Select points" button: the first press starts a new transect
+        (clicks on the plan view add points, see :meth:`transect_release`);
+        the second press finishes it and builds the 2-D / 3-D sections."""
+        if not self.transect_picking:
+            self.clear_transect()
+            self.transect_picking = True
             self.tabWidget_2.setCurrentIndex(1)
             self.selectPoints.setStyleSheet('QPushButton {background-color: lightgreen; color: black;}')
-            self.transect_plot['easting'] = []
-            self.transect_plot['northing'] = []
             self.debugLabel.setText('Picking turned on.')
         else:
-            self.canvas['2D'].mpl_disconnect(self.cid['transect_2D'])
+            self.transect_picking = False
             self.selectPoints.setStyleSheet('QPushButton {background-color: None; color: black;}')
             if len(self.transect_plot['easting']) > 1:
                 self.generate_transect2D()
                 self.generate_transect3D()
-            self.cid['transect_2D'] = 0
-            self.interpCheckbox.setCheckState(2)
-            self.toggle_transect3D()
+                self.interpCheckbox.setCheckState(2)
+                self.toggle_transect3D()
             self.tabWidget_2.setCurrentIndex(0)
+
+    def snapped(self, x, y):
+        """``(x, y)``, or the nearest station to it if 'Snap to stations' is checked."""
+        if self.snapToStations.isChecked() and self.plot_locations:
+            locs = self.map.site_locations['all']
+            idx, _ = nearest_point(x, y, locs[:, 1], locs[:, 0])
+            return locs[idx, 1], locs[idx, 0]
+        return x, y
+
+    def plan_view_idle(self, event):
+        """True if ``event`` is on the plan view and the toolbar isn't panning / zooming."""
+        return event.inaxes == self.map.window['axes'][0] and not self.toolbar['2D'].mode
+
+    def transect_press(self, event):
+        """Start dragging a transect point if the press is within a few pixels of one."""
+        if not self.plan_view_idle(event) or not self.transect_plot['easting']:
+            return
+        ax = self.map.window['axes'][0]
+        pixels = ax.transData.transform(np.column_stack((self.transect_plot['easting'],
+                                                         self.transect_plot['northing'])))
+        idx, distance = nearest_point(event.x, event.y, pixels[:, 0], pixels[:, 1])
+        if distance <= 8:
+            self.drag_vertex = idx
+
+    def transect_motion(self, event):
+        """Move the point being dragged (and the line through the points)."""
+        if self.drag_vertex is None or event.inaxes != self.map.window['axes'][0]:
+            return
+        self.transect_plot['easting'][self.drag_vertex] = event.xdata
+        self.transect_plot['northing'][self.drag_vertex] = event.ydata
+        self.transect_artists['markers'].set_data(self.transect_plot['easting'], self.transect_plot['northing'])
+        if self.transect_artists['line']:
+            self.transect_artists['line'].set_data(self.transect_plot['easting'], self.transect_plot['northing'])
+        self.canvas['2D'].draw_idle()
+
+    def transect_release(self, event):
+        """Finish a drag (rebuilding the sections), or add a point while picking."""
+        if self.drag_vertex is not None:
+            idx, self.drag_vertex = self.drag_vertex, None
+            if event.inaxes == self.map.window['axes'][0]:
+                x, y = self.snapped(event.xdata, event.ydata)
+                self.transect_plot['easting'][idx] = x
+                self.transect_plot['northing'][idx] = y
+            if len(self.transect_plot['easting']) > 1 and not self.transect_picking:
+                self.generate_transect2D()
+                self.generate_transect3D()
+            else:
+                self.plot_transect_markers()
+            return
+        if self.transect_picking and event.button == 1 and self.plan_view_idle(event):
+            x, y = self.snapped(event.xdata, event.ydata)
+            self.transect_plot['easting'].append(x)
+            self.transect_plot['northing'].append(y)
+            self.plot_transect_markers()
+            self.debugLabel.setText('{} transect points'.format(len(self.transect_plot['easting'])))
+
+    def clear_transect(self):
+        """Remove the transect: its points, the line / markers on the plan
+        view, the 2-D section and the 3-D surface."""
+        self.transect_plot = {'easting': [], 'northing': []}
+        self.drag_vertex = None
+        for key, artist in self.transect_artists.items():
+            if artist:
+                artist.remove()
+            self.transect_artists[key] = []
+        self.canvas['2D'].draw()
+        if self.slices['transect'] != []:
+            self.vtk_widget.remove_actor(self.actors['transect'])
+            self.slices['transect'] = []
+        self.interpCheckbox.setCheckState(0)
+        self.fig_transect.axes[0].clear()
+        self.canvas['transect'].draw()
+
+    def redraw_transect2D(self):
+        """Redraw the 2-D section (e.g. after changing the station distance)."""
+        if len(self.transect_plot['easting']) > 1:
+            self.plot_transect2D()
+
+    def export_vtk(self):
+        """File > Export to ParaView: write the model (as currently trimmed),
+        the stations and any resolution with :func:`export_to_paraview`."""
+        outfile = QtWidgets.QFileDialog.getSaveFileName(self, 'Export to ParaView (base name)', '',
+                                                        'VTK Files (*.vtk);; All Files (*)')[0]
+        if not outfile:
+            return
+        outfile = outfile[:-4] if outfile.lower().endswith('.vtk') else outfile
+        raw_data = None
+        if self.coordinate_system == 'local' and self.list_file:
+            if self.raw_data_initalized:
+                raw_data = self.dataset.raw_data
+            else:
+                raw_data = DS.RawData(listfile=self.list_file)
+        resolution = self.clip_resolution.vals if self.clip_resolution else None
+        written = export_to_paraview(outfile, self.clip_model,
+                                     data=self.dataset.data if self.plot_locations else None,
+                                     raw_data=raw_data, resolution=resolution,
+                                     utm_zone=self.dataset.data.UTM_zone,
+                                     use_elevation=bool(self.elevationCheckBox.checkState()),
+                                     local=self.coordinate_system == 'local')
+        note = '' if raw_data is not None or self.coordinate_system != 'local' else \
+            '\n\nNo list file was given, so the files are in local coordinates (origin 0, 0).'
+        QtWidgets.QMessageBox.information(self, 'Export to ParaView', 'Wrote:\n' + '\n'.join(written) + note)
+
+    def export_section(self):
+        """File > Export Transect Section: write the 2-D section to a CSV file."""
+        if len(self.transect_plot['easting']) < 2:
+            QtWidgets.QMessageBox.warning(self, 'Export Section', 'Pick a transect first.')
+            return
+        outfile = QtWidgets.QFileDialog.getSaveFileName(self, 'Export Transect Section', '',
+                                                        'CSV Files (*.csv);; All Files (*)')[0]
+        if outfile:
+            write_section_csv(outfile, self.qx, self.qy, self.qz, self.interp_vals, self.spatial_units)
 
     def save_picks(self, picks):
         """Callback for PyVista cell-picking (currently unused; see the
@@ -1244,54 +1371,20 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         self.update_2D_Y()
         self.update_plan_view()
         self.update_2D_colorbar()
+        if len(self.transect_plot['easting']) > 1:
+            self.generate_transect2D()  # render_3D rebuilds the 3-D section
         self.render_3D(reset_camera)
-
-    def click_2D(self, event):
-        """Plan-panel click handler while transect picking is on: append
-        the clicked (easting, northing) to the transect vertex list."""
-        if self.map.window['axes'][0] == event.inaxes:
-            self.transect_plot['easting'].append(event.xdata)
-            self.transect_plot['northing'].append(event.ydata)
-            self.debugLabel.setText('{}'.format(self.transect_plot))
-        else:
-            print('Outside valid axis')
-            return
 
     def interpolate_between_points(self, E, N):
         """Densify a polyline of ``(E, N)`` vertices to ~``n_interp``
-        points, distributing them between segments by length.
+        points (:func:`sample_path`).
 
         Returns
         -------
         qx, qy : numpy.ndarray
             The interpolated easting / northing coordinates.
         """
-        qx = []
-        qy = []
-        distance = []
-        for ii in range(len(E) - 1):
-            distance.append(np.sqrt((E[ii] - E[ii + 1]) ** 2 +
-                                    (N[ii] - N[ii + 1]) ** 2))
-        distance = np.array(distance)
-        total_distance = np.sum(distance)
-        N_per_segment = np.int64(np.ceil(self.n_interp * distance / total_distance))
-        for ii in range(len(E) - 1):
-            if E[ii] > E[ii + 1]:
-                E0, E1 = E[ii + 1], E[ii]
-                N0, N1 = N[ii + 1], N[ii]
-            else:
-                E0, E1 = E[ii], E[ii + 1]
-                N0, N1 = N[ii], N[ii + 1]
-            X = np.linspace(E0, E1, N_per_segment[ii])
-            Y = np.interp(X, (E0, E1), (N0, N1))
-            if E[ii] > E[ii + 1]:
-                X = np.flip(X, axis=0)
-                Y = np.flip(Y, axis=0)
-            qx.append(X)
-            qy.append(Y)
-        qx = np.concatenate(qx).ravel()
-        qy = np.concatenate(qy).ravel()
-        return qx, qy
+        return sample_path(E, N, self.n_interp)
 
     def generate_transect2D(self):
         """Build the 2-D transect section: densify the picked polyline,
@@ -1373,6 +1466,17 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                                              vmin=self.cax[0], vmax=self.cax[1],
                                              cmap=self.cmap)
         self.fig_transect.axes[0].invert_yaxis()
+        if self.plot_locations and self.stationDistance.value() > 0:
+            # Stations near the transect, at their distance along it
+            locs = self.map.site_locations['all']
+            along, across = project_onto_path(locs[:, 1], locs[:, 0],
+                                              self.transect_plot['easting'], self.transect_plot['northing'])
+            near = across <= self.stationDistance.value()
+            ax = self.fig_transect.axes[0]
+            ax.plot(along[near], np.full(np.sum(near), self.qz[0]), 'kv', clip_on=False)
+            for name, distance in zip(np.array(self.map.site_names)[near], along[near]):
+                ax.annotate(name, (distance, self.qz[0]), xytext=(0, 6), textcoords='offset points',
+                            rotation=90, ha='center', va='bottom', fontsize=7, annotation_clip=False)
         self.fig_transect.axes[0].set_xlabel('Linear Distance ({})'.format(self.spatial_units))
         self.fig_transect.axes[0].set_ylabel('Depth ({})'.format(self.spatial_units))
         self.canvas['transect'].draw()
@@ -1428,6 +1532,132 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                 self.show_bounds()
         else:
             self.interpCheckbox.setCheckState(False)
+
+
+def sample_path(E, N, n_points):
+    """Points along the polyline through ``(E, N)``, about ``n_points`` in all.
+
+    The points are shared between the segments by length, follow each
+    segment whatever its direction, and include every vertex once.
+
+    Returns
+    -------
+    qx, qy : numpy.ndarray
+    """
+    E, N = np.asarray(E, dtype=float), np.asarray(N, dtype=float)
+    lengths = np.hypot(np.diff(E), np.diff(N))
+    total = np.sum(lengths)
+    if total == 0:
+        return E[:1], N[:1]
+    counts = np.maximum(np.ceil(n_points * lengths / total).astype(int), 2)
+    qx, qy = [E[:1]], [N[:1]]
+    for ii, count in enumerate(counts):
+        t = np.linspace(0, 1, count)[1:]
+        qx.append(E[ii] + t * (E[ii + 1] - E[ii]))
+        qy.append(N[ii] + t * (N[ii + 1] - N[ii]))
+    return np.concatenate(qx), np.concatenate(qy)
+
+
+def nearest_point(x, y, px, py):
+    """Index of, and distance to, the point of ``(px, py)`` nearest ``(x, y)``."""
+    distances = np.hypot(np.asarray(px, dtype=float) - x, np.asarray(py, dtype=float) - y)
+    idx = int(np.argmin(distances))
+    return idx, distances[idx]
+
+
+def project_onto_path(px, py, E, N):
+    """Where points sit relative to the polyline through ``(E, N)``.
+
+    Returns
+    -------
+    along : numpy.ndarray
+        Distance along the path to the nearest point on it.
+    across : numpy.ndarray
+        Distance from the path.
+    """
+    px, py = np.atleast_1d(np.asarray(px, dtype=float)), np.atleast_1d(np.asarray(py, dtype=float))
+    E, N = np.asarray(E, dtype=float), np.asarray(N, dtype=float)
+    dE, dN = np.diff(E), np.diff(N)
+    lengths = np.hypot(dE, dN)
+    start = np.concatenate([[0], np.cumsum(lengths)[:-1]])
+    along = np.zeros(len(px))
+    across = np.full(len(px), np.inf)
+    for ii in range(len(lengths)):
+        if lengths[ii] == 0:
+            continue
+        t = np.clip(((px - E[ii]) * dE[ii] + (py - N[ii]) * dN[ii]) / lengths[ii] ** 2, 0, 1)
+        dist = np.hypot(px - (E[ii] + t * dE[ii]), py - (N[ii] + t * dN[ii]))
+        closer = dist < across
+        across[closer] = dist[closer]
+        along[closer] = start[ii] + t[closer] * lengths[ii]
+    return along, across
+
+
+def export_to_paraview(outfile, model, data=None, raw_data=None, resolution=None,
+                       utm_zone=None, use_elevation=False, local=True):
+    """Write a model (and stations) for ParaView, as the ``to_vtk`` command does.
+
+    Writes ``<outfile>_model.vtk`` and, if ``data`` has stations,
+    ``<outfile>_sites.vtk``. The model and data are written in metres
+    whatever units they are shown in.
+
+    Parameters
+    ----------
+    outfile : str
+        Base name for the files.
+    model : gateway_mt.data_structures.Model
+    data : gateway_mt.data_structures.Data, optional
+    raw_data : gateway_mt.data_structures.RawData, optional
+        If given (and ``local``), its station centre is used as the origin,
+        so the files are in UTM coordinates. Otherwise the origin is 0, 0.
+    resolution : numpy.ndarray, optional
+        Resolution values on the model mesh, written alongside it.
+    utm_zone : str, optional
+        Written into the file headers ('999' if not known).
+    use_elevation : bool, optional
+        Place the stations at their elevations.
+    local : bool, optional
+        The model and data are in local coordinates (False if they are
+        already in UTM etc., when no origin is added).
+
+    Returns
+    -------
+    list of str
+        The files written.
+    """
+    model = deepcopy(model)
+    model.spatial_units = 'm'
+    origin = (0, 0)
+    if local and raw_data is not None and raw_data.initialized:
+        raw_data = deepcopy(raw_data)
+        raw_data.spatial_units = 'm'
+        origin = raw_data.origin
+    zone = utm_zone if utm_zone and str(utm_zone).lower() != 'undefined' else '999'
+    if resolution is not None:
+        model.resolution = resolution
+    model.to_vtk(outfile, origin=origin, UTM=zone)
+    written = ['{}_model.vtk'.format(outfile)]
+    if data is not None and len(data.site_names):
+        data = deepcopy(data)
+        data.spatial_units = 'm'
+        data.to_vtk(outfile, UTM=zone, origin=origin, use_elevation=use_elevation)
+        written.append('{}_sites.vtk'.format(outfile))
+    return written
+
+
+def write_section_csv(path, easting, northing, depths, values, units):
+    """Write a transect section to CSV: easting, northing, distance along the
+    transect, depth and log10 resistivity, one line per point.
+
+    ``values`` is ``(len(easting), len(depths))``.
+    """
+    distance = np.concatenate([[0], np.cumsum(np.hypot(np.diff(easting), np.diff(northing)))])
+    with open(path, 'w') as f:
+        f.write('# Easting ({0}), Northing ({0}), Distance ({0}), Depth ({0}), log10 Resistivity (ohm-m)\n'.format(units))
+        for ix in range(len(easting)):
+            for iz, depth in enumerate(depths):
+                f.write('{:.4f},{:.4f},{:.4f},{:.4f},{:.5f}\n'.format(easting[ix], northing[ix], distance[ix],
+                                                                      depth, values[ix, iz]))
 
 
 def main():

@@ -229,7 +229,7 @@ def model_to_vtk(model, outfile=None, origin=None, UTM=None, azi=0, sea_level=0)
     else:
         outfile = '_'.join([outfile, 'model.vtk'])
     values = prep_model(model)
-    if model.resolution:
+    if model.resolution is not None and np.size(model.resolution):
         # This creates separate copies of the model object and sticks the resolution values into the vals
         # attributes
         # Is a very roundabout method. All resolution information
@@ -241,7 +241,7 @@ def model_to_vtk(model, outfile=None, origin=None, UTM=None, azi=0, sea_level=0)
             raw_resolution.vals = 1 / raw_resolution.vals
         raw_resolution.vals[raw_resolution.vals > 1e10] = 1e10
         modified_resolution = copy.deepcopy(raw_resolution)
-        modified_resolution = utils.normalize(modified_resolution)
+        modified_resolution.vals = utils.normalize(modified_resolution.vals)
         modified_resolution.vals[modified_resolution.vals > 1] = 1
         raw_resolution = prep_model(raw_resolution)
         modified_resolution = prep_model(modified_resolution)
