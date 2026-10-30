@@ -237,6 +237,14 @@ def test_1d_window_layer_table_and_csv(data_plot, monkeypatch, tmp_path):
     with open(out) as f:
         rows = [line.split(',') for line in f.read().splitlines()]
     assert all(len(row) == 3 for row in rows)                     # depth, rho_x, rho_y
+    # The response is the 1-D response of the table (5 km of 100 ohm-m over the 1000 ohm-m half-space)
+    from helpers import one_d_impedance
+    table.setItem(1, 1, QtWidgets.QTableWidgetItem('100'))
+    table.setItem(1, 2, QtWidgets.QTableWidgetItem('100'))
+    site = window.synthetic_window.site
+    Z = one_d_impedance(site.periods, [100, 1000], [5000])
+    np.testing.assert_allclose(site.data['ZXYR'], Z.real, rtol=1e-10)
+    np.testing.assert_allclose(site.data['ZXYI'], -Z.imag, rtol=1e-10)
 
 
 def test_1d_inversion_on_the_3d_model_layers(data_plot):

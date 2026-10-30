@@ -15,7 +15,7 @@ from PyQt5.uic import loadUiType
 from PyQt5 import QtWidgets, QtCore
 import gateway_mt.utils as utils
 from gateway_mt.GUI_common.classes import TwoInputDialog
-from gateway_mt.modelling_1D import invert_1DMT, layer_tops
+from gateway_mt.modelling_1D import invert_1DMT, layer_tops, wait_1D
 import os
 from copy import deepcopy
 
@@ -562,39 +562,14 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         """Compute the 1-D responses of the rho_x and rho_y models.
 
         The rho_x response goes into ZXY and the rho_y response into ZYX of
-        ``site``, with 5% errors, small diagonal impedances and zero tipper. Uses
-        the same recursion as :func:`~gateway_mt.modelling_1D.wait_1D`.
+        ``site``, with 5% errors, small diagonal impedances and zero tipper
+        (:func:`~gateway_mt.modelling_1D.wait_1D`).
         """
+        periods = np.logspace(self.period_range[0], self.period_range[1], 80)
+        # Thicknesses in m, one per layer (the half-space's isn't used)
+        thicknesses = np.array(self.thickness + [self.hs_thickness]) * 1000
         for ii, rho in enumerate([self.rho_x, self.rho_y]):
-            scale = 1 / (4 * np.pi / 10000000)
-            mu = 4 * np.pi * 1e-7
-            periods = np.logspace(self.period_range[0], self.period_range[1], 80)
-            omega = 2 * np.pi / periods
-            # d = np.cumsum(self.thickness + [100000])
-            d = np.array(self.thickness + [self.hs_thickness]) * 1000
-            r = rho + [self.hs]
-            cond = 1 / np.array(r)
-            # r = 1 / np.array(r)
-            Z = np.zeros(len(periods), dtype=complex)
-            rhoa = np.zeros(len(periods))
-            phi = np.zeros(len(periods))
-            for nfreq, w in enumerate(omega):
-                prop_const = np.sqrt(1j*mu*cond[-1] * w)
-                C = np.zeros(len(r), dtype=complex)
-                C[-1] = 1 / prop_const
-                if len(d) > 1:
-                    for k in reversed(range(len(r) - 1)):
-                        prop_layer = np.sqrt(1j*w*mu*cond[k])
-                        k1 = (C[k+1] * prop_layer + np.tanh(prop_layer * d[k]))
-                        k2 = ((C[k+1] * prop_layer * np.tanh(prop_layer * d[k])) + 1)
-                        C[k] = (1 / prop_layer) * (k1 / k2)
-            # #         k2 = np.sqrt(1j*omega[nfreq]*C*mu0/r[k+1]);
-            #         g = (g*k2+k1*np.tanh(k1*d[k]))/(k1+g*k2*np.tanh(k1*d[k]));
-                Z[nfreq] = 1j * w * mu * C[0]
-
-            rhoa = 1/omega*np.abs(Z)**2
-            phi = np.angle(Z, deg=True)
-
+            Z = wait_1D(periods, rho + [self.hs], thicknesses)
             self.Z = Z
             
             # Update all the data
