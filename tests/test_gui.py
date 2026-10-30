@@ -312,6 +312,30 @@ def test_mesh_designer_adds_and_removes_padding(mesh_designer_window, canned_dia
     assert (window.model.nx, window.model.ny) == (nx, ny)
 
 
+def test_mesh_designer_regenerate_mesh_sizes(mesh_designer_window, monkeypatch):
+    """Cell sizes start from the station spread; a huge mesh is only built if confirmed."""
+    import gateway_mt.utils as utils
+    from PyQt5 import QtWidgets
+    window = mesh_designer_window
+    locs = window.site_locations
+    assert float(window.minX.text()) == pytest.approx(utils.default_cell_size(locs[:, 0]), abs=0.5)
+    asked = []
+    monkeypatch.setattr(QtWidgets.QMessageBox, 'question',
+                        staticmethod(lambda *a, **k: asked.append(a[2]) or QtWidgets.QMessageBox.No))
+    nx = window.model.nx
+    window.minX.setText('10')
+    window.minY.setText('10')
+    with quiet():
+        window.regenerate_mesh()
+    assert asked and window.model.nx == nx                         # asked, declined, nothing changed
+    window.minX.setText('2000')
+    window.minY.setText('2000')
+    with quiet():
+        window.regenerate_mesh()
+    assert len(asked) == 1
+    assert window.model.nx == utils.regular_mesh_size(locs[:, 0], 2000) - 1
+
+
 def test_mesh_designer_writes_a_readable_model(mesh_designer_window, canned_dialogs, tmp_path):
     import gateway_mt.data_structures as DS
     canned_dialogs['save'] = str(tmp_path / 'designed.model')

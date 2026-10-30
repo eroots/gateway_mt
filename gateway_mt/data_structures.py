@@ -1612,10 +1612,8 @@ class Model(object):
             self.__read__(modelfile=modelfile, file_format=file_format)
         elif data:
             self.generate_dummy_model()
-            x_size = (np.max(data.locations[:, 1]) - np.min(data.locations[:, 1])) / 60
-            y_size = (np.max(data.locations[:, 0]) - np.min(data.locations[:, 0])) / 60
-            x_size = np.max((x_size, 1000))
-            y_size = np.max((y_size, 1000))
+            x_size = utils.default_cell_size(data.locations[:, 0])
+            y_size = utils.default_cell_size(data.locations[:, 1])
             self.generate_mesh(site_locs=data.locations, regular=True, min_x=x_size, min_y=y_size,
                                num_pads=5, pad_mult=1.2)
             self.generate_zmesh(min_depth=1, max_depth=500000, increase_factor=1.2)

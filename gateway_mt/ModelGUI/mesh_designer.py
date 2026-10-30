@@ -93,6 +93,9 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         Initial directory for the save dialogs.
     """
 
+    #: Regenerate Mesh asks before building a model with more cells than this
+    LARGE_MESH = 10e6
+
     def __init__(self, model, dataset=None, path='./'):
         """Resolve / copy the model, build the plan view and side panels,
         wire the widgets and draw the initial mesh."""
@@ -187,8 +190,14 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.maxDepthFactor.editingFinished.connect(self.max_depth_factor)
         self.increaseFactors.itemChanged.connect(self.increase_factor_edit)
 
-        self.minX.setText(str(min(self.model.xCS)))
-        self.minY.setText(str(min(self.model.yCS)))
+        if len(self.site_locations):
+            # Regenerate Mesh makes a uniform mesh at the minimum size, so start from the station spread
+            # rather than the model's smallest cell (which can make a huge mesh over a large survey)
+            self.minX.setText('{:.0f}'.format(utils.default_cell_size(self.site_locations[:, 0])))
+            self.minY.setText('{:.0f}'.format(utils.default_cell_size(self.site_locations[:, 1])))
+        else:
+            self.minX.setText(str(min(self.model.xCS)))
+            self.minY.setText(str(min(self.model.yCS)))
         self.maxX.setText(str(max(self.model.xCS)))
         self.maxY.setText(str(max(self.model.yCS)))
         if self.model.is_half_space():
@@ -740,7 +749,20 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
 
     def regenerate_mesh(self):
         """Rebuild the horizontal (x / y) mesh from the station locations
-        and the min / max X / Y extents (``Model.generate_mesh``)."""
+        (``Model.generate_mesh``): a uniform mesh at the minimum X / Y cell
+        sizes. Asks first if that would be a very large model."""
+        nx = utils.regular_mesh_size(self.site_locations[:, 0], float(self.minX.text()))
+        ny = utils.regular_mesh_size(self.site_locations[:, 1], float(self.minY.text()))
+        cells = (nx - 1) * (ny - 1) * self.model.nz
+        if cells > self.LARGE_MESH:
+            ret = QtWidgets.QMessageBox.question(self, 'Large mesh',
+                                                 'The new mesh would be {} x {} x {} ({:.0f} million cells), '
+                                                 'which may take a long time. Continue?'.format(nx - 1, ny - 1,
+                                                                                              self.model.nz, cells / 1e6),
+                                                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                                                 QtWidgets.QMessageBox.No)
+            if ret != QtWidgets.QMessageBox.Yes:
+                return
         print('Regenerating mesh')
         self.model.generate_mesh(self.site_locations,
                                  min_x=float(self.minX.text()),

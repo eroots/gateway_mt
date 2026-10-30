@@ -95,9 +95,9 @@ Reset Mesh
 
 The Reset Mesh tab is used to generate a new, uniformly spaced mesh from scratch.
 
-Set the minimum and maximum cell sizes for the X and Y directions in the corresponding boxes, and hit Regenerate Mesh.
+Set the minimum cell sizes for the X and Y directions in the corresponding boxes, and hit Regenerate Mesh.
 
-A new mesh will be generated using these sizes, extending to the bounds set by the station locations.
+A new, uniform mesh will be generated with cells of the minimum size (the maximum sizes are not used here), extending to the bounds set by the station locations. The boxes start at 1/60 of the spread of the stations (at least 1 km). If the new mesh would be very large (more than 10 million cells), you will be asked before it is built.
 
 Smoothing
 ^^^^^^^^^

@@ -1534,6 +1534,17 @@ def generate_zmesh(min_depth=1, max_depth=500000, NZ=None):
     return depths, zCS, ddz
 
 
+def regular_mesh_size(site_locs, cell_size):
+    """Number of mesh lines :func:`generate_lateral_mesh` (``regular=True``) makes for these stations."""
+    cell_size = max(cell_size, 10)
+    return max(len(np.arange(np.min(site_locs) - 500, np.max(site_locs) + 500, cell_size)), 2)
+
+
+def default_cell_size(site_locs):
+    """A starting cell size for a regular mesh: 1/60 of the station spread, at least 1 km."""
+    return max((np.max(site_locs) - np.min(site_locs)) / 60, 1000)
+
+
 def generate_lateral_mesh(site_locs, regular=True, min_x=None, model=None, max_x=None,
                           num_pads=None, pad_mult=None, DEBUG=True):
     """Generate a 1-D lateral (x or y) mesh from a set of station locations.
@@ -1564,7 +1575,6 @@ def generate_lateral_mesh(site_locs, regular=True, min_x=None, model=None, max_x
         Number of nodes.
     """
     def regular_mesh(x_size, bounds):
-        print(bounds, x_size)
         xmesh = list(np.arange(bounds[0], bounds[1], x_size))
         nmesh = len(xmesh)
         return xmesh, nmesh
@@ -1658,7 +1668,6 @@ def generate_lateral_mesh(site_locs, regular=True, min_x=None, model=None, max_x
         xmesh, nmesh = regular_mesh(min_x, bounds)
         if nmesh < 2:
             xmesh.append(xmesh[0] + 1)
-        print(xmesh, nmesh)
     else:
         xmesh, nmesh = j2_mesh(site_locs=site_locs, min_x=min_x, max_x=max_x)
     return xmesh, nmesh

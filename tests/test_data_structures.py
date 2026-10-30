@@ -176,3 +176,13 @@ def test_import_1d_anisotropic_keeps_each_axis():
     np.testing.assert_allclose(model.rho_y[:, :, :-1], 3 * model.rho_x[:, :, :-1])
     np.testing.assert_allclose(model.rho_z, model.rho_x)
     assert model.rho_z is not model.rho_x and model.dip is not model.strike
+
+
+def test_model_from_data_sizes_each_axis_from_its_own_spread(dataset):
+    import gateway_mt.utils as utils
+    data = deepcopy(dataset.data)
+    data.locations[:, 0] *= 10                                     # stretch the survey north-south
+    with quiet():
+        model = DS.Model(data=data)
+    assert np.median(model.xCS) == pytest.approx(utils.default_cell_size(data.locations[:, 0]), rel=1e-6)
+    assert np.median(model.yCS) == pytest.approx(utils.default_cell_size(data.locations[:, 1]), rel=1e-6)
