@@ -87,8 +87,6 @@ def test_gateway_project_save_and_reload(gateway, monkeypatch, tmp_path):
         'run1': {'list': 'a.lst', 'data': 'a.dat', 'response': 'a_resp.dat', 'model': 'a.model'}}
 
 
-@pytest.mark.xfail(strict=True, reason='Known bug: write_project saves a "resolution" line that '
-                                       'FileInputParser.read_pystart does not recognise, so it is dropped.')
 def test_gateway_project_keeps_the_resolution_file(gateway, monkeypatch, tmp_path):
     from PyQt5 import QtWidgets
     from gateway_mt.GUI_common.classes import FileInputParser
@@ -96,6 +94,37 @@ def test_gateway_project_keeps_the_resolution_file(gateway, monkeypatch, tmp_pat
     monkeypatch.setattr(QtWidgets.QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (project, '')))
     gateway.write_project({'run1': {'model': 'a.model', 'resolution': 'a.res'}})
     assert FileInputParser.read_pystart(project)['run1'].get('resolution') == 'a.res'
+
+
+@pytest.mark.parametrize('answer, expected', [(('renamed', True), 'renamed'), (('', False), 'ds1_2')])
+def test_gateway_duplicate_names_can_be_renamed_or_cancelled(gateway, monkeypatch, answer, expected):
+    from PyQt5 import QtWidgets
+    monkeypatch.setattr(QtWidgets.QInputDialog, 'getText', staticmethod(lambda *a, **k: answer))
+    table = gateway.datasetTable
+    table.setRowCount(2)
+    table.setItem(1, 0, QtWidgets.QTableWidgetItem('ds1'))         # same name as row 0
+    assert table.item(1, 0).text() == expected
+    assert table.item(0, 0).text() == 'ds1'
+
+
+def test_gateway_gives_mesh_designer_resolved_paths(gateway, monkeypatch):
+    """Paths in a project are relative to it; Mesh Designer must get them resolved."""
+    from PyQt5 import QtWidgets
+    from gateway_mt.GatewayGUI import gateway_main
+    opened = {}
+    monkeypatch.setattr(gateway_main, 'MeshDesigner', lambda **k: opened.update(k) or QtWidgets.QMainWindow())
+    gateway.project_path = synthetic()
+    gateway.datasetTable.setItem(0, gateway.file_to_index['model'], QtWidgets.QTableWidgetItem('synthetic.model'))
+    gateway.datasetTable.selectRow(0)
+    gateway.launch_mesh_designer()
+    assert os.path.exists(opened['model'])
+
+
+def test_gateway_forgets_closed_model_viewers(gateway):
+    viewer = object()
+    gateway.model_windows.append(viewer)
+    gateway.close_mv(viewer)
+    assert viewer not in gateway.model_windows
 
 
 # --------------------------------------------------------------------------- #

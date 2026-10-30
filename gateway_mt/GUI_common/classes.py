@@ -643,8 +643,8 @@ class FileInputParser(object):
         """Read a startup file.
 
         ``% name`` starts a dataset, followed by lines giving its ``list``,
-        ``data``, ``response`` (or ``resp``), ``model`` (or ``mod``) and
-        ``raw_path`` (or ``raw``) files. A ``path`` line is prepended to file
+        ``data``, ``response`` (or ``resp``), ``model`` (or ``mod``),
+        ``resolution`` (or ``res``) and ``raw_path`` (or ``raw``) files. A ``path`` line is prepended to file
         names given without a directory, and lines starting with ``#`` are
         ignored (see :ref:`Startup File`).
 
@@ -659,8 +659,8 @@ class FileInputParser(object):
             be read.
         """
         dset = ''
-        acceptable = ('data', 'list', 'response', 'raw_path', 'model', 'path')
-        abbreviations = {'raw': 'raw_path', 'resp': 'response', 'mod': 'model', 'lst': 'list'}
+        acceptable = ('data', 'list', 'response', 'raw_path', 'model', 'resolution', 'path')
+        abbreviations = {'raw': 'raw_path', 'resp': 'response', 'mod': 'model', 'lst': 'list', 'res': 'resolution'}
         try:
             with open(startup, 'r') as f:
                 lines = f.readlines()

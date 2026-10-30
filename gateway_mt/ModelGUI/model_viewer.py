@@ -337,6 +337,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         and for closing / reopening multiple windows)."""
         super().closeEvent(event)
         self.vtk_widget.Finalize()
+        self.closed.emit(self)
         self.close()
 
     @property

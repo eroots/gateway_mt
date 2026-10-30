@@ -320,24 +320,24 @@ class NewProject(QNewProject, Ui_NewProject):
         Notes
         -----
         When a name cell (column 0) is edited to duplicate another row's
-        name, the user is prompted (via ``QInputDialog.getText``) for a
-        replacement.  Known issue: the prompt reopens until a non-empty
-        name is entered, so it cannot be cancelled.
+        name, the user is asked for a different one. Cancelling gives the
+        name a numbered suffix instead (e.g. ``ds1_2``).
         """
         self.table_modified = True
         item = self.datasetTable.item(row, col)
-        if item:
-            if item.column() == 0:
-                for row in range(self.datasetTable.rowCount()):
-                    if row != item.row():
-                        if item.text() == self.datasetTable.item(row, 0).text():
-                            text = ''
-                            while True:
-                                if text:
-                                    item.setText(text)
-                                    break
-                                else:
-                                    text, ok = QtWidgets.QInputDialog.getText(self, '', 'Data sets must have unique names. Enter a new name: ')
+        if item and item.column() == 0:
+            others = [self.datasetTable.item(r, 0).text() for r in range(self.datasetTable.rowCount())
+                      if r != item.row() and self.datasetTable.item(r, 0)]
+            name = item.text()
+            if name in others:
+                while not name or name in others:
+                    name, ok = QtWidgets.QInputDialog.getText(self, '', 'Data sets must have unique names. Enter a new name: ')
+                    if not ok:
+                        n = 2
+                        while '{}_{}'.format(item.text(), n) in others:
+                            n += 1
+                        name = '{}_{}'.format(item.text(), n)
+                item.setText(name)
 
     def save_project(self):
         """Collect the whole table and hand it to :meth:`write_project`.
@@ -526,12 +526,9 @@ class NewProject(QNewProject, Ui_NewProject):
             QtWidgets.QMessageBox.warning(self, '', 'A model must be available in the selected data set to use Model Viewer!')
 
     def close_mv(self, mv):
-        """Slot for ``ModelWindow.closed``.
-
-        Currently a no-op, so closed Model Viewer windows stay in
-        ``model_windows`` (known issue).
-        """
-        pass
+        """Slot for ``ModelWindow.closed``: forget the closed window."""
+        if mv in self.model_windows:
+            self.model_windows.remove(mv)
 
     def launch_mesh_designer(self):
         """Open a Mesh Designer window on the single selected dataset.
@@ -549,12 +546,12 @@ class NewProject(QNewProject, Ui_NewProject):
             return
         active_ds = self.active_datasets()
         ds = list(active_ds.values())[0]
-        model = ds.get('model', None)
-        data = ds.get('data', None)
-        if model or data:
+        if ds.get('model', None) or ds.get('data', None):
             for key in ds.keys():
                 if ds[key] and not os.path.isabs(ds[key]):
                     ds[key] = self.project_path + '/' + ds[key]
+            model = ds.get('model', None)
+            data = ds.get('data', None)
             try:
                 md_main = MeshDesigner(model=model, dataset=data, path=self.project_path)
                 md_main.setWindowIcon(QtGui.QIcon(model_viewer_jpg))
