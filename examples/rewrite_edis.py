@@ -17,14 +17,14 @@ import os
 
 
 def to_edi(site, out_file, info=None, header=None, mtsect=None, defs=None):
-    lat_deg, lat_min, lat_sec = utils.dd_to_dms(site.locations['Lat'])
-    long_deg, long_min, long_sec = utils.dd_to_dms(site.locations['Long'])
+    lat_text = utils.format_dms(site.locations['Lat'])
+    long_text = utils.format_dms(site.locations['Long'])
     default_header = OrderedDict([('ACQBY', '"eroots"'),
                                   ('FILEBY',   '"gateway_mt"'),
                                   ('DATAID', '{}'.format(site.name)),
                                   ('FILEDATE', datetime.today().strftime('%m/%d/%y')),
-                                  ('LAT', '{:d}:{:d}:{:4.2f}'.format(int(lat_deg), int(lat_min), lat_sec)),
-                                  ('LONG', '{:d}:{:d}:{:4.2f}'.format(int(long_deg), int(long_min), long_sec)),
+                                  ('LAT', lat_text),
+                                  ('LONG', long_text),
                                   ('ELEV', 0),
                                   ('STDVERS', '"SEG 1.0"'),
                                   ('PROGVERS', '"gateway_mt {}"'.format(pkg_resources.get_distribution('gateway_mt').version)),
@@ -38,8 +38,8 @@ def to_edi(site, out_file, info=None, header=None, mtsect=None, defs=None):
                                 ('MAXMEAS', 9999),
                                 ('UNITS', 'M'),
                                 ('REFTYPE', 'CART'),
-                                ('REFLAT', '{:d}:{:d}:{:4.2f}'.format(int(lat_deg), int(lat_min), lat_sec)),
-                                ('REFLONG', '{:d}:{:d}:{:4.2f}'.format(int(long_deg), int(long_min), long_sec))])
+                                ('REFLAT', lat_text),
+                                ('REFLONG', long_text)])
     default_mtsect = OrderedDict([('SECTID', '{}'.format(site.name)),
                                   ('NFREQ', site.NP),
                                   ('HX', '1.01'),

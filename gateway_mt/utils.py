@@ -22,7 +22,7 @@ it.  Roughly, the functions fall into these groups:
     :func:`linear_distance`.
 
 ``Coordinate conversion / map projection``
-    :func:`parse_dms`, :func:`dms2dd`, :func:`dd2dms`, :func:`compute_longorigin`,
+    :func:`parse_dms`, :func:`dms2dd`, :func:`dd2dms`, :func:`format_dms`, :func:`compute_longorigin`,
     :func:`geo2utm`, :func:`zone_convert`, :func:`project`, :func:`unproject`,
     :func:`generic_projection`, :func:`to_lambert`.
 
@@ -752,6 +752,16 @@ def dd2dms(dd):
     mnt, sec = divmod(abs(dd) * 3600, 60)
     deg, mnt = divmod(mnt, 60)
     return mult * deg, mnt, sec
+
+
+def format_dms(dd):
+    """Decimal degrees as ``'d:m:s.ss'`` text, as written in EDI files.
+
+    The sign goes in front, so it is kept within a degree of 0, where
+    :func:`dd2dms` returns ``-0.0`` degrees (e.g. -0.5 gives ``'-0:30:0.00'``).
+    """
+    deg, mnt, sec = dd2dms(dd)
+    return '{}{:d}:{:d}:{:4.2f}'.format('-' if dd < 0 else '', abs(int(deg)), int(mnt), sec)
 
 
 # Backwards-compatible aliases for the older, near-duplicate implementations.

@@ -178,6 +178,14 @@ def test_degrees_minutes_seconds_round_trip_below_one_degree(dd):
     assert utils.dms2dd(_as_dms_text(dd)) == pytest.approx(dd, abs=1e-9)
 
 
+@pytest.mark.parametrize('dd, text', [(-84.5, '-84:30:0.00'), (49.123456, '49:7:24.44'), (-0.5, '-0:30:0.00'),
+                                      (0.75, '0:45:0.00')])
+def test_degrees_written_as_text(dd, text):
+    """format_dms (used for EDI LAT / LONG) keeps the sign within a degree of 0, and dms2dd reads it back."""
+    assert utils.format_dms(dd) == text
+    assert utils.dms2dd(text) == pytest.approx(dd, abs=1e-5)
+
+
 def test_enforce_input_converts_without_losing_arguments():
     """Typed arguments are converted (positional or not); defaults and other arguments are kept."""
     import inspect
