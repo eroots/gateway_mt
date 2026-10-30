@@ -711,9 +711,9 @@ class FileInputParser(object):
         except FileNotFoundError:
             print('File not found: {}'.format(startup))
             return False
-        if 'raw' in retval.keys():
-            if 'list' not in retval.keys():
-                print('Cannot read raw data with a list file!')
+        for dataset_name, dataset_files in retval.items():
+            if 'raw_path' in dataset_files and 'list' not in dataset_files:
+                print('Dataset {}: cannot read raw data without a list file!'.format(dataset_name))
                 return False
         return retval
 

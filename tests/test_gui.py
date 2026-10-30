@@ -77,6 +77,16 @@ def test_gateway_sorts_files_into_columns(gateway):
     assert gateway.sort_files(files) == {'model': files[0], 'list': files[1], 'data': files[2]}
 
 
+def test_start_file_with_raw_data_needs_a_list_file(tmp_path):
+    from gateway_mt.GUI_common.classes import FileInputParser
+    start = tmp_path / 'pystart'
+    start.write_text('% with_list\nlist a.lst\nraw edis\n% without_list\ndata a.dat\nraw edis\n')
+    with quiet():
+        assert FileInputParser.read_pystart(str(start)) is False
+    start.write_text('% with_list\nlist a.lst\nraw edis\n')
+    assert FileInputParser.read_pystart(str(start)) == {'with_list': {'list': 'a.lst', 'raw_path': 'edis'}}
+
+
 def test_gateway_project_save_and_reload(gateway, monkeypatch, tmp_path):
     from PyQt5 import QtWidgets
     from gateway_mt.GUI_common.classes import FileInputParser
