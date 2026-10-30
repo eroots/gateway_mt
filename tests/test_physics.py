@@ -9,7 +9,9 @@ import numpy as np
 import pytest
 
 import gateway_mt.utils as utils
-from gateway_mt.modelling_1D import wait_1D
+from gateway_mt.modelling_1D import invert_1DMT, layer_tops, wait_1D
+
+from conftest import quiet
 
 from helpers import make_site, one_d_impedance, one_d_tensor, rotate_axes
 
@@ -76,6 +78,17 @@ def test_wait_1d_two_layers():
     """dz has one entry per layer, as the 1-D modelling window passes it; the half-space's entry is unused."""
     np.testing.assert_allclose(wait_1D(PERIODS, [1000.0, 10.0], np.array([2000.0, 1e6])),
                                one_d_impedance(PERIODS, [1000.0, 10.0], [2000.0]), rtol=1e-10)
+
+
+def test_1d_inversion_mantle_transition_fixes_the_layers_below_410_km(dataset):
+    """``dz`` are thicknesses: with 10 km layers, every layer whose top is at or below 410 km is fixed at 20 ohm-m."""
+    dz = [10000.0] * 60
+    tops = layer_tops(np.array(dz))
+    with quiet():
+        model, _, _, _ = invert_1DMT(data=dataset.data, rho_initial=np.full(60, 100.0), dz=dz,
+                                     maxiter=2, mantle_transition=True)
+    np.testing.assert_allclose(model[tops >= 410000], 20)
+    assert not np.allclose(model[tops < 400000], 20)
 
 
 # --------------------------------------------------------------------------- #

@@ -15,7 +15,7 @@ from PyQt5.uic import loadUiType
 from PyQt5 import QtWidgets, QtCore
 import gateway_mt.utils as utils
 from gateway_mt.GUI_common.classes import TwoInputDialog
-from gateway_mt.modelling_1D import invert_1DMT
+from gateway_mt.modelling_1D import invert_1DMT, layer_tops
 import os
 from copy import deepcopy
 
@@ -71,7 +71,7 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
         self.actionWriteSynthetic.triggered.connect(self.write_synthetic_model)
 
     def write_inverse_model(self):
-        """Save the inverted model to a CSV file, one line per layer (``dz``, resistivity)."""
+        """Save the inverted model to a CSV file, one line per layer (thickness in m, resistivity)."""
         if self.inverse_results:
             save_file = QtWidgets.QFileDialog.getSaveFileName(self,
                                                               'Save 1D Inverse',
@@ -172,7 +172,7 @@ class InversionSettings(QInversionSettings, UI_InversionSettings):
         QtWidgets.QMessageBox.information(self, 'About', msg)
         
     def get_values(self):
-        """Read the settings from the panel, and build the layers (``dz``)."""
+        """Read the settings from the panel, and build the layer thicknesses (``dz``)."""
         self.halfspace_resistivity = self.startingRho.value()
         self.starting_resistivity = self.startingRho.value()
         self.num_iters = self.numIteration.value()
@@ -187,15 +187,18 @@ class InversionSettings(QInversionSettings, UI_InversionSettings):
         self.target_misfit = self.targetMisfit.value()
         self.use_mantle_transition = self.checkMantleTransition.checkState()
         if self.check3DLayers.checkState() and self.model_3d is not None:
-            self.dz = self.model_3d.dz
+            # The 3-D model's dz are cell edges (depths); the inversion takes thicknesses in m
+            scale = 1000 if self.model_3d.spatial_units == 'km' else 1
+            self.dz = list(np.diff(self.model_3d.dz) * scale)
         else:
             self.dz = [0] + list(np.logspace(np.log10(self.minimum_thickness), np.log10(self.maximum_depth), self.num_layers))
 
     def start_inversion(self):
         """Run the inversion with the current settings and emit ``updated``.
 
-        ``results`` is set to ``{'Model': {'Rho', 'dz'}, 'Response': {'Rho',
-        'Periods', 'RMS'}}``.
+        ``results`` is set to ``{'Model': {'Rho', 'dz', 'depth'}, 'Response':
+        {'Rho', 'Periods', 'RMS'}}``, where ``dz`` are the layer thicknesses
+        and ``depth`` the depths of their tops (m).
         """
         self.get_values()
         if self.use_mantle_transition:
@@ -220,7 +223,7 @@ class InversionSettings(QInversionSettings, UI_InversionSettings):
                                                      target_misfit=self.target_misfit,
                                                      maxiter=self.num_iters,
                                                      mantle_transition=self.use_mantle_transition)
-        self.results = {'Model': {'Rho': m_best, 'dz': np.array(self.dz)},
+        self.results = {'Model': {'Rho': m_best, 'dz': np.array(self.dz), 'depth': layer_tops(np.array(self.dz))},
                         'Response': {'Rho': rhoa_best, 'Periods': self.data_obs.periods, 'RMS': rms}}
         self.updated.emit()
 
@@ -359,7 +362,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         Template site; its period range is used for the response.
     parent : QWidget, optional
     inverse_model : dict, optional
-        ``{'Rho', 'dz'}`` of an inverted model, drawn with the synthetic one.
+        ``{'Rho', 'dz', 'depth'}`` of an inverted model, drawn with the synthetic one.
     """
 
     updated = QtCore.pyqtSignal()
@@ -537,8 +540,11 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.image = self.axis.step(np.log10(rho_x), depth, color='b', linestyle='-', label='Syn. RhoX')
         self.image = self.axis.step(np.log10(rho_y), depth, color='r', linestyle='--', label='Syn. RhoY')
         if self.inverse_model:
-            self.image = self.axis.step(np.log10(self.inverse_model['Rho']), self.inverse_model['dz']/1000, color='k', linestyle='-', label='Inv.')
-            max_depth = max([self.inverse_model['dz'][-1]/1000, max_depth])
+            # Layer tops, plus 500 km of half-space (as for the synthetic model above)
+            inv_depth = np.append(self.inverse_model['depth'], self.inverse_model['depth'][-1] + 500000) / 1000
+            inv_rho = np.append(self.inverse_model['Rho'], self.inverse_model['Rho'][-1])
+            self.image = self.axis.step(np.log10(inv_rho), inv_depth, color='k', linestyle='-', label='Inv.')
+            max_depth = max([inv_depth[-2] + 100, max_depth])
         # self.axis.set_ylim([0, self.max_plot_depth])
         self.axis.set_ylabel('Depth (km)')
         self.axis.set_xlabel('Log10 Rho (Ωm)')

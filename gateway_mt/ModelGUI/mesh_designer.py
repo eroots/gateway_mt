@@ -788,7 +788,7 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
             if self.use_1D_inverse.checkState():
                 if self.modeling_window.inversion_settings.results:
                     model_1D = self.modeling_window.inversion_settings.results['Model']
-                    self.model.import_1D(model_1D['Rho'], model_1D['dz'])
+                    self.model.import_1D(model_1D['Rho'], model_1D['depth'])
                 else:
                     ret = QtWidgets.QMessageBox.question(self, 'Write', 'No 1D inverse model is available; Write halfspace?',
                                                          QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,

@@ -239,6 +239,23 @@ def test_1d_window_layer_table_and_csv(data_plot, monkeypatch, tmp_path):
     assert all(len(row) == 3 for row in rows)                     # depth, rho_x, rho_y
 
 
+def test_1d_inversion_on_the_3d_model_layers(data_plot):
+    """The 3-D model's depths become layer thicknesses, and the result is drawn against depth."""
+    with quiet():
+        data_plot.launch_1D_window()
+        settings = data_plot.modeling_window.inversion_settings
+        settings.numIteration.setValue(2)
+        settings.check3DLayers.setChecked(True)
+        settings.start_inversion()
+    model = settings.results['Model']
+    model_3d = data_plot.dataset.model
+    edges = np.array(model_3d.dz) * (1000 if model_3d.spatial_units == 'km' else 1)   # in m
+    np.testing.assert_allclose(model['dz'][:-1], np.diff(edges))          # + the appended half-space
+    np.testing.assert_allclose(model['depth'][:-1], edges[:-1])
+    inverted = [l for l in data_plot.modeling_window.synthetic_window.axis.get_lines() if l.get_label() == 'Inv.'][0]
+    np.testing.assert_allclose(inverted.get_ydata()[:-1], model['depth'] / 1000)
+
+
 def test_1d_window_needs_data(no_dialogs):
     import gateway_mt.data_structures as DS
     from gateway_mt.GUI_common.windows import Modeling1D

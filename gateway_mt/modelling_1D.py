@@ -25,6 +25,11 @@ def compute_phase(Z):
     """Phase of ``Z`` in degrees."""
     return np.rad2deg(np.arctan2(np.imag(Z), np.real(Z)))
 
+def layer_tops(dz):
+    """Depth of the top of each layer, from the layer thicknesses ``dz``."""
+    return np.concatenate([[0], np.cumsum(dz[:-1])])
+
+
 def compute_det1D(Z):
     """Determinant impedance of a 1-D response, i.e. ``abs(Z)``.
 
@@ -130,9 +135,11 @@ def _invert_1DMT(rhoa_obs, err_obs, periods, dz, rho_initial,
     options = {'bounds':[np.log10(rho_min), np.log10(rho_max)], 'maxiter':maxiter,
                'tolfunhist': 1e-2}
     if mantle_transition:
-        idx = np.argmin(409999 - np.array(dz))
-        x0[idx-1:] = np.log10(20)
-        options.update({'fixed_variables': {ii: np.log10(20) for ii in range(idx-1, len(x0))}})
+        # Fix the layers at and below the 410 km transition (and always the half-space) to 20 ohm-m
+        below = np.nonzero(layer_tops(np.array(dz)) >= 410000)[0]
+        idx = below[0] if len(below) else len(x0) - 1
+        x0[idx:] = np.log10(20)
+        options.update({'fixed_variables': {ii: np.log10(20) for ii in range(idx, len(x0))}})
     final_model, es = cma.fmin2(objective_function, x0, sigma0, options, args=args)
     final_model = 10**final_model
     z_best = wait_1D(periods, final_model, dz)
@@ -178,8 +185,8 @@ def invert_1DMT(data, rho_initial, dz,
     target_misfit : float, optional
         RMS misfit to aim for (default 1.0).
     mantle_transition : bool, optional
-        If True, fix the resistivity at 20 ohm-m from the layer whose ``dz``
-        entry is nearest 410 km down.
+        If True, fix the resistivity at 20 ohm-m in the layers whose tops are
+        410 km or more down (and in the half-space).
 
     Returns
     -------
