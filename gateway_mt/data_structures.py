@@ -712,7 +712,11 @@ class Dataset(object):
         for isite, site in enumerate(sites):
             for icomp, comp in enumerate(components):
                 station_RMS[site][comp] = temp[isite, icomp]
-            station_RMS[site]['Total'] = np.sqrt(np.nanmean(temp[isite, :] ** 2))
+            site_misfits = temp[isite, :] ** 2
+            if np.ma.count(site_misfits):
+                station_RMS[site]['Total'] = np.sqrt(np.nanmean(site_misfits))
+            else:  # every point at this site is flagged (e.g. no tipper in a tipper-only dataset)
+                station_RMS[site]['Total'] = np.ma.masked
         # 'Period' returns a dictionary with the nRMS for every period, with nested dictionaries for each comp + one for Total
         # 'Station' has entries for every station (plus one for Total), within which there is an entry to the total nRMS for every component
         # 'Component' has a entries with a single total nRMS for each component, plus one for total

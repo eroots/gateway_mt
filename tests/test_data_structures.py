@@ -25,6 +25,19 @@ def test_rms_is_about_one(dataset):
         assert 0.7 < dataset.rms['Component'][comp] < 1.3, comp
 
 
+def test_tipper_only_data_loads_with_a_response(tmp_path):
+    """SYN030 has no tipper, so in a tipper-only dataset all its points are flagged; its RMS is masked."""
+    with quiet():
+        for name, source in (('tip', 'synthetic_modem.dat'), ('tip_resp', 'synthetic_modem_resp.dat')):
+            data = DS.Data(datafile=synthetic(source))
+            data.inv_type = 3                               # tipper only
+            data.write(str(tmp_path / name), file_format='modem')
+        tipper = DS.Dataset(datafile=str(tmp_path / 'tip.dat'), responsefile=str(tmp_path / 'tip_resp.dat'))
+    assert tipper.rms['Total'] == pytest.approx(1.0, abs=0.15)
+    assert tipper.rms['Station']['SYN030']['Total'] is np.ma.masked
+    assert 0.5 < tipper.rms['Station']['SYN001']['Total'] < 1.5
+
+
 def test_periods_outside_a_stations_band_are_flagged(dataset):
     """SYN029 / SYN030 stop at ~470 s, so the two longest data periods are flagged; SYN030 has no tipper."""
     flag = dataset.data.REMOVE_FLAG
