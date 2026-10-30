@@ -1704,8 +1704,12 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
             site_dict[site].update({'azimuth': azimuth,
                                     'periods': periods})
             for component in site_dict[site]['data'].keys():
-                vals = site_dict[site]['data'][component]
-                site_dict[site]['data'].update({component: np.array(vals)})
+                vals = np.array(site_dict[site]['data'][component])
+                # MARE2DEM uses exp(+iwt), so flip the imaginary parts to gateway_mt's convention
+                # (as write_MARE2DEM and the field-data branch below do)
+                if component.startswith(('Z', 'TZ')) and component.endswith('I'):
+                    vals = -vals
+                site_dict[site]['data'].update({component: vals})
                 vals = site_dict[site]['errors'][component]
                 site_dict[site]['errors'].update({component: np.array(vals)})
         if is_fields: # Hacky but whatever

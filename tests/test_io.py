@@ -33,16 +33,17 @@ def _read(path, listfile='', file_format=None):
         return DS.Data(datafile=path, listfile=listfile, file_format=file_format)
 
 
-def assert_same_data(a, b, rtol=1e-6, atol=1e-10, b_errors='used_error'):
+def assert_same_data(a, b, rtol=1e-6, atol=1e-10, b_errors='used_error', components=None):
     """Two Data objects hold the same sites, periods, values and (unflagged) errors.
 
-    ``b_errors`` names the error attribute of ``b`` to compare with ``a.used_error``.
+    ``b_errors`` names the error attribute of ``b`` to compare with ``a.used_error``;
+    ``components`` limits the comparison (default: all of ``a``'s).
     """
     assert list(a.site_names) == list(b.site_names)
     np.testing.assert_allclose(a.periods, b.periods, rtol=1e-4)
     for name in a.site_names:
         sa, sb = a.sites[name], b.sites[name]
-        for comp in a.components:
+        for comp in components or a.components:
             used = sa.used_error[comp] != sa.REMOVE_FLAG
             np.testing.assert_allclose(sb.data[comp][used], sa.data[comp][used], rtol=rtol, atol=atol,
                                        err_msg='{} {}'.format(name, comp))
@@ -145,10 +146,12 @@ def test_mare2dem_header_round_trip(mare2dem_round_trip, modem_data):
     np.testing.assert_allclose(mare2dem_round_trip.origin, modem_data.origin)
 
 
-@pytest.mark.xfail(strict=True, reason='Known bug: the MARE2DEM writer negates imaginary parts but the reader '
-                                       'does not, so they come back with the opposite sign.')
 def test_mare2dem_write_read_round_trip(mare2dem_round_trip, modem_data):
-    assert_same_data(modem_data, mare2dem_round_trip, rtol=1e-5)       # the file holds 6 significant figures
+    """MARE2DEM is 2-D, so only TZY is kept; everything else reads back (to its 6 significant figures)."""
+    back = mare2dem_round_trip
+    assert set(modem_data.components) - set(back.components) == {'TZXR', 'TZXI'}
+    # 6 significant figures, and the error floors are recomputed from the rounded values
+    assert_same_data(modem_data, back, rtol=5e-5, components=back.components)
 
 
 def test_mare2dem_written_from_edis_alone(tmp_path):
