@@ -4338,10 +4338,12 @@ class PhaseTensor(object):
         # phi_max = sig_2 + sig_1
         # phi_min = sig_2 - sig_1
         # Note there is no abs on det_phi here by recommendation of Moorkamp (2007)
-        phi_max = (np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3)) +
-                   np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3) - (det_phi)))
-        phi_min = (np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3)) -
-                   np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3) - (det_phi)))
+        # (a degenerate tensor, e.g. with no impedance data, gives NaN)
+        with np.errstate(invalid='ignore'):
+            phi_max = (np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3)) +
+                       np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3) - (det_phi)))
+            phi_min = (np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3)) -
+                       np.sqrt((phi_1 * phi_1) + (phi_3 * phi_3) - (det_phi)))
         # alpha = 0.5 * np.arctan2((self.phi[0, 0] - self.phi[1, 1]), (self.phi[0, 1] - self.phi[1, 0]))
         # Lambda = (phi_max - phi_min) / (phi_max + phi_min)
         Lambda = (np.sqrt((self.phi[0, 0] - self.phi[1, 1]) ** 2 +
@@ -4651,7 +4653,8 @@ class CART(PhaseTensor):
             minind = np.argmin(np.abs(eigs))
             phi_max = eigs[maxind]
             phi_min = eigs[minind]
-            Lambda = phi_max / phi_min
+            with np.errstate(invalid='ignore', divide='ignore'):  # NaN / inf for degenerate tensors
+                Lambda = phi_max / phi_min
             # Lambda = (np.sqrt((tensor[0, 0] - tensor[1, 1]) ** 2 +
             #                   (tensor[0, 1] + tensor[1, 0]) ** 2) /
             #           np.sqrt((tensor[0, 0] + tensor[1, 1]) ** 2 +

@@ -577,7 +577,11 @@ class DataPlotManager(object):
                 else:
                     max_y = self.max_ylim
                 axrange = max_y - min_y
-                self.axes[ax].set_ylim([min_y - axrange / 4, max_y + axrange / 4])
+                lower, upper = min_y - axrange / 4, max_y + axrange / 4
+                if lower <= 0 and self.axes[ax].get_yscale() == 'log':
+                    self.axes[ax].set_ylim(top=upper)
+                else:
+                    self.axes[ax].set_ylim([lower, upper])
         except TypeError:
             if not self.min_ylim:
                 min_y = Min
@@ -1472,6 +1476,12 @@ class MapView(object):
         
         return grid_vals, grid_x, grid_y, x_flat, y_flat
 
+    def _colour_scale(self, colours):
+        """Colour map keywords for a station scatter: only when ``colours`` are values (RMS), not a colour."""
+        if isinstance(colours, str):
+            return {}
+        return {'cmap': self.cmap, 'vmin': self.rms_cax[0], 'vmax': self.rms_cax[1]}
+
     def plot_locations(self, cb_slot=1):
         """Scatter the station markers onto the map.
 
@@ -1538,8 +1548,7 @@ class MapView(object):
                                                # facecolors=facecolour,
                                                c=facecolour['generic'],
                                                zorder=9,
-                                               cmap=self.cmap,
-                                               vmin=self.rms_cax[0], vmax=self.rms_cax[1])
+                                               **self._colour_scale(facecolour['generic']))
             except IndexError:
                 pass
 
@@ -1553,8 +1562,7 @@ class MapView(object):
                                            # facecolors=facecolour,
                                            c=facecolour['active'],
                                            zorder=9,
-                                           cmap=self.cmap,
-                                           vmin=self.rms_cax[0], vmax=self.rms_cax[1])
+                                           **self._colour_scale(facecolour['active']))
         if self.plot_rms:
             if 'colour' in self.rms_plot_style and self.use_colourbar:
                 fake_vals = np.linspace(self.rms_cax[0], self.rms_cax[1], self.site_locations['all'].shape[0])

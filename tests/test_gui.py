@@ -234,7 +234,8 @@ def test_1d_window_layer_table_and_csv(data_plot, monkeypatch, tmp_path):
     out = str(tmp_path / 'synthetic.csv')
     monkeypatch.setattr(QtWidgets.QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (out, '')))
     window.write_synthetic_model()
-    rows = [line.split(',') for line in open(out).read().splitlines()]
+    with open(out) as f:
+        rows = [line.split(',') for line in f.read().splitlines()]
     assert all(len(row) == 3 for row in rows)                     # depth, rho_x, rho_y
 
 

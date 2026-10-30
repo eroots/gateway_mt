@@ -1170,7 +1170,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 if ii == 0:
                     self.stationRMS.setVerticalHeaderItem(jj, QtWidgets.QTableWidgetItem(site))
                 # node = QtWidgets.QTableWidgetItem(str(self.dataset.rms['Station'][site][label])[:4])
-                node = QtWidgets.QTableWidgetItem('{:5.2f}'.format(self.dataset.rms['Station'][site][label]))
+                rms = self.dataset.rms['Station'][site][label]
+                node = QtWidgets.QTableWidgetItem('--' if rms is np.ma.masked else '{:5.2f}'.format(rms))
                 node.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
                 self.stationRMS.setItem(jj, ii, node)
             for jj, period in enumerate(periods):
