@@ -211,6 +211,30 @@ def test_data_plot_limits_compare_numbers_not_text(data_plot, typed_limits):
     assert clim == (2.0, 10.0)
 
 
+def test_1d_window_layer_table_and_csv(data_plot, monkeypatch, tmp_path):
+    """Build a layer in the 1-D window, mistype a value, and save the synthetic model."""
+    from PyQt5 import QtWidgets
+    with quiet():
+        data_plot.launch_1D_window()
+    window = data_plot.modeling_window
+    table = window.synthetic_window.layerTable
+    table.setItem(1, 0, QtWidgets.QTableWidgetItem('5'))           # 5 km layer, default resistivities
+    table.setItem(1, 1, QtWidgets.QTableWidgetItem('abc'))         # not a number: put back
+    assert float(table.item(1, 1).text()) == 1000
+    out = str(tmp_path / 'synthetic.csv')
+    monkeypatch.setattr(QtWidgets.QFileDialog, 'getSaveFileName', staticmethod(lambda *a, **k: (out, '')))
+    window.write_synthetic_model()
+    rows = [line.split(',') for line in open(out).read().splitlines()]
+    assert all(len(row) == 3 for row in rows)                     # depth, rho_x, rho_y
+
+
+def test_1d_window_needs_data(no_dialogs):
+    import gateway_mt.data_structures as DS
+    from gateway_mt.GUI_common.windows import Modeling1D
+    with pytest.raises(ValueError):
+        Modeling1D(dataset=DS.Dataset())
+
+
 def test_data_plot_map_view(data_plot):
     with quiet():
         data_plot.show_map()

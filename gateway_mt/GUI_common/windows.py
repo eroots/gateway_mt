@@ -40,9 +40,10 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
     """
     def __init__(self, parent=None, dataset=None):
         super(Modeling1D, self).__init__()
+        if dataset is None or not dataset.data.site_names:
+            raise ValueError('1-D modelling needs a dataset with data')
         self.setupUi(self)
-        if dataset:
-            dummy_site = dataset.data.sites[dataset.data.site_names[0]]
+        dummy_site = dataset.data.sites[dataset.data.site_names[0]]
         self.synthetic_window = SyntheticWindow(dummy_site=dummy_site,
                                             parent=self,
                                             inverse_model=None)
@@ -84,7 +85,7 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
 
 
     def write_synthetic_model(self):
-        """Save the synthetic model to a CSV file, one line per layer (depth in m, rho_x)."""
+        """Save the synthetic model to a CSV file, one line per layer (depth in m, rho_x, rho_y)."""
         if self.synthetic_results:
             save_file = QtWidgets.QFileDialog.getSaveFileName(self,
                                                               'Save Synthetic Model',
@@ -95,7 +96,7 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
                 dz = self.synthetic_results['depth']
                 with open(save_file, 'w') as f:
                     for (rx, ry, d) in zip(rho_x, rho_y, dz):
-                        f.write('{:>12.2f},{:12.2f}\n'.format(d, rx, ry))     
+                        f.write('{:>12.2f},{:12.2f},{:12.2f}\n'.format(d, rx, ry))     
 
     def update_synthetic(self):
         """Store the synthetic model (``synthetic_results``) and show its response in the data panel."""
@@ -466,14 +467,12 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         except ValueError:
             row = item.row()
             col = item.column()
-        try:
-            if col == 0:
-                val = self.thickness[row - 1]
-            else:
-                val = self.rho[row - 1]
-        except IndexError:
-            val = ''
-        
+        if row == 0:  # the half-space row only has a resistivity
+            val = str(self.default_hs) if col == 1 else ''
+        else:
+            previous = (self.thickness, self.rho_x, self.rho_y)[col]
+            val = str(previous[row - 1]) if row - 1 < len(previous) else ''
+
         self.layerTable.setItem(row, col, QtWidgets.QTableWidgetItem(val))
         return False
 

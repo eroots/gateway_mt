@@ -277,7 +277,9 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         """Open the 1-D modelling window (once) and enable the
         "use 1-D model" write options."""
         if not self.modeling_window:
-            periods = self.dataset.data.periods
+            if not self.dataset.data.site_names:
+                QtWidgets.QMessageBox.warning(self, '', '1-D modelling needs a data file.')
+                return
             self.modeling_window = Modeling1D(dataset=self.dataset,
                                               parent=self)
         self.modeling_window.show()
