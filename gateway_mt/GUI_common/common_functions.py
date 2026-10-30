@@ -1,7 +1,24 @@
+"""Helpers shared by the GUIs."""
 from PyQt5 import QtCore
 
 
 def check_key_presses(key_presses, verbose=False):
+    """Decode the keyboard modifiers held during a click.
+
+    In Data Plot's error multiplier tree, Shift / Ctrl / Alt extend an edit
+    to all periods / components / sites; Mesh Designer uses Ctrl.
+
+    Parameters
+    ----------
+    key_presses : Qt.KeyboardModifiers
+    verbose : bool, optional
+        Print what will be edited.
+
+    Returns
+    -------
+    dict
+        ``{'Control': bool, 'Shift': bool, 'Alt': bool}``
+    """
     msg = ''
     retval = {'Control': False, 'Shift': False, 'Alt': False}
     if key_presses == QtCore.Qt.ShiftModifier:

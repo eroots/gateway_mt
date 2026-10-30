@@ -1,3 +1,11 @@
+"""Windows for 1-D modelling, opened from the 1-D modelling menu of Data Plot and Mesh Designer.
+
+:class:`Modeling1D` holds three docked panels: :class:`SyntheticWindow` (build
+a layered model and compute its response), :class:`StackedDataWindow` (the
+average apparent resistivity of the selected stations), and
+:class:`InversionSettings` (a 1-D inversion of that average, with
+:func:`gateway_mt.modelling_1D.invert_1DMT`).
+"""
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
@@ -18,13 +26,18 @@ UI_StackedDataWindow, QStackedDataMain = loadUiType(os.path.join(path, 'stacked_
 UI_Modeling1D, QModeling1D = loadUiType(os.path.join(path, '1D_modeling.ui'))
 UI_InversionSettings, QInversionSettings = loadUiType(os.path.join(path, 'inversion_settings.ui'))
 
-# Allow simple 1D inversions?
-# Setting starting model to the 1D (from mesh_designer)
-# Set up the inversion window. What kinds of options does this need?
-# How feasible is it to borrow / write a 1D inversion scheme?
 # Mesh designer still needs to get the common colour menu added
 
 class Modeling1D(QModeling1D, UI_Modeling1D):
+    """Window holding the synthetic model, stacked data and inversion panels.
+
+    Parameters
+    ----------
+    parent : QWidget, optional
+    dataset : gateway_mt.data_structures.Dataset
+        The data to model. Its first station is used as a template for the
+        synthetic response.
+    """
     def __init__(self, parent=None, dataset=None):
         super(Modeling1D, self).__init__()
         self.setupUi(self)
@@ -57,6 +70,7 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
         self.actionWriteSynthetic.triggered.connect(self.write_synthetic_model)
 
     def write_inverse_model(self):
+        """Save the inverted model to a CSV file, one line per layer (``dz``, resistivity)."""
         if self.inverse_results:
             save_file = QtWidgets.QFileDialog.getSaveFileName(self,
                                                               'Save 1D Inverse',
@@ -70,6 +84,7 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
 
 
     def write_synthetic_model(self):
+        """Save the synthetic model to a CSV file, one line per layer (depth in m, rho_x)."""
         if self.synthetic_results:
             save_file = QtWidgets.QFileDialog.getSaveFileName(self,
                                                               'Save Synthetic Model',
@@ -83,6 +98,7 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
                         f.write('{:>12.2f},{:12.2f}\n'.format(d, rx, ry))     
 
     def update_synthetic(self):
+        """Store the synthetic model (``synthetic_results``) and show its response in the data panel."""
         self.synthetic_results = {'rho_x': self.synthetic_window.rho_x  + [self.synthetic_window.hs],
                                   'rho_y': self.synthetic_window.rho_y  + [self.synthetic_window.hs],
                                   'depth': [0] + list(np.cumsum(self.synthetic_window.thickness)*1000)}
@@ -90,32 +106,49 @@ class Modeling1D(QModeling1D, UI_Modeling1D):
         self.update_data_window()
 
     def update_data_window(self):
+        """Redraw the stacked data panel."""
         # self.data_window.synthetic_response = self.synthetic_window.site
         # self.data_window.inversion_response = self.inverse_results['Response']
         # if self.data_window.checkResponse.checkState():
         self.data_window.plot_data()
 
     def update_model_window(self):
+        """Show the inverted model in the synthetic model panel."""
         self.data_window.inversion_response = self.inverse_results['Response']
         self.synthetic_window.inverse_model = self.inverse_results['Model']
         self.synthetic_window.plot_model()
 
     def update_inversion_results(self):
+        """Collect the inversion results and update both panels."""
         self.inverse_results = self.inversion_settings.results
         self.data_window.inversion_response = self.inverse_results['Response']
         self.update_data_window()
         self.update_model_window()
 
     def update_data_obs(self):
+        """Pass the data and apparent resistivity type from the data panel to the inversion settings."""
         self.inversion_settings.data_obs = self.data_window.dataset.data
         self.inversion_settings.mode = self.data_window.rho_type[:3].lower()
 
 class InversionSettings(QInversionSettings, UI_InversionSettings):
+    """Panel with the 1-D inversion settings.
+
+    Starting the inversion runs :func:`~gateway_mt.modelling_1D.invert_1DMT`,
+    stores the results in ``results`` and emits ``updated``.
+
+    Parameters
+    ----------
+    parent : QWidget, optional
+    data_obs : gateway_mt.data_structures.Data
+        Data to invert.
+    mode : str, optional
+        Apparent resistivity to fit ('ssq' or 'det').
+    model_3d : gateway_mt.data_structures.Model, optional
+        If given, its depth mesh can be used for the layers.
+    """
     updated = QtCore.pyqtSignal()
     def __init__(self, parent=None, data_obs=None, mode='ssq', model_3d=None):
         super(InversionSettings, self).__init__()
-        # Accepts dataset as a dictionary with keys 'rho' 'phase' and 'periods'
-        # At minimum, one of 'rho' and 'phase' is needed along with 'periods'
         # Currently only 'rho' inversion is implemented
         self.setupUi(self)
         self.connect_widgets()
@@ -126,16 +159,19 @@ class InversionSettings(QInversionSettings, UI_InversionSettings):
 
 
     def connect_widgets(self):
+        """Connect the About action and the start button."""
         self.actionAbout.triggered.connect(self.help_window)
         self.pushStartInversion.clicked.connect(self.start_inversion)        
 
     def help_window(self):
+        """Show a short note about the inversion."""
         msg =  '1D Inversion of stacked (average) data.\n'
         msg += 'Note: This uses a stocastic optimization algortithm (see pycma).\n'
         msg += 'Results may not be replicable for low number of iterations.\n'
         QtWidgets.QMessageBox.information(self, 'About', msg)
         
     def get_values(self):
+        """Read the settings from the panel, and build the layers (``dz``)."""
         self.halfspace_resistivity = self.startingRho.value()
         self.starting_resistivity = self.startingRho.value()
         self.num_iters = self.numIteration.value()
@@ -155,6 +191,11 @@ class InversionSettings(QInversionSettings, UI_InversionSettings):
             self.dz = [0] + list(np.logspace(np.log10(self.minimum_thickness), np.log10(self.maximum_depth), self.num_layers))
 
     def start_inversion(self):
+        """Run the inversion with the current settings and emit ``updated``.
+
+        ``results`` is set to ``{'Model': {'Rho', 'dz'}, 'Response': {'Rho',
+        'Periods', 'RMS'}}``.
+        """
         self.get_values()
         if self.use_mantle_transition:
             self.halfspace_resistivity = 20
@@ -184,6 +225,11 @@ class InversionSettings(QInversionSettings, UI_InversionSettings):
 
 
 class StackedDataWindow(QStackedDataMain, UI_StackedDataWindow):
+    """Panel plotting the apparent resistivity of the selected stations, and their geometric mean.
+
+    The synthetic and inverted responses are added if 'Response' is checked.
+    ``rho_updated`` is emitted when the apparent resistivity type changes.
+    """
     rho_updated = QtCore.pyqtSignal()
     def __init__(self, dataset, synthetic_response=None, inversion_response=None, parent=None):
         super(StackedDataWindow, self).__init__()
@@ -213,6 +259,7 @@ class StackedDataWindow(QStackedDataMain, UI_StackedDataWindow):
     # def setup_list_list(self):
         
     def add_mpl(self, fig):
+        """Add the matplotlib canvas and toolbar to the panel."""
         self.canvas = FigureCanvas(fig)  # Make a canvas
         self.mplvl.addWidget(self.canvas)
         self.toolbar = NavigationToolbar(canvas=self.canvas,
@@ -224,6 +271,7 @@ class StackedDataWindow(QStackedDataMain, UI_StackedDataWindow):
         self.mplvl.addWidget(self.toolbar)
 
     def connect_widgets(self):
+        """Fill the station list, and connect the panel's controls."""
         # if self.dataset.raw_data.initialized:
             # self.checkRaw.setCheckState(True)
         # else:
@@ -242,10 +290,12 @@ class StackedDataWindow(QStackedDataMain, UI_StackedDataWindow):
         self.yLimitsUpper.valueChanged.connect(self.set_axis_limits)
 
     def change_rho_type(self):
+        """Redraw, and emit ``rho_updated``."""
         self.plot_data()
         self.rho_updated.emit()
 
     def plot_data(self):
+        """Plot the apparent resistivity of the selected stations, their mean, and any responses."""
         self.figure.clear()
         self.axis = self.figure.add_subplot(111)
         self.rho_type = self.rhoType.itemText(self.rhoType.currentIndex())
@@ -289,11 +339,27 @@ class StackedDataWindow(QStackedDataMain, UI_StackedDataWindow):
         self.canvas.draw()
 
     def set_axis_limits(self):
+        """Apply the y-axis limits (log10) from the spin boxes."""
         self.axis.set_ylim([10**self.yLimitsLower.value(), 10**self.yLimitsUpper.value()])
         self.canvas.draw()
 
 
 class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
+    """Panel for building a layered 1-D model and computing its response.
+
+    The table has a row per layer giving its thickness (km), rho_x and rho_y
+    (ohm-m); the first row is the half-space. The response is stored in
+    ``site`` (a copy of ``dummy_site``), and ``updated`` is emitted when it
+    changes.
+
+    Parameters
+    ----------
+    dummy_site : gateway_mt.data_structures.Site, optional
+        Template site; its period range is used for the response.
+    parent : QWidget, optional
+    inverse_model : dict, optional
+        ``{'Rho', 'dz'}`` of an inverted model, drawn with the synthetic one.
+    """
 
     updated = QtCore.pyqtSignal()
 
@@ -326,9 +392,11 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
 
     @property
     def hs(self):
+        """float: Half-space resistivity (ohm-m), from the first row of the table."""
         return float(self.layerTable.item(0, 1).text())
 
     def setup_model_table(self):
+        """Set up the layer table: a half-space row and 24 empty layers."""
         header = ['Thickness\n(km)', 'Rho X\n(Ωm)', 'Rho Y\n(Ωm)']
         self.layerTable.setColumnCount(len(header))
         self.layerTable.setRowCount(25)
@@ -346,6 +414,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
                 self.layerTable.setItem(ix, iy, QtWidgets.QTableWidgetItem(''))
 
     def add_mpl(self, fig):
+        """Add the matplotlib canvas and toolbar to the panel."""
         self.canvas = FigureCanvas(fig)  # Make a canvas
         self.mplvl.addWidget(self.canvas)
         self.toolbar = NavigationToolbar(canvas=self.canvas,
@@ -357,6 +426,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.mplvl.addWidget(self.toolbar)
 
     def connect_widgets(self):
+        """Connect the layer table and the axis controls."""
         self.layerTable.itemChanged.connect(self.model_param_change)
         self.lockXAxis.stateChanged.connect(self.plot_model)
         self.lockYAxis.stateChanged.connect(self.plot_model)
@@ -364,6 +434,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.depthLimits.clicked.connect(self.set_depth_limits)
 
     def set_rho_limits(self):
+        """Ask for the resistivity axis limits (log10 ohm-m)."""
         limits, ret = TwoInputDialog.get_inputs(label_1='Lower Limit', label_2='Upper Limit',
                                      initial_1=str(self.rho_lim[0]),
                                      initial_2=str(self.rho_lim[1]),
@@ -375,6 +446,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.plot_model()
 
     def set_depth_limits(self):
+        """Ask for the depth axis limits (km)."""
         limits, ret = TwoInputDialog.get_inputs(label_1='Lower Limit', label_2='Upper Limit',
                                      initial_1=str(self.depth_lim[0]),
                                      initial_2=str(self.depth_lim[1]),
@@ -386,6 +458,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.plot_model()
 
     def validate_entry(self, item):
+        """Return True if ``item`` holds a number; otherwise reset it and return False."""
         val = item.text()
         try:
             float(val)
@@ -405,6 +478,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         return False
 
     def model_param_change(self, item):
+        """Handle an edit to the layer table: fill in defaults for the rest of the row, and update the model."""
         self.layerTable.itemChanged.disconnect(self.model_param_change)
         ret = self.validate_entry(item)
         if ret:
@@ -435,6 +509,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.layerTable.itemChanged.connect(self.model_param_change)
 
     def update_model(self):
+        """Read the layers from the table, redraw the model and recompute the response."""
         self.thickness, self.rho_x, self.rho_y = [], [], []
         for layer in range(1, self.layerTable.rowCount()):
             thickness = self.layerTable.item(layer, 0).text()
@@ -453,6 +528,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.calculate_response()
 
     def plot_model(self):
+        """Draw the synthetic model (and any inverted model) as resistivity against depth."""
         self.model_figure.clear()
         self.axis = self.model_figure.add_subplot(111)
         depth = np.cumsum([0] + self.thickness + [500])
@@ -478,6 +554,12 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.canvas.draw()
 
     def calculate_response(self):
+        """Compute the 1-D responses of the rho_x and rho_y models.
+
+        The rho_x response goes into ZXY and the rho_y response into ZYX of
+        ``site``, with 5% errors, small diagonal impedances and zero tipper. Uses
+        the same recursion as :func:`~gateway_mt.modelling_1D.wait_1D`.
+        """
         for ii, rho in enumerate([self.rho_x, self.rho_y]):
             scale = 1 / (4 * np.pi / 10000000)
             mu = 4 * np.pi * 1e-7
@@ -545,6 +627,7 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
         self.update_parent()
 
     def update_parent(self):
+        """Emit ``updated`` if the panel has a parent."""
         # print(self.parent)
         if self.parent:
             # if self.parent.toggle1DResponse.checkState():

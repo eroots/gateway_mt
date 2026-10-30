@@ -1,3 +1,10 @@
+"""Small Qt widgets and helpers shared by the GUIs.
+
+Dialogs for file names and paired inputs, the colour and coordinate menus used
+by Data Plot and Model Viewer, a progress bar that loads files on a background
+thread, and :class:`FileInputParser`, which reads the startup (``.pymt``)
+files.
+"""
 import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from PyQt5 import QtWidgets
@@ -5,6 +12,7 @@ from PyQt5.uic import loadUiType
 from PyQt5.QtCore import QThread, pyqtSignal, QObject, pyqtSlot, Qt
 import gateway_mt.utils as utils
 from gateway_mt.data_structures import RawData, Model, Data
+from gateway_mt.IO import read_data_header
 import re
 import os
 import time
@@ -14,6 +22,11 @@ UiPopupMain, QPopupWindow = loadUiType(os.path.join(path, 'saveFile.ui'))
 
 
 class DraggablePoint:
+    """A matplotlib ellipse that can be dragged with the mouse.
+
+    Joined by a line to the first point in ``parent.list_points``. Not
+    currently used by the GUIs.
+    """
 
     # http://stackoverflow.com/questions/21654008/matplotlib-drag-overlapping-points-interactively
 
@@ -56,6 +69,7 @@ class DraggablePoint:
                                                               self.on_motion)
 
     def on_press(self, event):
+        """Start dragging if the click is on this point."""
 
         if event.inaxes != self.point.axes:
             return
@@ -85,6 +99,7 @@ class DraggablePoint:
         canvas.blit(axes.bbox)
 
     def on_motion(self, event):
+        """Move the point (and its line) with the mouse."""
 
         if DraggablePoint.lock is not self:
             return
@@ -157,6 +172,8 @@ class DraggablePoint:
 
 
 class FileDialog(QtWidgets.QInputDialog):
+    """Text box dialog for a file name."""
+
     def __init__(self, parent=None):
         super(FileDialog, self).__init__(parent)
         self.accepted = QtWidgets.QPushButton('OK')
@@ -166,6 +183,25 @@ class FileDialog(QtWidgets.QInputDialog):
 
     @staticmethod
     def write_file(parent=None, default=None, label='Input', ext=None):
+        """Ask for a file name to write to, confirming before overwriting a file.
+
+        Parameters
+        ----------
+        parent : QWidget, optional
+        default : str, optional
+            Initial text.
+        label : str, optional
+            Prompt shown beside the text box.
+        ext : str, optional
+            Extension the caller will add, so that ``file + ext`` also counts
+            as an existing file.
+
+        Returns
+        -------
+        file : str
+        ret : int
+            Non-zero if a file name was accepted.
+        """
         if ext is None:
             ext = ''
         while True:
@@ -189,6 +225,7 @@ class FileDialog(QtWidgets.QInputDialog):
 
     @staticmethod
     def read_file(parent=None, default=None, label='Output'):
+        """Ask for the name of an existing file (repeats until it exists, or is cancelled). Returns ``(file, ret)``."""
         while True:
             dialog = FileDialog(parent)
             dialog.setTextValue(default)
@@ -206,6 +243,8 @@ class FileDialog(QtWidgets.QInputDialog):
 
 
 class TwoInputDialog(QtWidgets.QDialog):
+    """Dialog with two labelled text boxes (e.g., lower and upper limits)."""
+
     def __init__(self, label_1, label_2, initial_1=None, initial_2=None, parent=None):
         super(QtWidgets.QDialog, self).__init__(parent)
         label1 = QtWidgets.QLabel(label_1, self)
@@ -228,10 +267,30 @@ class TwoInputDialog(QtWidgets.QDialog):
         # self.cancel.slicked.connect(self.cancel_button)
 
     def inputs(self):
+        """Return the two entered strings."""
         return self.line_edit1.text(), self.line_edit2.text()
 
     @staticmethod
     def get_inputs(label_1, label_2, initial_1=None, initial_2=None, parent=None, expected=None):
+        """Show the dialog and return what was entered.
+
+        Parameters
+        ----------
+        label_1, label_2 : str
+        initial_1, initial_2 : str, optional
+        parent : QWidget, optional
+        expected : type, optional
+            If given (e.g. ``float``), the inputs are converted with it, and a
+            warning is shown if that fails.
+
+        Returns
+        -------
+        inputs : tuple of str
+            The two entered strings.
+        result : int, list or bool
+            The dialog result, or if ``expected`` was given, the converted
+            inputs (False if they couldn't be converted).
+        """
         dialog = TwoInputDialog(label_1, label_2, initial_1, initial_2, parent)
         result = dialog.exec_()
         inputs = dialog.inputs()
@@ -245,6 +304,12 @@ class TwoInputDialog(QtWidgets.QDialog):
 
 
 class CoordinateMenu(QtWidgets.QMenu):
+    """'Coordinate Options' menu: spatial units (km / m) and coordinate system.
+
+    The actions are in ``all_units`` and ``all_systems`` (Local, Lambert, UTM,
+    LatLong); the window using the menu connects to them.
+    """
+
     def __init__(self, parent=None):
         super(QtWidgets.QMenu, self).__init__(parent)
         self.default_units = 'km'
@@ -274,6 +339,8 @@ class CoordinateMenu(QtWidgets.QMenu):
         self.all_units[self.default_units].setChecked(True)
         
 class SpinBoxDialog(QtWidgets.QDialog):
+    """Dialog with one or more labelled spin boxes. Not currently used by the GUIs."""
+
     def __init__(self, title, box_labels, box_init, box_increment, box_range, parent=None):
         super(QtWidgets.QDialog, self).__init__(parent)
         self.setWindowTitle(title)
@@ -289,7 +356,8 @@ class SpinBoxDialog(QtWidgets.QDialog):
         for ii, label in enumerate(box_labels):
             hbox.addWidget(QtWidgets.QLabel(label))
             self.spinboxes.append(QtWidgets.QDoubleSpinBox())
-            self.spinboxes[ii].setRange(box_range[ii][0], box_range[ii][1])
+            spinbox = self.spinboxes[ii]
+            spinbox.setRange(box_range[ii][0], box_range[ii][1])
             spinbox.setDecimals(1)
             spinbox.setSingleStep(box_increment[ii])
             spinbox.setValue(box_init[ii])
@@ -301,11 +369,13 @@ class SpinBoxDialog(QtWidgets.QDialog):
         hbox.addWidget(buttons)
 
     def inputs(self):
-        values = [x.Value() for x in self.spinboxes]
+        """Return the spin box values."""
+        values = [x.value() for x in self.spinboxes]
         return values
 
     @staticmethod
     def get_inputs(title, box_labels, box_init, box_increment, box_range, parent=None, expected=None):
+        """Show the dialog; returns ``(values, result)`` as :meth:`TwoInputDialog.get_inputs`."""
         dialog = SpinBoxDialog(title, box_labels, box_init, box_increment, box_range, parent)
         result = dialog.exec_()
         inputs = dialog.inputs()
@@ -313,11 +383,18 @@ class SpinBoxDialog(QtWidgets.QDialog):
             try:
                 result = [expected(x) for x in inputs]
             except ValueError:
-                QtWidgets.QMessageBox.warning(self, '...', 'Inputs not valid. Must be {}'.format(expected))
+                QtWidgets.QMessageBox.warning(dialog, '...', 'Inputs not valid. Must be {}'.format(expected))
                 result = False
         return inputs, result
 
 class ColourMenu(QtWidgets.QMenu):
+    """'Colour Options' menu: colour map, colour limits and number of colour intervals.
+
+    The default map is turbo, with 'Invert Colourmap' checked. The window
+    using the menu connects to the actions (``all_maps``, ``limits``,
+    ``lut``).
+    """
+
     def __init__(self, parent=None):
         super(QtWidgets.QMenu, self).__init__(parent)
         self.default_cmap = 'turbo'
@@ -355,17 +432,24 @@ class ColourMenu(QtWidgets.QMenu):
         self.all_maps[self.default_cmap].setChecked(True)
 
     def set_clim(self, initial_1='1', initial_2='5'):
+        """Ask for the lower / upper colour limits; returns ``(inputs, ret)`` as :meth:`TwoInputDialog.get_inputs`."""
         inputs, ret = TwoInputDialog.get_inputs(label_1='Lower Limit', label_2='Upper Limit',
                                                 initial_1=initial_1, initial_2=initial_2, parent=self)
         return inputs, ret
 
     def set_lut(self, initial='32'):
+        """Ask for the number of colour intervals; returns ``(value, ok)``."""
         inputs, ret = QtWidgets.QInputDialog.getInt(self, 'LUT', 'Number of Colour Intervals:', 
                                                     initial, 1, 1024, 2)
         return inputs, ret
 
 
 class IOWorker(QObject):
+    """Reads the files in ``file_dict`` ('list', 'data', 'model') on a background thread.
+
+    The data structures emit ``counter`` through their ``progress_bar``
+    argument as they read. The loaded objects are left in ``ret_val``.
+    """
     finished = pyqtSignal()
     # raw_load = pyqtSignal()
     # raw_init = pyqtSignal()
@@ -386,6 +470,7 @@ class IOWorker(QObject):
 
     @pyqtSlot()
     def proc_counter(self):  # A slot takes no params
+        """Read each file, then emit ``finished``."""
 
         for key, val in self.file_dict.items():
             if key == 'list':
@@ -398,6 +483,12 @@ class IOWorker(QObject):
 
 
 class PopUpProgress(QtWidgets.QWidget):
+    """Progress bar window that loads files with an :class:`IOWorker` on a separate thread.
+
+    Call :meth:`start_progress`. When loading is done ``finished`` is
+    emitted, and the loaded objects are in ``ret_val``
+    (``{'raw_data': ..., 'data': ..., 'model': ...}``).
+    """
 
     finished = pyqtSignal()
 
@@ -429,6 +520,7 @@ class PopUpProgress(QtWidgets.QWidget):
         # self.thread.start()  # This was moved to start_progress
 
     def input_init(self, input):
+        """Set the bar's message for initialising the 'raw', 'model' or 'data' structure."""
         if input.lower() == 'raw':
             self.currentMessage = 'Initializing RawData structure...'
         elif input.lower() == 'model':
@@ -437,6 +529,7 @@ class PopUpProgress(QtWidgets.QWidget):
             self.currentMessage = 'Initializing Data structure...'
 
     def input_load(self, input):
+        """Set the bar's message for loading the 'raw', 'model' or 'data' files."""
         if input.lower() == 'raw':
             self.currentMessage = 'Loading raw data files...'
         elif input.lower() == 'model':
@@ -445,6 +538,7 @@ class PopUpProgress(QtWidgets.QWidget):
             self.currentMessage = 'Loading inversion data...'
 
     def set_maximum(self):
+        """Estimate the number of progress steps from the files to be read."""
         maximum = 0
         for key, val in self.file_dict.items():
             if key == 'list':
@@ -460,21 +554,25 @@ class PopUpProgress(QtWidgets.QWidget):
         self.pbar.setMaximum(maximum)
 
     def start_progress(self):  # To restart the progress every time
+        """Show the bar and start loading."""
         self.show()
         self.thread.start()
 
     def on_count_changed(self):
+        """Advance the bar by one step."""
         self.counter += 1
         self.pbar.setValue(self.counter)
         self.pbar.setFormat(self.currentMessage)
         self.pbar.setAlignment(Qt.AlignCenter)
 
     def close_bar(self):
+        """Collect the loaded objects and hide the bar."""
         self.ret_val = self.obj.ret_val
         self.counter = 0
         self.hide()
 
     def quit_thread(self):
+        """Collect the loaded objects, stop the thread, emit ``finished`` and close."""
         self.ret_val = self.obj.ret_val
         self.thread.quit()
         self.finished.emit()
@@ -482,6 +580,8 @@ class PopUpProgress(QtWidgets.QWidget):
 
 
 class FileInputParser(object):
+    """Reads and checks startup (``.pymt``) files, which list the files of each dataset."""
+
     # If I add functionality to add datasets after you've already opened a GUI,
     # I may want to make it so I can create an instance of this with a list
     # of accepted file types, and then use that instance to check every time something
@@ -492,6 +592,14 @@ class FileInputParser(object):
 
     @staticmethod
     def get_files_dialog():
+        """Ask for a startup file until a readable one is given, or the dialog is cancelled.
+
+        Returns
+        -------
+        files : dict or str
+            As :meth:`read_pystart`, or '' if cancelled.
+        ret : int
+        """
         keep_going = True
         start_dict = {}
         while keep_going:
@@ -510,6 +618,7 @@ class FileInputParser(object):
 
     @staticmethod
     def verify_files(files):
+        """Return True if every file in ``files`` (as from :meth:`read_pystart`) exists. ``raw_path`` entries are not checked."""
         if files:
             for dataset_name, startup in files.items():
                 for Type, file in startup.items():
@@ -530,6 +639,24 @@ class FileInputParser(object):
 
     @staticmethod
     def read_pystart(startup):
+        """Read a startup file.
+
+        ``% name`` starts a dataset, followed by lines giving its ``list``,
+        ``data``, ``response`` (or ``resp``), ``model`` (or ``mod``) and
+        ``raw_path`` (or ``raw``) files. A ``path`` line is prepended to file
+        names given without a directory, and lines starting with ``#`` are
+        ignored (see :ref:`Startup File`).
+
+        Parameters
+        ----------
+        startup : str
+
+        Returns
+        -------
+        dict or False
+            ``{dataset_name: {file_type: path}}``, or False if the file couldn't
+            be read.
+        """
         dset = ''
         acceptable = ('data', 'list', 'response', 'raw_path', 'model', 'path')
         abbreviations = {'raw': 'raw_path', 'resp': 'response', 'mod': 'model', 'lst': 'list'}
@@ -591,12 +718,7 @@ class FileInputParser(object):
 
 
 class MyPopupDialog(UiPopupMain, QPopupWindow):
-    """
-    Creates a pop-up window belonging to parent
-
-    Args:
-        parent (obj): The parent window the created pop-up will be attached to
-    """
+    """Pop-up dialog (from ``saveFile.ui``) asking for a file name, attached to ``parent``."""
 
     def __init__(self, parent=None):
         super(MyPopupDialog, self).__init__(parent)
@@ -606,16 +728,10 @@ class MyPopupDialog(UiPopupMain, QPopupWindow):
 
     @staticmethod
     def get_file(parent=None, message='', default='', label='Output'):
-        """Summary
+        """Show the dialog and return ``(file, ret)``.
 
-        Args:
-            parent (None, optional): Description
-            message (str, optional): Description
-            default (str, optional): Description
-            label (str, optional): Description
-
-        Returns:
-            TYPE: Description
+        ``message`` and ``label`` set the dialog's text, and ``default`` the
+        initial file name.
         """
         dialog = MyPopupDialog(parent)
         dialog.message.setText(message)
