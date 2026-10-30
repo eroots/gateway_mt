@@ -87,7 +87,7 @@ Phase Tensor
 The Phase Tensor groupbox is used to plot phase tensor ellipses in the `Map Window`_. The fill value of the ellipses is controlled by the contained drop-down menu.
 
 The Data and Response checkboxes plot the phase tensor ellipses from the inversion data and response files, respectively.
-If both checkboxes are selected, a phase tensor difference is plotted, using the definition chosen in the 'Difference Definition' drop-down menu. For example, the Heise definition (Heise et al.) is the misfit tensor
+If both checkboxes are selected, a phase tensor difference is plotted, using the definition chosen in the 'Difference Definition' drop-down menu. For example, the Heise definition (Heise et al., 2008) is the misfit tensor
 
 .. math ::
 	\mathbf{\Delta} = \mathbf{I} - \frac{1}{2}(\mathbf{\Phi}_r^{-1}\mathbf{\Phi}_d + \mathbf{\Phi}_d\mathbf{\Phi}_r^{-1})

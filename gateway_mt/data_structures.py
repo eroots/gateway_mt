@@ -4399,7 +4399,7 @@ class PhaseTensor(object):
             new_phi.phi = self.phi - y.phi
             
         elif self.difference_definition.lower() == 'heise':
-            # Definition used in Heise, 2009
+            # Definition used in Heise et al., 2008
             inv_phi = np.linalg.inv(y.phi)
             new_phi.phi = np.identity(2) - 0.5 * (np.matmul(inv_phi, self.phi) + np.matmul(self.phi, inv_phi))
             
