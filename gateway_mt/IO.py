@@ -2369,7 +2369,7 @@ def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=No
 
             f.write('>ZXX.VAR ROT=ZROT //{}\n'.format(NP))
             for ii in range(NP):
-                f.write('{:>18.7E}'.format(scale_factor * site.errors['ZXXR'][ii]))
+                f.write('{:>18.7E}'.format((scale_factor * site.errors['ZXXR'][ii]) ** 2))
             f.write('\n\n')
 
             f.write('>ZYYR ROT=ZROT //{}\n'.format(NP))
@@ -2384,7 +2384,7 @@ def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=No
 
             f.write('>ZYY.VAR ROT=ZROT //{}\n'.format(NP))
             for ii in range(NP):
-                f.write('{:>18.7E}'.format(scale_factor * site.errors['ZYYR'][ii]))
+                f.write('{:>18.7E}'.format((scale_factor * site.errors['ZYYR'][ii]) ** 2))
             f.write('\n\n')
 
             f.write('>ZXYR ROT=ZROT //{}\n'.format(NP))
@@ -2399,7 +2399,7 @@ def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=No
 
             f.write('>ZXY.VAR ROT=ZROT //{}\n'.format(NP))
             for ii in range(NP):
-                f.write('{:>18.7E}'.format(scale_factor * site.errors['ZXYR'][ii]))
+                f.write('{:>18.7E}'.format((scale_factor * site.errors['ZXYR'][ii]) ** 2))
             f.write('\n\n')
 
             f.write('>ZYXR ROT=ZROT //{}\n'.format(NP))
@@ -2414,7 +2414,7 @@ def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=No
 
             f.write('>ZYX.VAR ROT=ZROT //{}\n'.format(NP))
             for ii in range(NP):
-                f.write('{:>18.7E}'.format(scale_factor * site.errors['ZYXR'][ii]))
+                f.write('{:>18.7E}'.format((scale_factor * site.errors['ZYXR'][ii]) ** 2))
             f.write('\n\n')
 
         if set(site.TIPPER_COMPONENTS).issubset(set(site.components)):
@@ -2445,11 +2445,11 @@ def write_edi(site, out_file, info=None, header=None, mtsect=None, definemeas=No
 
             f.write('>TXVAR.EXP //{}\n'.format(NP))
             for ii in range(NP):
-                f.write('{:>18.7E}'.format(site.errors['TZXR'][ii]))
+                f.write('{:>18.7E}'.format(site.errors['TZXR'][ii] ** 2))
             f.write('\n\n')
             f.write('>TYVAR.EXP //{}\n'.format(NP))
             for ii in range(NP):
-                f.write('{:>18.7E}'.format(site.errors['TZYR'][ii]))
+                f.write('{:>18.7E}'.format(site.errors['TZYR'][ii] ** 2))
             f.write('\n\n')
 
         f.write('>END')

@@ -96,9 +96,8 @@ def test_edi_write_read_round_trip_values(tmp_path):
         np.testing.assert_allclose(back.data[comp], site.data[comp], rtol=1e-6, atol=1e-12, err_msg=comp)
 
 
-@pytest.mark.xfail(strict=True, reason='Known bug: write_edi writes standard deviations into the .VAR blocks, '
-                                       'but read_edi takes their square root as if they were variances.')
 def test_edi_write_read_round_trip_errors(tmp_path):
+    """The .VAR blocks hold variances, so errors survive a write / read."""
     site, back = _edi_round_trip(tmp_path)
     for comp in site.components:
         np.testing.assert_allclose(back.errors[comp], site.errors[comp], rtol=1e-6, err_msg=comp)
