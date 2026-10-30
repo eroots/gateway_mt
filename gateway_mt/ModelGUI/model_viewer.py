@@ -85,7 +85,7 @@ def model_to_rectgrid(model, resolution=None, rho_axis='rho_x'):
         standardised into roughly ``[0, 1]`` for use as a PyVista opacity
         field).  When omitted, ``'Resolution'`` is all ones.
     rho_axis : str, optional
-        Model attribute to take resistivities from -- ``'rho_x'``
+        Model attribute to take resistivities from: ``'rho_x'``
         (default), ``'rho_y'``, ``'rho_z'``, or ``'a / b'`` for the ratio
         of two attributes (anisotropic models only).
 
@@ -140,7 +140,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
     2-D matplotlib panels (``self.map``).  The menu actions, sliders and
     text boxes read GUI widgets, update ``self.model`` / ``self.clip_model``
     / ``self.rect_grid`` / colour state, and call one of the redraw
-    entry points -- :meth:`render_3D` (3-D), :meth:`update_2D_X` /
+    entry points: :meth:`render_3D` (3-D), :meth:`update_2D_X` /
     :meth:`update_2D_Y` / :meth:`update_plan_view` (2-D), or
     :meth:`update_all` (both).
 
@@ -855,7 +855,7 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
             self.tabWidget_2.setCurrentIndex(0)
 
     def save_picks(self, picks):
-        """Callback for PyVista cell-picking (currently unused -- the
+        """Callback for PyVista cell-picking (currently unused; see the
         commented-out ``enable_cell_picking`` path in
         :meth:`transect_pick`)."""
         self.picks.append(picks)

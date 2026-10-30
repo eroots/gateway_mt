@@ -5,7 +5,7 @@ by :mod:`gateway_mt.data_structures` (``Data``, ``RawData``, ``Response``,
 ``Model``, ``Site``, ``PhaseTensor``, ``CART``) plus a bare
 :class:`matplotlib.figure.Figure` and draws onto it, calling *down* into
 :mod:`gateway_mt.utils` (``compute_rho`` / ``compute_phase`` / ``compute_bost1D``,
-``normalize*``, ``remove_outliers``, ``rotate_locs`` …) and
+``normalize*``, ``remove_outliers``, ``rotate_locs`` ...) and
 :mod:`gateway_mt.e_colours.colourmaps` for its colour maps.  It is driven *up*
 by the GUIs (:mod:`gateway_mt.DataGUI.data_plot`, :mod:`gateway_mt.ModelGUI.model_viewer`)
 and by several plotting scripts.
@@ -18,11 +18,11 @@ Two rendering classes, plus two small coordinate-formatter helpers:
     cursor (image / pcolor axes).
 
 :class:`DataPlotManager`
-    The multi-panel *sounding-curve* figure used by ``data_plot`` -- one
+    The multi-panel *sounding-curve* figure used by ``data_plot``: one
     subplot per site, plotting apparent resistivity / phase / impedance /
     tipper / phase-tensor components against period.  Behaviour is
     controlled by setting plain attributes (``components``, ``scale``,
-    ``errors``, ``toggles`` …) then calling :meth:`~DataPlotManager.plot_data`;
+    ``errors``, ``toggles`` ...) then calling :meth:`~DataPlotManager.plot_data`;
     see the class docstring for the full list.
 
 :class:`MapView`
@@ -38,7 +38,7 @@ Notes
   (``plot_phase_tensor``, ``plot_phase_bar``, ``plan_pseudosection``,
   ``plot_induction_arrows``, ``link_axes``, ``tensor_*_pseudosection``)
   coerce the listed arguments to the declared types but must be called
-  with **keyword** arguments -- positional args past ``self`` break the
+  with **keyword** arguments: positional args past ``self`` break the
   wrapper, and any keyword not named in the decorator is dropped.
 * Redrawing is coarse: most update paths clear whole axes and re-plot
   rather than mutating existing artists.
@@ -64,23 +64,10 @@ except ModuleNotFoundError:
 
 
 def format_data_coords(x, y):
-    """Cursor readout for a sounding-curve axis.
+    """Cursor readout for a sounding-curve axis (used as ``ax.format_coord``).
 
-    Assigned to ``ax.format_coord``.  The x-axis carries
-    :math:`\\log_{10}` period, so both the log value and the linear
-    period / frequency are shown.
-
-    Parameters
-    ----------
-    x, y : float
-        Cursor position in axis (data) coordinates; ``x`` is
-        :math:`\\log_{10}` period in seconds.
-
-    Returns
-    -------
-    str
-        Two-line string with the log-scale values and the linear
-        period / frequency.
+    ``x`` is log10(period), so the readout gives both the log values and
+    the period / frequency.
     """
     freq = np.log10(1 / 10**x)
     return '\n'.join(['Log10: period={}, frequency={}, y={}',
@@ -172,7 +159,7 @@ class DataPlotManager(object):
     """Multi-panel sounding-curve figure: one subplot per site.
 
     Holds a :class:`matplotlib.figure.Figure` and renders MT response
-    curves onto it -- apparent resistivity, phase, impedance, tipper,
+    curves onto it: apparent resistivity, phase, impedance, tipper,
     phase-tensor components or 1-D Bostick depth, plotted against
     :math:`\\log_{10}` period, with one subplot per site.  Used by
     :mod:`gateway_mt.DataGUI.data_plot` and by the ``plot_dataset`` /
@@ -207,7 +194,7 @@ class DataPlotManager(object):
     which_errors : list of str
         Data types for which error bars are drawn at all.
     toggles : dict
-        ``{data_type: bool}`` -- whether each data type is drawn
+        ``{data_type: bool}``: whether each data type is drawn
         (includes the ``'1d'`` key).
     marker : dict
         ``{data_type: spec}`` where ``spec`` is ``'o'`` (points),
@@ -240,7 +227,7 @@ class DataPlotManager(object):
         If ``True``, :meth:`link_axes` shares one set of bounds across
         every subplot.
     artist_ref : dict
-        ``{data_type: [artist, ...]}`` -- the artist returned for each
+        ``{data_type: [artist, ...]}``: the artist returned for each
         axis by the most recent :meth:`plot_site`, kept for incremental
         redraws.
     fig : matplotlib.figure.Figure
@@ -311,7 +298,7 @@ class DataPlotManager(object):
 
     @property
     def num_sites(self):
-        """int: Largest ``sites`` list length -- i.e. the subplot count."""
+        """int: Largest ``sites`` list length, i.e. the subplot count."""
         return max([len(data) for data in self.sites.values()])
 
     @property
@@ -338,23 +325,8 @@ class DataPlotManager(object):
         return units
 
     def get_designated_colour(self, component, ii):
-        """Colour for a component.
-
-        Parameters
-        ----------
-        component : str
-            Component name; matched case-insensitively against the keys
-            of :attr:`designated_colours` (``'xy'``, ``'yx'``, ``'det'``,
-            ``'ssq'`` …).
-        ii : int
-            Index into :attr:`colour`, used as the fallback.
-
-        Returns
-        -------
-        str
-            The designated colour if :attr:`use_designated_colours` is
-            set and a key matches, otherwise ``colour[ii]``.
-        """
+        """Colour for ``component``: its entry in :attr:`designated_colours` (if
+        :attr:`use_designated_colours` is set), otherwise ``colour[ii]``."""
         component = component.lower()
         if self.use_designated_colours:
             for key in self.designated_colours.keys():
@@ -378,7 +350,7 @@ class DataPlotManager(object):
             self.axes.append(self.fig.add_subplot(self.tiling[0], self.tiling[1], ii + 1))
 
     def gen_tiling(self):
-        """Return ``[nrows, ncols]`` for :attr:`num_sites` subplots -- a
+        """Return ``[nrows, ncols]`` for :attr:`num_sites` subplots: a
         single column for one or two sites, otherwise a near-square
         grid."""
         if self.num_sites < 3:
@@ -390,7 +362,7 @@ class DataPlotManager(object):
         return tiling
 
     def refresh(self):
-        """Placeholder -- currently a no-op."""
+        """Placeholder (does nothing yet)."""
         pass
 
     def replace_sites(self, sites_in, sites_out):
@@ -435,7 +407,7 @@ class DataPlotManager(object):
             self.redraw_single_axis(axnum=ii)
 
     def draw_all(self, sites=None):
-        """Placeholder for a future incremental full redraw -- currently
+        """Placeholder for a future incremental full redraw. For now it
         only stores ``sites`` if none are set."""
         if self.sites is None:
             self.sites = sites
@@ -520,7 +492,7 @@ class DataPlotManager(object):
                 self.axes[axnum].set_xlabel(r'$Log_{10}$ Period (s)', fontsize=self.label_fontsize)
 
     def plot_data(self, sites=None):
-        """Render the whole figure -- the main entry point.
+        """Render the whole figure (the main entry point).
 
         Rebuilds the subplot grid if the site count changed, then for
         each data type (``raw_data`` first, so it plots underneath) calls
@@ -572,7 +544,7 @@ class DataPlotManager(object):
 
     @property
     def log10_yscale(self):
-        """bool: Whether the y-axis should be log-scaled -- true for
+        """bool: Whether the y-axis should be log-scaled, true for
         log10-scaled impedance and for any resistivity / Bostick
         component."""
         if (self.scale.lower() == 'log10' and self.components[0].lower().startswith('z')) or \
@@ -589,7 +561,7 @@ class DataPlotManager(object):
         Parameters
         ----------
         Max, Min : float or sequence of float
-            Data extremes -- per-axis sequences when ``axnum`` is a list,
+            Data extremes: per-axis sequences when ``axnum`` is a list,
             otherwise scalars.
         axnum : int or list of int, optional
             Axis / axes to bound.
@@ -665,12 +637,13 @@ class DataPlotManager(object):
         """Plot every configured component of one station onto one axis.
 
         For each entry in :attr:`components` the y-values are derived from
-        ``site`` according to the component family -- apparent resistivity
+        ``site`` according to the component family: apparent resistivity
         (:func:`gateway_mt.utils.compute_rho`), phase
         (:func:`gateway_mt.utils.compute_phase`), phase-tensor / invariant
         quantities (from ``site.phase_tensors`` / ``site.CART``), Bostick
-        depth (:func:`gateway_mt.utils.compute_bost1D`) or a raw data component
-        scaled by :attr:`scale` -- and drawn with ``ax.errorbar``.
+        depth (:func:`gateway_mt.utils.compute_bost1D`), or a raw data
+        component scaled by :attr:`scale`. They are drawn with
+        ``ax.errorbar``.
         Imaginary components use a triangle marker.  A component with no
         usable data is annotated ``'No Data'``.
 
@@ -680,7 +653,7 @@ class DataPlotManager(object):
             Station to plot.
         dType : str, optional
             Data type key (``'data'``, ``'raw_data'``, ``'response'``,
-            ``'1d'``, ``'smoothed_data'``) -- selects the marker / line
+            ``'1d'``, ``'smoothed_data'``): selects the marker / line
             style from :attr:`marker` and whether error bars are drawn.
         ax : matplotlib.axes.Axes, optional
             Target axis.
@@ -923,7 +896,7 @@ class MapView(object):
         The recognised coordinate systems: ``'local'``, ``'utm'``,
         ``'latlong'``, ``'lambert'``.
     window : dict
-        ``{'figure', 'axes', 'canvas', 'colorbar', 'colorbar_twin'}`` --
+        ``{'figure', 'axes', 'canvas', 'colorbar', 'colorbar_twin'}``:
         the drawing surface.  ``window['axes']`` is a *list*; plotting
         methods use ``window['axes'][0]``.
     site_data : dict
@@ -948,7 +921,7 @@ class MapView(object):
         Model for :meth:`plot_plan_view` / :meth:`plot_x_slice` /
         :meth:`plot_y_slice`.
     interpolant : str
-        Grid interpolant for :meth:`interpolate` -- ``'nearest'``,
+        Grid interpolant for :meth:`interpolate`: ``'nearest'``,
         ``'linear'``, ``'cubic'``, ``'natural'`` (needs the optional
         ``naturalneighbor`` package; falls back to ``'linear'``), or
         ``'rbf-<kernel>'``.
@@ -1078,7 +1051,7 @@ class MapView(object):
 
     @property
     def facecolour(self):
-        """str: Marker fill -- :attr:`site_interior` when
+        """str: Marker fill: :attr:`site_interior` when
         :attr:`site_fill`, otherwise ``'none'``."""
         if self.site_fill:
             return self.site_interior
@@ -1109,7 +1082,7 @@ class MapView(object):
     @property
     def generic_sites(self):
         """list of str: Sites in :attr:`site_names` but not
-        :attr:`active_sites` (unordered -- it is a set difference)."""
+        :attr:`active_sites` (unordered: it is a set difference)."""
         return list(set(self.site_names) - set(self.active_sites))
 
     @property
@@ -1221,7 +1194,7 @@ class MapView(object):
             self.create_axes()
 
     def create_axes(self):
-        """Populate ``window['axes']`` -- add a single ``111`` subplot,
+        """Populate ``window['axes']``: add a single ``111`` subplot,
         or adopt the figure's existing axes."""
         if not self.window['figure'].axes:
             self.window['axes'] = self.window['figure'].add_subplot(111)
@@ -1356,7 +1329,7 @@ class MapView(object):
             Colour-bar label.
         cb_slot : {1, 2}, optional
             ``1`` creates the primary colour bar; ``2`` adds a second
-            scale -- a shared label if the two mappables span the same
+            scale: a shared label if the two mappables span the same
             range, otherwise a twinned secondary axis.  ``> 2`` is not
             implemented.
 
@@ -1611,7 +1584,7 @@ class MapView(object):
         self.set_axis_labels()
 
     def plot_annotate(self):
-        """Label station markers with their names -- the active subset for
+        """Label station markers with their names: the active subset for
         ``annotate_sites == 'active'``, every station for ``'all'``."""
         if self.annotate_sites == 'active':
             for ii, (xx, yy) in enumerate(self.site_locations['active']):
@@ -1899,7 +1872,7 @@ class MapView(object):
     def resize_ellipse_aspect(self, azimuth, phi_max):
         """Return ``(phi_x, phi_y)`` for an ellipse of semi-major axis
         ``|phi_max|`` and axis ratio :attr:`min_pt_ratio`, oriented at
-        ``azimuth`` -- used to stop very flat ellipses from vanishing."""
+        ``azimuth``, used to stop very flat ellipses from vanishing."""
         R = np.array(((np.cos(azimuth), -np.sin(azimuth)),
                        (np.sin(azimuth), np.cos(azimuth))))
         max_element = np.abs(phi_max)
@@ -2153,7 +2126,7 @@ class MapView(object):
     @utils.enforce_input(data_type=list, normalize=bool, fill_param=str, period_idx=int, pt_type=str, cb_slot=int)
     def plot_phase_bar(self, data_type='data', normalize=True, fill_param='Beta', period_idx=1, pt_type=None, cb_slot=2):
         """Draw a phase-tensor *bar* (rectangle) per station at one
-        period -- an alternative to :meth:`plot_phase_tensor` where the
+        period: an alternative to :meth:`plot_phase_tensor` where the
         rectangle's aspect encodes :math:`\\phi_{min} / \\phi_{max}` and
         its orientation the tensor azimuth.  Same keyword-only calling
         convention and ``fill_param`` / ``cb_slot`` meaning as
@@ -2249,7 +2222,7 @@ class MapView(object):
             One entry plots the field; two entries plot the
             ``response - data`` difference.
         fill_param : str
-            Quantity to grid -- ``'rhoxy'`` / ``'rhoyx'`` (or ``'rho..-..'``
+            Quantity to grid: ``'rhoxy'`` / ``'rhoyx'`` (or ``'rho..-..'``
             for a component difference), ``'phaxy'``, ``'tip'``,
             ``'beta'`` / ``'absbeta'``, ``'azimuth'``, ``'bostxy'``,
             ``'pt_split'``, ``'phi_min'`` / ``'phi_max'``.
@@ -2489,7 +2462,7 @@ class MapView(object):
         z_slice : int
             Depth-layer index.
         rho_axis : str
-            Model attribute to plot (``'rho_x'`` …); ``'a / b'`` plots
+            Model attribute to plot (``'rho_x'`` ...); ``'a / b'`` plots
             the ratio of two attributes on the anisotropy colour axis.
         cb_slot : int, optional
             Colour-bar slot; ``0`` suppresses it.
@@ -2651,7 +2624,7 @@ class MapView(object):
         fill_param : str
             Ellipse fill quantity (see :meth:`pt_fill_limits`).
         periods : tuple
-            ``(lower, upper, skip)`` -- period window in seconds plus a
+            ``(lower, upper, skip)``: period window in seconds plus a
             stride (every ``skip + 1``-th period).
         pt_type : str, optional
             Tensor family (default ``'phi'``).
@@ -2789,7 +2762,7 @@ class MapView(object):
 
     @utils.enforce_input(sites=list, data_type=str, fill_param=str, periods=tuple, pt_type=str, x_axis=str)
     def tensor_bar_pseudosection(self, sites=None, data_type='data', fill_param='beta', periods=(), pt_type=None, x_axis='linear'):
-        """Phase-tensor *bar* pseudosection -- the rectangle
+        """Phase-tensor *bar* pseudosection: the rectangle
         (:meth:`plot_phase_bar`-style) equivalent of
         :meth:`tensor_ellipse_pseudosection`, with the same keyword-only
         calling convention and ``sites`` / ``periods`` / ``x_axis``

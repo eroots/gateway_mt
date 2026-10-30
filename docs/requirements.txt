@@ -1,5 +1,5 @@
 # What Read the Docs needs to build the docs. The API pages import the core
-# modules, so their dependencies are here too -- but not the GUI ones
+# modules, so their dependencies are here too, but not the GUI ones
 # (PyQt5, VTK), which the documented modules don't import.
 sphinx>=7
 sphinx-rtd-theme>=2

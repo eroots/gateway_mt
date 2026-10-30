@@ -126,7 +126,7 @@ def main(argv=None):
     dataset = WSDS.Dataset(datafile=args.data, responsefile=args.response,
                            listfile=args.list or '', modelfile=args.model or '')
     if not dataset.rms:
-        print('autogen_report: could not compute an RMS -- do the data and response files match?')
+        print('autogen_report: could not compute an RMS. Do the data and response files match?')
         return 1
     comps = set(dataset.data.components)
     if not ({'ZXYR', 'ZYXR'} <= comps or {'TZXR', 'TZYR'} <= comps):

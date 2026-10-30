@@ -215,7 +215,7 @@ def parse_args(argv=None):
         prog='plot_dataset',
         description='Plot raw data, inversion data and / or a response to a PDF, four sites per page. '
                     'Give any combination of -l, -d and -r; data formats are detected from the files.')
-    parser.add_argument('-l', '--list', help='site list -- plots the raw EDI / j-format data')
+    parser.add_argument('-l', '--list', help='site list (plots the raw EDI / j-format data)')
     parser.add_argument('-d', '--data', help='inversion data file')
     parser.add_argument('-r', '--response', help='inversion response (predicted data) file')
     parser.add_argument('-o', '--output', help='output PDF (default: <first input name>_plots.pdf)')

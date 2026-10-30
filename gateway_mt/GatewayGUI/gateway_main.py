@@ -1,8 +1,8 @@
 """Project-manager / launcher window for the gateway_mt GUI suite.
 
 This module provides :class:`NewProject`, a small PyQt5 window that sits
-"above" the other GUIs.  It shows a table of named *datasets* -- each a
-bundle of list / data / response / model / resolution file paths -- lets
+"above" the other GUIs.  It shows a table of named *datasets* (each a
+bundle of list / data / response / model / resolution file paths) lets
 that table be saved to and loaded from a gateway_mt project file (``.pymt``,
 the same pystart format read by
 :meth:`gateway_mt.GUI_common.classes.FileInputParser.read_pystart`), and offers
@@ -56,7 +56,7 @@ Ui_NewProject, QNewProject = loadUiType(os.path.join(path, 'new_project.ui'))
 class NewProject(QNewProject, Ui_NewProject):
     """Project-manager window: edit, save and load a table of datasets.
 
-    Each row of ``datasetTable`` is one dataset -- a name plus up to five
+    Each row of ``datasetTable`` is one dataset: a name plus up to five
     file paths (list, data, response, model, resolution).  The table can
     be written to / read from a ``.pymt`` project file, and the currently
     selected row(s) can be handed to the Data Plot, Model Viewer or Mesh
@@ -106,14 +106,7 @@ class NewProject(QNewProject, Ui_NewProject):
         self.datasetTable.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
 
     def dataset_index(self):
-        """Row indices of the currently selected datasets.
-
-        Returns
-        -------
-        list of int
-            Sorted, de-duplicated row numbers of every selected cell
-            (empty if nothing is selected).
-        """
+        """Sorted row numbers of the selected datasets (empty if none are selected)."""
         idx = (index.row() for index in self.datasetTable.selectedIndexes())
         idx = set(idx)
         idx = sorted(idx)
@@ -296,15 +289,7 @@ class NewProject(QNewProject, Ui_NewProject):
                 self.datasetTable.setItem(0, col, QtWidgets.QTableWidgetItem(''))
 
     def update_dataset_table(self, files):
-        """Drop browsed files into the selected row, one per role column.
-
-        Parameters
-        ----------
-        files : list of str
-            Paths to classify with :meth:`sort_files` and write into the
-            first selected row.  Only reached from :meth:`browse_files`,
-            which guarantees exactly one selected row.
-        """
+        """Put browsed ``files`` into the selected row, each in the column for its role (see :meth:`sort_files`)."""
         sorted_files = self.sort_files(files=files)
         for key, value in sorted_files.items():
             self.datasetTable.setItem(self.dataset_index()[0], self.file_to_index[key], QtWidgets.QTableWidgetItem(value))
@@ -398,7 +383,7 @@ class NewProject(QNewProject, Ui_NewProject):
         -----
         A *save* dialog (with overwrite confirmation disabled) is used to
         pick the file to open, so that typing a new name here starts a
-        fresh project rather than erroring -- see :meth:`write_project`.
+        fresh project rather than erroring (see :meth:`write_project`).
         """
         files_dict = None
 
@@ -439,7 +424,7 @@ class NewProject(QNewProject, Ui_NewProject):
 
         Notes
         -----
-        Output is pystart format -- ``% <name>`` then one ``<role>
+        Output is pystart format: ``% <name>`` then one ``<role>
         <path>`` line per non-empty file.  Blank paths and missing roles
         are skipped.  On success ``table_modified`` is cleared.
         """

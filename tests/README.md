@@ -27,7 +27,7 @@ pip install -c tests/requirements-min.txt -e .[test]
 | `test_plotting.py` | Sounding-curve plots show the computed values; the map view draws one arrow / ellipse per station; pseudosections. |
 | `test_commands.py` | `f2l`, `plot_edi`, `plot_dataset`, `autogen_report` and `to_vtk` run on the synthetic data. |
 | `test_gui.py` | The gateway window, Data Plot (incl. writing data), its map view and Mesh Designer, offscreen; Model Viewer's model-to-VTK conversion. |
-| `test_synthetic_data.py` | Regenerating the synthetic dataset reproduces the committed files -- an end-to-end check of the readers and writers. |
+| `test_synthetic_data.py` | Regenerating the synthetic dataset reproduces the committed files (an end-to-end check of the readers and writers). |
 
 `data/synthetic/` holds the test data and `data/make_synthetic.py` the
 script that generates it (see the README there).

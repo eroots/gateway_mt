@@ -35,7 +35,7 @@ def quiet():
 def dataset():
     """The full synthetic dataset: raw EDIs, inversion data, response and model.
 
-    Session-scoped for speed -- tests must not modify it (use ``fresh_dataset``).
+    Session-scoped for speed, so tests must not modify it (use ``fresh_dataset``).
     """
     with quiet():
         return DS.Dataset(listfile=synthetic('edis', 'synthetic.lst'),

@@ -11,7 +11,7 @@ and j-format station files.
 gateway_mt is the continuation of [pyMT](https://github.com/eroots/pyMT),
 renamed to avoid confusion with [MTpy](https://github.com/MTgeophysics/mtpy-v2).
 
-**Documentation:** <https://gateway-mt.readthedocs.io> -- user guides for each
+**Documentation:** <https://gateway-mt.readthedocs.io>: user guides for each
 GUI, the input file formats, and the API reference.
 
 ![Data Plot: apparent resistivity of six stations, data vs. model response](docs/images/data_plot_main.png)

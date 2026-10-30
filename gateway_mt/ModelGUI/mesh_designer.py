@@ -20,7 +20,7 @@ Launching
 Installed as the ``mesh_designer`` console script (:func:`main`).  Takes
 positional file paths in any order; :func:`gateway_mt.utils.sort_files`
 classifies them into ``{'model', 'data'}``.  At least one of the two
-must be given -- with only data, a uniform starting model is generated
+must be given. With only data, a uniform starting model is generated
 from it.
 
 Relation to the rest of gateway_mt
@@ -65,7 +65,7 @@ plt.rcParams['font.size'] = 8
 
 
 class CustomToolbar(NavigationToolbar):
-    """Matplotlib navigation toolbar subclass -- currently a pass-through
+    """Matplotlib navigation toolbar subclass, currently a pass-through
     with no customisation."""
 
     def __init__(self, canvas, **kwargs):
@@ -85,7 +85,7 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
     Parameters
     ----------
     model : gateway_mt.data_structures.Model or str or None
-        A model, a path to one, or falsy -- in which case a uniform model
+        A model, a path to one, or falsy, in which case a uniform model
         is generated from ``dataset.data``.
     dataset : gateway_mt.data_structures.Dataset or str, optional
         A dataset (or path) for the station locations and 1-D modelling;
@@ -943,7 +943,7 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
         self.redraw_pcolor()
 
     def show_plot(self):
-        """Placeholder -- currently a no-op."""
+        """Placeholder (does nothing yet)."""
         pass
 
 

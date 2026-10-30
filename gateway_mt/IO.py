@@ -1,7 +1,7 @@
 """File-format I/O for :mod:`gateway_mt`.
 
-This is the read/write layer.  It has no classes -- just module-level
-functions -- and holds all knowledge of the on-disk formats.
+This is the read/write layer.  It has no classes (just module-level
+functions) and holds all knowledge of the on-disk formats.
 :mod:`gateway_mt.data_structures` delegates every file operation here; it does no
 parsing of its own.
 
@@ -34,8 +34,8 @@ Conventions
   ``{name: {'data', 'errors', 'periods', 'locations', 'azimuth', ...}}`` and
   ``other_info`` carries ``inversion_type``, ``site_names``, ``origin``,
   ``UTM_zone`` and ``dimensionality``.
-* Several interactive helpers (:func:`verify_input`) prompt on stdin -- used
-  by the command-line scripts, not the GUIs.
+* Several interactive helpers (:func:`verify_input`) prompt on stdin. These are
+  used by the command-line scripts, not the GUIs.
 """
 from gateway_mt.WSExceptions import WSFileError
 import gateway_mt.utils as utils
@@ -338,7 +338,7 @@ def read_covariance(cov_file):
                 for jj in range(nx):
                     cov_exceptions[nx - jj - 1, :, idx1-1:idx2] = np.expand_dims(np.array([int(x) for x in covlines[jj + 1 + ii * (nx + 1)].split()]), axis=1)
         except IndexError:
-            # No exception block -- a plain covariance file. Keep the all-ones array.
+            # No exception block, so a plain covariance file. Keep the all-ones array.
             pass
         return nx, ny, nz, sigma_x, sigma_y, sigma_z, num_smooth, cov_exceptions
 
@@ -2522,7 +2522,7 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
 
     Dispatches to a nested per-format writer (``write_ws``, ``write_ModEM3D``,
     ``write_ModEM2D``, ``write_MARE2DEM``, ``write_occam``, ``write_em3dani``,
-    ``write_gofem`` -- which also writes a ``frequencies`` sidecar -- or an
+    ``write_gofem`` (which also writes a ``frequencies`` sidecar) or an
     ``edi`` branch).
 
     Parameters

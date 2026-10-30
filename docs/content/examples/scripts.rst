@@ -35,7 +35,7 @@ Any data format gateway_mt can read is accepted (ModEM, WSINV3DMT, GoFEM, ...). 
 plot_dataset
 ^^^^^^^^^^^^
 
-Plots raw data, inversion data and / or an inversion response -- any combination -- to a PDF, four sites per page, in the same layout as autogen_report. Useful for checking raw data, or an inversion data file before inverting.
+Plots raw data, inversion data and / or an inversion response (any combination) to a PDF, four sites per page, in the same layout as autogen_report. Useful for checking raw data, or an inversion data file before inverting.
 
 Usage::
 

@@ -1,8 +1,8 @@
 """In-memory data model for magnetotelluric data, responses and models.
 
 This module holds the core container classes used throughout :mod:`gateway_mt`.
-It contains no file parsing itself -- every read/write is delegated to
-:mod:`gateway_mt.IO` -- and no plotting; it is purely representation plus
+It contains no file parsing itself (every read/write is delegated to
+:mod:`gateway_mt.IO`) and no plotting; it is purely representation plus
 manipulation (resampling, rotation, error handling, meshing, phase tensors,
 RMS, coordinate projection).
 
@@ -53,7 +53,7 @@ Shared conventions
 
 Notes
 -----
-These classes do little input validation -- they assume callers pass
+These classes do little input validation. They assume callers pass
 consistent site data, matching component/period lengths, etc.  ``progress_bar``
 parameters accept an optional Qt progress-bar widget used by the GUIs.
 """
@@ -444,7 +444,7 @@ class Dataset(object):
         Parameters
         ----------
         site : dict
-            ``{'data': Site, 'response': Site, 'raw_data': Site}`` -- an entry
+            ``{'data': Site, 'response': Site, 'raw_data': Site}``, with an entry
             for every sub-object currently populated.
         """
         if self.has_dType('data'):
@@ -655,10 +655,10 @@ class Dataset(object):
             ``None`` if data/response are missing or their period/site counts
             disagree.  Otherwise ``{'Total', 'Component', 'Station', 'Period'}``:
 
-            * ``'Total'`` -- overall nRMS.
-            * ``'Component'`` -- ``{component: nRMS}`` (+ ``'Total'``).
-            * ``'Period'`` -- ``{component: array over periods}`` (+ ``'Total'``).
-            * ``'Station'`` -- ``{site: {component: nRMS, ..., 'Total': nRMS}}``.
+            * ``'Total'``: overall nRMS.
+            * ``'Component'``: ``{component: nRMS}`` (+ ``'Total'``).
+            * ``'Period'``: ``{component: array over periods}`` (+ ``'Total'``).
+            * ``'Station'``: ``{site: {component: nRMS, ..., 'Total': nRMS}}``.
 
             Flagged points are excluded, so the sub-totals need not be
             self-consistent.
@@ -1811,7 +1811,7 @@ class Model(object):
     def project_model(self, system='local', origin=None, utm_zone=None):
         """Reproject the mesh between ``'local'``, ``'utm'``, ``'lambert'`` and ``'latlong'``.
 
-        Known to be approximate -- rectangular meshes do not map cleanly to and
+        Known to be approximate: rectangular meshes do not map cleanly to and
         from lat/long.  Prefer :meth:`to_local` / :meth:`to_UTM` /
         :meth:`to_lambert` / :meth:`to_latlong` for the common cases.
         """
@@ -4138,7 +4138,7 @@ class PhaseTensor(object):
 
     @property
     def rotation_axis(self):
-        """Reference axis for ``alpha``/``beta`` -- ``'x'`` or ``'y'``.
+        """Reference axis for ``alpha``/``beta``: ``'x'`` or ``'y'``.
 
         Setting it recomputes ``alpha`` and ``beta`` in the new convention.
         """
@@ -4388,7 +4388,7 @@ class PhaseTensor(object):
 
         The tensor formula is selected by ``self.difference_definition``
         (``'booker'``, ``'heise'``, ``'hill'``, ``'castro'``, ``'roots_1'``,
-        ``'roots_2'`` -- see the inline notes for each).  The result also
+        ``'roots_2'``, see the inline notes for each).  The result also
         carries ``diff_*`` attributes holding the per-parameter differences
         (``diff_phi_1``, ``diff_beta``, ``diff_azimuth``, ``delta``, ...),
         computed as ``response - data``.

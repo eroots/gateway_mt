@@ -7,7 +7,7 @@ Usage::
     plot_edi all --format pdf -o figs   # ...as PDFs, into figs/
     plot_edi SITE.edi --save            # save instead of showing
 
-Installed as the ``plot_edi`` console script.  Self-contained -- does not
+Installed as the ``plot_edi`` console script.  Self-contained: does not
 use :mod:`gateway_mt.gplot`.
 """
 import gateway_mt.utils as utils

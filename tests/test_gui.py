@@ -1,6 +1,6 @@
 """The GUIs, run offscreen: they load the synthetic project and draw it.
 
-These are smoke tests -- they catch crashes and wiring mistakes, not visual
+These are smoke tests: they catch crashes and wiring mistakes, not visual
 details. Model Viewer's window needs a real OpenGL display, so only its
 model-to-VTK conversion is tested here.
 """
@@ -215,7 +215,7 @@ def test_mesh_designer_writes_a_readable_model(mesh_designer_window, canned_dial
 
 
 # --------------------------------------------------------------------------- #
-# Model Viewer (conversion only -- the window needs OpenGL)
+# Model Viewer (conversion only; the window needs OpenGL)
 # --------------------------------------------------------------------------- #
 def test_model_viewer_converts_a_model_to_a_vtk_grid():
     pytest.importorskip('pyvista')

@@ -10,7 +10,7 @@ Two ways to run it:
       to_vtk -o survey -m inv.model -l all_sites.lst --utm 16U
 
 Writes ``NAME_model.vtk`` and / or ``NAME_sites.vtk``. Meant for ModEM /
-WSINV3DMT-style models -- GoFEM already writes its models as VTU.
+WSINV3DMT-style models: GoFEM already writes its models as VTU.
 Installed as the ``to_vtk`` console script. See
 ``examples/to_vtk_point-cloud.py`` for a point-cloud variant.
 """
@@ -126,7 +126,7 @@ def to_vtk(outfile, datafile=None, listfile=None, modelfile=None,
 
 def is_gofem(path):
     if path and path.lower().endswith('.gdat'):
-        print('{} is GoFEM data -- to_vtk is for ModEM / WSINV3DMT-style inputs '
+        print('{} is GoFEM data: to_vtk is for ModEM / WSINV3DMT-style inputs '
               '(GoFEM writes its own VTU files).'.format(path))
         return True
     return False
@@ -214,8 +214,8 @@ def parse_args(argv):
                         help='base output name: writes OUTPUT_model.vtk and / or OUTPUT_sites.vtk')
     parser.add_argument('-m', '--model', help='model file')
     sites = parser.add_mutually_exclusive_group()
-    sites.add_argument('-l', '--list', help='site list (.lst) -- sites from the raw EDI / .dat files')
-    sites.add_argument('-d', '--data', help='inversion data file -- sites from the data file')
+    sites.add_argument('-l', '--list', help='site list (.lst): sites from the raw EDI / .dat files')
+    sites.add_argument('-d', '--data', help='inversion data file: sites from the data file')
     parser.add_argument('--datpath', help='folder holding the EDI / .dat files (default: the list file\'s folder)')
     parser.add_argument('--utm', help="UTM zone, e.g. 16U (or 'lambert'); with --list, sites are "
                                       "re-projected to it unless --no-transform")

@@ -9,7 +9,7 @@ response curves one site per subplot (via
 data, adjust the error tree / error floors, rotate azimuth, sort / add /
 remove sites, and write the result back out as WSINV3DMT / ModEM /
 GoFEM.  A companion window (:class:`MapMain`, wrapping
-:class:`gateway_mt.gplot.MapView`) shows the plan-view map -- locations,
+:class:`gateway_mt.gplot.MapView`) shows the plan-view map: locations,
 induction arrows, phase-tensor ellipses / bars, plan pseudosections, RMS
 maps and model slices.
 
@@ -308,7 +308,7 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
     @property
     def PT_type(self):
         """str: Phase-tensor family selected in the ``phaseTensorType``
-        combo -- ``'phi'`` / ``'phi_a'`` / ``'Ua'`` / ``'Va'`` (defaults
+        combo: ``'phi'`` / ``'phi_a'`` / ``'Ua'`` / ``'Va'`` (defaults
         to ``'phi'``)."""
         if self.phaseTensorType.currentIndex() == 0:
             return 'phi'
@@ -751,7 +751,7 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         self.update_map()
 
     def DEBUG_FUNC(self):
-        """Developer scratch method -- not wired to any widget."""
+        """Developer scratch method: not wired to any widget."""
         print('This is a debug function')
         X, Y = [], []
         for site in self.map.site_names:
@@ -804,7 +804,7 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         z-order: background JPEG, model plan slice, plan pseudosection,
         site annotations, phase-tensor ellipses (+ a bar layer when a
         single data type and a different bar fill are selected), induction
-        arrows, and -- if neither PTs nor arrows are shown -- the plain
+        arrows, and (if neither PTs nor arrows are shown) the plain
         site markers.  Colour bars are assigned to successive ``cb_slot``
         s.  (Every change triggers a full redraw; there is no incremental
         path yet.)
@@ -1001,7 +1001,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
     ----------
     dataset_dict : dict
         ``{name: {'data': ..., 'list': ..., 'response': ..., 'raw_path':
-        ..., 'model': ...}}`` -- as returned by
+        ..., 'model': ...}}``, as returned by
         :func:`parse_commandline` / ``FileInputParser``.  Missing keys
         default to ``''``.  A ``list`` file shared between datasets is
         loaded once and reused.
@@ -1020,7 +1020,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         The sites currently plotted (property; also drives the subplot
         count).
     stored_sites : dict
-        ``{site_name: {data_type: Site}}`` -- data for sites removed
+        ``{site_name: {data_type: Site}}``: data for sites removed
         during the session, so they can be re-added.
 
     Notes
@@ -1152,7 +1152,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
     def init_rms_tables(self):
         """Recompute RMS and (re)populate the station and period RMS
-        tables -- rows per site / period, columns ``Total`` + each
+        tables: rows per site / period, columns ``Total`` + each
         component."""
         self.dataset.rms = self.dataset.calculate_RMS()
         ordered_comps = [comp for comp in self.dataset.data.ACCEPTED_COMPONENTS
@@ -1195,7 +1195,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                                                    QtWidgets.QHeaderView.ResizeToContents)
 
     def update_rms_info(self):
-        """Placeholder -- currently a no-op."""
+        """Placeholder (does nothing yet)."""
         pass
 
     def set_nparam_labels(self):
@@ -1415,7 +1415,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
                             updated_comps=self.dpm.components)
 
     def list_click(self):
-        """``comp_list`` selection handler -- the list-widget counterpart
+        """``comp_list`` selection handler: the list-widget counterpart
         of :meth:`comp_table_click`.  Not currently wired up (see
         :meth:`update_comp_list`)."""
         comps = [x.text() for x in self.comp_list.selectedItems()]
@@ -1766,7 +1766,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
     def write_all_plots(self):
         """Page through every site, ``num_subplots`` at a time, and save
-        each page -- a multi-page PDF if the chosen extension is
+        each page: a multi-page PDF if the chosen extension is
         ``.pdf``, otherwise one numbered file per page.  Restores the
         original site selection afterwards."""
         filename, ret = self.file_dialog.write_file(ext='.pdf')
@@ -1817,7 +1817,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
     def sort_sites(self, index=None):
         """Re-order the site list.
 
-        ``index`` selects the ``sortSites`` combo entry -- Default,
+        ``index`` selects the ``sortSites`` combo entry: Default,
         West-East, South-North, Clustering, or Selection.  For every mode
         except Selection the dataset is sorted, the list refreshed and the
         back / forward / subplot controls enabled.  Selection mode
@@ -1929,8 +1929,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.map['canvas'].draw()
 
     def dummy_update_dpm(self, toggled=True):
-        """:meth:`update_dpm` wrapper for signals that pass a bool -- a
-        no-op when ``toggled`` is false."""
+        """:meth:`update_dpm` wrapper for signals that pass a bool; does
+        nothing when ``toggled`` is false."""
         if toggled:
             self.update_dpm(updated_sites=None, updated_comps=None, remove_sites=None)
 
@@ -2035,7 +2035,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         the map and labels refresh.
 
         Note: assumes enough sites remain to fill the current subplot
-        count -- removing down to fewer than that can error.
+        count: removing down to fewer than that can error.
         """
         site_names = []
         min_row = np.inf
@@ -2102,7 +2102,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         """Restore the sites selected in the removed list back into the
         dataset (from :attr:`stored_sites`) and refresh the map / labels.
 
-        Not optimised -- adding many sites at once can be slow.
+        Not optimised: adding many sites at once can be slow.
         """
         site_names = []
         min_row = np.inf
@@ -2289,7 +2289,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         components, sets 2-D / 3-D dimensionality, offers to write a new
         list file if the sites were re-ordered, prompts for the output
         path (adding the format's extension), optionally centres the
-        station coordinates, and -- for ModEM with flagged data -- offers
+        station coordinates, and (for ModEM with flagged data) offers
         to also write a "removed" version.  Retries on a name clash with
         an overwrite prompt.
 
@@ -2451,7 +2451,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         pointing ``dpm.sites['data']`` at the current ``Dataset`` site.
         To swap one station for another, call
         :meth:`~gateway_mt.gplot.DataPlotManager.replace_sites` first.  Takes
-        keyword arguments (``@utils.enforce_input`` -- see the note in
+        keyword arguments (``@utils.enforce_input``, see the note in
         :mod:`gateway_mt.gplot`).
 
         Parameters
@@ -2487,7 +2487,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
     def get_component_fullname(self):
         """Map the current first component to a key in
-        ``dpm.ax_lim_dict`` -- ``'impedance'`` / ``'tipper'`` / ``'phase'``
+        ``dpm.ax_lim_dict``: ``'impedance'`` / ``'tipper'`` / ``'phase'``
         / ``'rho'`` / ``'beta'`` / ``'azimuth'``."""
         if self.dpm.components[0].lower().startswith('z'):
             return 'impedance'
@@ -2526,7 +2526,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
     def check_key_presses(self, verbose=False):
         """Decode ``self.stored_key_presses`` into
-        ``{'Control': bool, 'Shift': bool, 'Alt': bool}`` -- the
+        ``{'Control': bool, 'Shift': bool, 'Alt': bool}``: the
         modifier keys that widen an error-tree edit to all components /
         periods / sites.  With ``verbose`` it also prints which axis the
         edit will span."""
@@ -2629,10 +2629,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
     def post_edit_error(self, item, column):
         """Apply an error-tree edit.
 
-        Parses the new integer multiplier, then -- widening the target
-        set by the modifier keys held during the edit (Ctrl = all
-        components, Shift = all periods, Alt = all sites) -- writes it
-        into ``data.errmap`` for every affected point and redraws.  A
+        Parses the new integer multiplier and writes it into
+        ``data.errmap`` for every affected point, then redraws. The
+        modifier keys held during the edit widen the target (Ctrl = all
+        components, Shift = all periods, Alt = all sites).  A
         zero or non-integer entry is rejected and the old value
         restored.
         """
@@ -2707,7 +2707,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.update_dpm(updated_sites=site_names, updated_comps=comps)
 
     def redraw(self, ax=None):
-        """Placeholder -- currently a no-op."""
+        """Placeholder (does nothing yet)."""
         pass
 
     def addmpl(self, fig):
@@ -2747,7 +2747,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.cid['DataSelect'] = self.canvas.mpl_connect('pick_event', self.onpick_flagged)
 
     def onclick(self, event):
-        """Developer scratch button-press handler -- not connected."""
+        """Developer scratch button-press handler. Not connected."""
         if event.button == 1:
             print('Left mouse')
         if event.button == 2:
@@ -3005,7 +3005,7 @@ def main():
     verify = FileInputParser.verify_files(files)
     if verify:
         # files is a dict, so the first dataset loaded is not guaranteed to be
-        # a particular one -- but it is stable for a given start file.
+        # a particular one, but it is stable for a given start file.
         mainGUI = DataMain(files)
         mainGUI.setWindowIcon(QtGui.QIcon(data_plot_jpg))
         mainGUI.show()

@@ -1,7 +1,7 @@
 # examples
 
 Scripts that use `gateway_mt` for specific analyses and figures. They are not
-installed with the package -- copy one, edit the paths and options at the
+installed with the package: copy one, edit the paths and options at the
 top, and run it. Most were written for a particular survey, so expect to
 adapt them. See each file's module docstring for details.
 
@@ -9,8 +9,8 @@ The installed command-line tools are in [`gateway_mt/scripts/`](../gateway_mt/sc
 
 ## Analysis and figure scripts
 
-"Edit the paths at the top and run" scripts -- a research record, not
-general tools. Most have absolute paths baked in and top-level code with
+"Edit the paths at the top and run" scripts. They are a research record,
+not general tools. Most have absolute paths baked in and top-level code with
 no `main()`. Several need packages **not** in `gateway_mt`'s
 `install_requires`.
 
@@ -74,16 +74,16 @@ now cover. Kept for reference; each carries a header note pointing at
 its replacement.
 
 * **Crooked-transect model slices**: `plot_model_slice.py`,
-  `integrated_crooked_slice.py`, `crooked_model_slice_commented.py` --
+  `integrated_crooked_slice.py`, `crooked_model_slice_commented.py`:
   three overlapping versions; `model_viewer`'s transect tab now does
   this interactively.
 * **Pseudosections**: `plan_pseudosection.py`, `pseudosection_gplot.py`,
-  `pt_pseudosection.py`, `interp_rhopha.py`, `interp_plan_rms.py` --
-  overlap with `gplot.MapView.plan_pseudosection` and `data_plot`'s map
+  `pt_pseudosection.py`, `interp_rhopha.py`, `interp_plan_rms.py`:
+  these overlap with `gplot.MapView.plan_pseudosection` and `data_plot`'s map
   tab.
-* **Dataset plots**: `plot_dataset_gplot.py` and `plot_dataset_rhophatip.py`
-  -- superseded by the installed `plot_dataset` command.
-* `conductance_to_geotiff.py` vs `model_to_geotiff.py` -- both note the
+* **Dataset plots**: `plot_dataset_gplot.py` and `plot_dataset_rhophatip.py`,
+  superseded by the installed `plot_dataset` command.
+* `conductance_to_geotiff.py` vs `model_to_geotiff.py`: both note the
   calculation is now a `Model` method.
 * `gateway_mt/scripts/to_vtk.py` vs `to_vtk_point-cloud.py`.
 

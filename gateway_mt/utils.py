@@ -1,8 +1,8 @@
 """Stateless helper functions shared across :mod:`gateway_mt`.
 
 This module is the package's utility layer.  It has no classes and does not
-import any other :mod:`gateway_mt` module, so everything else -- :mod:`gateway_mt.data_structures`,
-:mod:`gateway_mt.IO`, :mod:`gateway_mt.gplot`, the GUIs and the scripts -- is free to import
+import any other :mod:`gateway_mt` module, so everything else (:mod:`gateway_mt.data_structures`,
+:mod:`gateway_mt.IO`, :mod:`gateway_mt.gplot`, the GUIs and the scripts) is free to import
 it.  Roughly, the functions fall into these groups:
 
 ``Container / type coercion``
