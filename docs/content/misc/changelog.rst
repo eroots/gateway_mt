@@ -11,7 +11,19 @@ Change Log
 
   * Documentation is now on Read the Docs, with an API reference built from the docstrings, and the GUI guides have been brought up to date.
 
-  * Fixed: colour maps with matplotlib 3.11; data_plot -b; writing a data file after re-adding a removed station; plus a number of smaller fixes.
+  * Changes that affect results or files:
+
+    * Borrowing a nearby period now uses one tolerance at all periods (10% to flag, 20% to remove), instead of 2% below 1 s. The Dummy Data box in :ref:`Data Plot` has one Flag and one Remove value, and the unused 'Missing Period Error' box is gone.
+
+    * EDI files written by gateway_mt hold variances in their .VAR blocks (they held standard deviations), and keep the sign of latitudes / longitudes within a degree of 0.
+
+    * MARE2DEM files written by gateway_mt can be read back, and the imaginary parts of MARE2DEM impedance / tipper data are read with the same sign convention they are written with.
+
+    * 1-D inversion: the layers are thicknesses throughout, so the inverted model is now drawn (and used as a starting model in :ref:`Mesh Designer`) at the right depths, and the mantle transition option fixes the layers below 410 km.
+
+    * Regenerate Mesh in :ref:`Mesh Designer` starts from cell sizes based on the station spread, and asks before building a very large mesh.
+
+  * Fixed: colour maps with matplotlib 3.11; data_plot -b; writing a data file after re-adding a removed station; limits such as 2 and 10 being rejected; tipper-only data with a response; Gateway projects dropping the resolution file; anisotropic 1-D starting models; plus a number of smaller fixes.
 
 * 29/04/22
 
