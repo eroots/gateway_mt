@@ -43,7 +43,6 @@ from gateway_mt.GUI_common.classes import FileDialog
 from gateway_mt.GUI_common.windows import Modeling1D
 from scipy.ndimage import gaussian_filter
 from gateway_mt.e_colours import colourmaps as cm
-from gateway_mt.IO import debug_print
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
@@ -801,18 +800,18 @@ class model_viewer_2d(QMainWindow, Ui_MainWindow):
                 if self.modeling_window.synthetic_results:
                     model_1D = self.modeling_window.synthetic_results
                     if (model_1D['rho_x'] != model_1D['rho_y']):
-                        if  not write_anisotropic:
-                            ret = QtWidgets.QMessageBox.question(self, 'Write', 'Synthetic model is anisotropy - use only rho_x?',
+                        if write_anisotropic:
+                            self.model.import_1D(rho_x=model_1D['rho_x'], rho_y=model_1D['rho_y'], dz=model_1D['depth'])
+                        else:
+                            ret = QtWidgets.QMessageBox.question(self, 'Write', 'Synthetic model is anisotropic - use only rho_x?',
                                                              QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                                                              QtWidgets.QMessageBox.No)
                             if ret == QtWidgets.QMessageBox.Yes:
-                                self.model.import_1D(rho_x=model_1D['rho_x'], rho_y=model_1D['rho_y'], dz=model_1D['depth'])
+                                self.model.import_1D(rho_x=model_1D['rho_x'], dz=model_1D['depth'])
                             else:
                                 return
                     else:
                         if model_1D['rho_x']:
-                            debug_print(model_1D['rho_x'], 'debug.log')
-                            debug_print(model_1D['depth'], 'debug.log')
                             self.model.import_1D(rho_x=model_1D['rho_x'], dz=model_1D['depth'])
                         else:
                             self.background_resistivity = self.modeling_window.synthetic_window.hs

@@ -163,3 +163,16 @@ def test_old_tolerance_names_still_work(fresh_dataset):
     with quiet():
         raw.get_data(sites=['SYN001'], periods=list(raw.sites['SYN001'].periods[:3]), lTol=0.02, hTol=0.15)
     assert raw.tol == 0.15                                         # the larger of the old pair
+
+
+def test_import_1d_anisotropic_keeps_each_axis():
+    """rho_x and rho_y profiles land in separate arrays (rho_z follows rho_x)."""
+    with quiet():
+        model = DS.Model(synthetic('synthetic.model'))
+    depths = [0, 1000, 10000]
+    model.import_1D(rho_x=[100, 10, 1000], rho_y=[300, 30, 3000], dz=depths)
+    assert not model.isotropic
+    assert model.rho_x[0, 0, 0] == pytest.approx(100) and model.rho_y[0, 0, 0] == pytest.approx(300)
+    np.testing.assert_allclose(model.rho_y[:, :, :-1], 3 * model.rho_x[:, :, :-1])
+    np.testing.assert_allclose(model.rho_z, model.rho_x)
+    assert model.rho_z is not model.rho_x and model.dip is not model.strike

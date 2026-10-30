@@ -1739,20 +1739,24 @@ class Model(object):
         dz : sequence of float
             Depths for ``rho_x``.
         rho_y : sequence of float, optional
-            Second resistivity axis for an anisotropic model.
+            Second resistivity axis. If given, the model becomes anisotropic:
+            ``rho_y`` from this profile, ``rho_z`` equal to ``rho_x``, and no
+            rotation (``strike`` / ``dip`` / ``slant`` all 0).
         """
         new_vals = np.interp(self.dz, dz, rho_x,
                              left=rho_x[0], right=rho_x[-1])
         for zz, val in enumerate(new_vals[:-1]):
             self.vals[:,:,zz] = val
         self.rho_x = self.vals
-        if rho_y:
+        if rho_y is not None:
+            # Each axis needs its own array (they used to share one, so rho_y overwrote rho_x)
             new_vals = np.interp(self.dz, dz, rho_y, left=rho_y[0], right=rho_y[-1])
-            self.rho_y = self.rho_x
-            self.rho_z = self.rho_x
-            self.dip, self.slant, self.strike = [np.zeros(shape=self.vals.shape)] * 3
+            self.rho_y = np.copy(self.rho_x)
             for zz, val in enumerate(new_vals[:-1]):
                 self.rho_y[:, :, zz] = val
+            self.rho_z = np.copy(self.rho_x)
+            self.dip, self.slant, self.strike = [np.zeros(shape=self.vals.shape) for _ in range(3)]
+            self.isotropic = False
 
 
     def __read__(self, modelfile='', file_format='modem3d'):
