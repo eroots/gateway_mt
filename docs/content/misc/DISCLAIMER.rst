@@ -1,7 +1,7 @@
 DISCLAIMER
 ==========
 
-This code base has been cobbled together over a few years. Parts of it were written to fulfill a specific need at a specific time and then promptly forgotten, while others were written when I was still figuring out the difference between a class and a method. While I have tried to address bugs as I come across them, this code is not unit tested (yet), and so is best used with an understanding of the the expected outcome is. There are some `known bugs`_, but any further unexpected behavior can be reported.
+This code base has been cobbled together over a few years. Parts of it were written to fulfill a specific need at a specific time and then promptly forgotten, while others were written when I was still figuring out the difference between a class and a method. While I have tried to address bugs as I come across them, only the core modules have automated tests (the GUIs are only smoke tested), and so it is best used with an understanding of the the expected outcome is. There are some `known bugs`_, but any further unexpected behavior can be reported.
 
 
 .. _Known Bugs:
@@ -19,7 +19,7 @@ Data Plot GUI
 -------------
 
 * When only a :ref:`List File` is specified for the loaded dataset, a :ref:`Data` object will be initialized by taking logarithmically spaced periods.
-	* In this instance, the :ref:`Map Viewer` is not initialized properly, and no site locations are shown. 
+	* In this instance, the :ref:`Map Viewer` is not initialized properly, and no site locations are shown.
 	* The workaround is to re-sort the station locations (e.g., sort by west-east then re-sort back to default) and click the forward or back button. These operations should get the stations plotting.
 
 * Rotating the data / stations using the 'Azimuth' box has a few associated bugs

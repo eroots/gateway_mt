@@ -1463,7 +1463,7 @@ def generate_zmesh(min_depth=1, max_depth=500000, NZ=None):
 
     .. deprecated::
         Superseded by :meth:`gateway_mt.data_structures.Model.generate_zmesh`.  Kept
-        for :mod:`gateway_mt.scripts.j2ws3d`.
+        for ``examples/j2ws3d.py``.
 
     Parameters
     ----------

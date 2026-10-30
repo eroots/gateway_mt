@@ -6,14 +6,14 @@ Input File Types
 Startup File
 ************
 
-The startup file specifies the relevant paths and files, as well as the roles of those files. 
+The startup file specifies the relevant paths and files, as well as the roles of those files.
 The startup file is broken into seperate data sets, with a '%' denoting the beginning of a new data set specification, and the subsequent lines giving the role and paths of the files to be used. Lines starting with a '#' will be ignored, which allows the insertion of comments.
-A data set can contain one `List File`_, `Data File`_, and `Response File`_, or any permutation thereof (as long as only one of each is specified per data set). Additionally, you can specify a common path to each file, as well as a separate path which points to the location of the raw data files (EDI or j-format files), although this has not been fully tested, and so specifying relative or absolute paths is the safer option for now.
+A data set can contain one `List File`_, `Data File`_, `Response File`_, and `Model File`_, or any permutation thereof (as long as only one of each is specified per data set). The keywords are list, data, response (or resp), and model (or mod). Additionally, you can specify a common path to each file, as well as a separate path which points to the location of the raw data files (EDI or j-format files), although this has not been fully tested, and so specifying relative or absolute paths is the safer option for now.
 An example startup file is as follows::
 
 	# This specification assumes allsites.lst, inv.dat, and the EDI/j-format files are all in the same folder as pystart
-	% data_set1  
-	list allsites.lst 
+	% data_set1
+	list allsites.lst
 	data inv.dat
 	# The list and EDI files are in a folder ./EDIs
 	% data_set2
@@ -39,8 +39,12 @@ Currently implemented formats are:
 * ModEM (2-D)
 * ModEM (3-D)
 * WSINV3DMT
-* Occam2D
 * MARE2DEM
+* GoFEM
+* EM3DANI
+* Occam2D (writing only)
+
+The format is taken from the file extension (e.g., .dat for ModEM, .data for WSINV3DMT, .emdata for MARE2DEM, .gdat for GoFEM).
 
 Thus far, only ModEM and WSINV3DMT file formats have been used extensively. Other formats, while implemented, have not been thoroughly tested.
 
@@ -77,6 +81,9 @@ Currently implemented formats are:
 * ModEM (2-D)
 * ModEM (3-D)
 * WSINV3DMT
+* MT3DANI and EM3DANI (anisotropic)
+
+GoFEM models are not read here, as GoFEM already writes its models as VTU files (for ParaView).
 
 Thus far, only ModEM and WSINV3DMT file formats have been used extensively. Other formats, while implemented, have not been thoroughly tested. Furthermore, 2-D ModEM model files have not been used much, and so may result in some unpredictable behavior.
 

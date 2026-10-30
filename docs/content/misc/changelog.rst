@@ -1,6 +1,18 @@
 Change Log
 ==========
 
+* 30/10/26 (version 0.20.0)
+
+  * pyMT is now gateway_mt, in a new repository (https://github.com/eroots/gateway_mt). Requires Python 3.10 or newer.
+
+  * Installed with pip (pyproject.toml). The command line scripts f2l, plot_edi, plot_dataset, autogen_report and to_vtk now take command line options (use -h); project-specific scripts have moved to the examples folder.
+
+  * Added a test suite using synthetic data, run automatically on GitHub.
+
+  * Documentation is now on Read the Docs, with an API reference built from the docstrings, and the GUI guides have been brought up to date.
+
+  * Fixed: colour maps with matplotlib 3.11; data_plot -b; writing a data file after re-adding a removed station; plus a number of smaller fixes.
+
 * 29/04/22
 
   * Added function to read mt3dani models, and made corresponding changes to allow the anistropic modesl to be used in the GUIs

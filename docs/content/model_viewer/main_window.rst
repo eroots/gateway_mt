@@ -17,12 +17,16 @@ Menu Bar
 .. figure:: ../../images/model_viewer_menu_bar.png
     :align: center
     :scale: 50 %
-	
-The Menu bar currently has two sub-menus.
 
-The 3-D Options sub-menu has options for resetting the `3D View`_ to an XY, XZ, and YZ view.
+The 3-D Options sub-menu has options for resetting the `3D View`_ to an XY, XZ, and YZ view, and for changing its background colour.
+
+The 2-D Options sub-menu turns the mesh lines on and off in the `2D View`_, and sets whether depth labels give the depth range or centre of the slice.
+
+The Plot Value sub-menu chooses which resistivity is plotted for anisotropic models (rho_x, rho_y, rho_z, or their ratios).
 
 The Colour Options sub-menu has options for changing the colour map, as well as the colour limits of all plots.
+
+The Coordinate Options sub-menu sets the spatial units and coordinate system.
 
 Control Dock
 ------------
@@ -31,23 +35,27 @@ Control Dock
     :align: center
     :scale: 50 %
 
-The Control Dock contains options for navigating through the model. Only the Mesh tab has been implemented in this release. The Control Dock can be detached from the main window to make more space for the `Plot Window`_.
+The Control Dock contains options for navigating through the model, in the Mesh, Isosurface, and Data tabs. The Control Dock can be detached from the main window to make more space for the `Plot Window`_.
 
 The Mesh tab has two groupboxes: Trim and Slices
 
-The Trim groupbox is used to adjust the bounds of the model that are plotted. 
+The Trim groupbox is used to adjust the bounds of the model that are plotted.
 
 By default, the full model is shown. Edit each line beside the South, North, etc., labels to define how many cells to trim from the corresponding directions. Hit the Trim Volume button to perform the operation. This operation will generate new model plots for all of the subplots in the `2D View`_, as well as for the `3D View`_.
 
 The Slices groupbox controls which slices are plotted. The X, Y, and Z checkboxes are used to turn off/on the corresponding slices in within the `3D View`_. The nearby line edits and slider bars are used to control the location of the each plotted slice.
 
-The last line in the Slices groupbox is used to generate a transect slice along a specified set of points. 
+The last line in the Slices groupbox is used to generate a transect slice along a specified set of points.
 
 * Hit the Select Points button to begin picking. Picking must be performed within the Plan View plot of the `2D View`_ (hitting the Select Points button will automatically switch the tab focus accordingly).
 * Click within the Plan View window to assign points through which the slice will go through.
 * When all the desired points have been selected, hit the Select Points button again.
 * A set of points will appear on the Plan View plot indicating your clicks, and the corresponding transect will be plotted within the `Transect`_ tab, as well as within the `3D View`_.
 	* The transect slice within the 3D View can be toggled with the Transect checkbox.
+
+The Isosurface tab plots resistivity isosurfaces in the `3D View`_. Set the lowest and highest resistivity and the number of contours, and hit Recalculate; the opacity of the surfaces can also be set.
+
+The Data tab can plot the stations at their elevations rather than at the surface ('Station Elevation'), and toggles resolution plotting if a resolution file was given.
 
 Plot Window
 -----------
@@ -89,6 +97,7 @@ The 2D View tab shows slices through the model in 2-D. It consists of:
 * A Plan View plot, showing slices through the XY plane (top left plot)
 * An XZ view, showing depth slices through the XZ plane (top right plot)
 * A YZ view, showing depth slices through the YZ plane (bottom left plot)
+* A colour bar (bottom right)
 
 The toolbar at the bottom can be used as in normal matplotlib figures.
 

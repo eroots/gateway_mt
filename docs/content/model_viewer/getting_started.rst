@@ -4,11 +4,11 @@ Getting Started
 Launching the GUI
 -----------------
 
-The model viewer GUI is launched from the command line via the command::
-	
+The model viewer GUI is launched from the command line (or from the gateway_mt project window) via the command::
+
 	model_viewer <model_file> <data_file>
 
-The order of the files does not matter.
+The order of the files does not matter; they are recognised by their extensions (.model, .rho or .zani for models, and .dat or .data for data files).
 
 It can take a while to load the GUI, particularly the first time you do so, due to the somewhat heavy dependencies required for 3-D viewing.
 
@@ -24,9 +24,7 @@ Assuming valid files are used, the GUI should launch into the 2-D view, with the
 
 The 3-D view is initialized to a top-down (XY) view.
 
-Default colour map is 'jet_plus', a modified version of the Matlab default 'jet' with lower and upper colour map limits of 1 and 5 (log10 scale).
-
-Note that currently there is no colour bar shown for the 2-D views.
+Default colour map is 'turbo' (inverted, so that conductors are red), with lower and upper colour map limits of 1 and 5 (log10 scale).
 
 Currently the data file is used only to plot the station locations over the model. Plotting of induction arrows and phase tensors will likely be added in the future.
 

@@ -4,7 +4,7 @@ Getting Started
 Launching the GUI
 -----------------
 
-The data plotting GUI is launched from the command line. A number of options exist on exactly how to specify which files you would like to use, which can be accessed using::
+The data plotting GUI is launched from the command line, or from the gateway_mt project window (``gateway_mt``). A number of options exist on exactly how to specify which files you would like to use, which can be accessed using::
 	
 	data_plot -h
 
@@ -12,7 +12,7 @@ which will output::
 
 	Options include:
          -d : Use default startup file "pystart"
-         -b : Browse for start file or data files (Not yet implemented)
+         -b : Browse for start file
          -n : Specify the start file you wish to use
          -l : List the dataset names present in the start file you have chosen
          -c : Choose a specific dataset(s) listed within the start file you have chosen
@@ -24,6 +24,7 @@ For example, the most common method of launching the GUI is::
 	data_plot -n <startup_file> -c <dataset_name>
 
 This will open the :ref:`Startup file` and initialize the GUI with the specified dataset. If no dataset is give (i.e., the -c flag is not used), all datasets within <startup_file> will be loaded.
+Running ``data_plot`` with no options opens a prompt asking for the startup file (the same as -b).
 
 Required Files
 --------------
@@ -43,7 +44,7 @@ A few things to note about the default behavior of data_plot:
 * Inversion data (data read in or created for use in inversion) are indicated by filled circles with a black outline
 * Response data (data read in from an inversion response file) is indicated by a solid line
 
-* By default, data is displayed as is. Particularly for impedance data, it is useful to view it multiplied the periods or square root of the periods to be able to visualize both short and long periods equally well. This can be done through the :ref:`Scaling` drop-down menu.
+* By default, impedance data is shown multiplied by the square root of the period, so that both short and long periods can be seen equally well. This can be changed through the :ref:`Scaling` menu.
 
 * Some of the features of the Data Plot GUI and the :ref:`Map Viewer` require raw data in order to operate (e.g., addition of periods). Therefore it is generally best to include a :ref:`List File` in all datasets to be plotted.
 
