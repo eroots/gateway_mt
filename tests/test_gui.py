@@ -110,6 +110,15 @@ def data_plot(no_dialogs):
     window.close()
 
 
+@pytest.mark.parametrize('args', [['data_plot'], ['data_plot', '-b']])
+def test_data_plot_browses_for_a_start_file(monkeypatch, args):
+    """With no options, or -b, data_plot asks for the start file and loads it."""
+    import gateway_mt.DataGUI.data_plot as dp
+    files = _project_files()
+    monkeypatch.setattr(dp.FileInputParser, 'get_files_dialog', staticmethod(lambda: (files, True)))
+    assert dp.parse_commandline(args) == files
+
+
 def test_data_plot_loads_the_project(data_plot):
     assert data_plot.dataset.data.NS == 30
     assert data_plot.site_names == ['SYN00{}'.format(i) for i in range(1, 7)]   # first page of sites

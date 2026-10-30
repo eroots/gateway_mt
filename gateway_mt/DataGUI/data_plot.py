@@ -1618,8 +1618,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.update_dpm()
 
     def reset_dummy_errors(self):
-        """Undo the "removed" dummy periods / components (restore their
-        real errors) and rebuild the tree / plot."""
+        """Re-check the dummy periods / components against the raw data
+        (:meth:`~gateway_mt.data_structures.Dataset.reset_dummy_periods`)
+        and rebuild the tree / plot."""
         self.dataset.reset_dummy_periods()
         self.dataset.reset_dummy_components()
         self.update_error_tree()
@@ -2942,7 +2943,7 @@ def parse_commandline(args):
     if '-d' in args:
         start_file = 'pystart'
     elif '-b' in args:
-        start_file, response = FileInputParser.get_files_dialog()
+        files, response = FileInputParser.get_files_dialog()
     elif '-n' in args:
         idx = args.index('-n')
         try:
@@ -2952,7 +2953,7 @@ def parse_commandline(args):
             return None
     elif '-h' in args:
         print('Options include: \n\t -d : Use default startup file "pystart"' +
-              '\n\t -b : Browse for start file or data files (Not yet implemented)' +
+              '\n\t -b : Browse for start file' +
               '\n\t -n : Specify the start file you wish to use' +
               '\n\t -l : List the dataset names present in the start file you have chosen' +
               '\n\t -c : Choose a specific dataset(s) listed within the start file you have chosen' +
