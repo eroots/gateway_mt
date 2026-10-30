@@ -1642,7 +1642,11 @@ def read_data(datafile='', site_names='', file_format='modem', invType=None):
             em_format = 'Data'
         #  It's not entirely clear how strike is used in the program
         # UTM_zone, 
-        UTM_zone, o_x, o_y, strike = re.split(r'\s{2,}', lines[1].split(':')[1].strip())
+        # The last three values are the origin and strike; anything before them is the zone
+        # (which may itself contain a space, e.g. '16 U')
+        origin_line = lines[1].split(':', 1)[1].split()
+        UTM_zone = ' '.join(origin_line[:-3])
+        o_x, o_y, strike = origin_line[-3:]
         # a = re.split(r'\s{2,}', lines[1].split(':')[1].strip())
         # debug_print(a, 'io.txt')
         o_x, o_y, strike = [float(x) for x in [o_x, o_y, strike]]
@@ -2890,10 +2894,16 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
                             'TZYI': 134}
         strike = (data.azimuth - 90) % 180
         frequencies = [(1 / p) for p in data.periods]
+        origin, zone = data.origin, data.UTM_zone
+        if origin is None or zone is None:
+            # e.g. data made from EDIs alone, which has no UTM origin
+            print('No UTM zone / origin set for this data; writing 0 for both in the MARE2DEM header.')
+            origin = (0, 0) if origin is None else origin
+            zone = 0 if zone is None else zone
         with open(outfile, 'w') as f:
             f.write('Format:\tEMData_2.2\n')
             f.write('UTM of x, y origin (UTM zone, N, E, 2D strike): {:>10} {:>10.4f} {:>10.4f} {:>10.2f}\n'.format(
-                    data.UTM_zone, data.origin[0], data.origin[1], strike))
+                    zone, origin[0], origin[1], strike))
             f.write('# MT Frequencies: {}\n'.format(data.NP))
             for freq in frequencies:
                 f.write('  {}\n'.format(freq))

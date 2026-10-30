@@ -131,13 +131,34 @@ def test_data_write_read_round_trip(tmp_path, modem_data, fmt, ext, needs_list):
     np.testing.assert_allclose(back.locations, modem_data.locations, atol=0.01)
 
 
-@pytest.mark.xfail(strict=True, reason='Known bug: the MARE2DEM writer puts single spaces between the UTM zone '
-                                       'and origin, but the reader splits that header line on 2+ spaces.')
-def test_mare2dem_write_read_round_trip(tmp_path, modem_data):
+@pytest.fixture
+def mare2dem_round_trip(tmp_path, modem_data):
     out = str(tmp_path / 'round_trip.emdata')
     with quiet():
         modem_data.write(outfile=out, file_format='mare2dem')
-    assert_same_data(modem_data, _read(out, file_format='mare2dem'))
+        return _read(out, file_format='mare2dem')
+
+
+def test_mare2dem_header_round_trip(mare2dem_round_trip, modem_data):
+    """The UTM zone and origin survive a write / read (7-digit northings included)."""
+    assert mare2dem_round_trip.UTM_zone == modem_data.UTM_zone
+    np.testing.assert_allclose(mare2dem_round_trip.origin, modem_data.origin)
+
+
+@pytest.mark.xfail(strict=True, reason='Known bug: the MARE2DEM writer negates imaginary parts but the reader '
+                                       'does not, so they come back with the opposite sign.')
+def test_mare2dem_write_read_round_trip(mare2dem_round_trip, modem_data):
+    assert_same_data(modem_data, mare2dem_round_trip, rtol=1e-5)       # the file holds 6 significant figures
+
+
+def test_mare2dem_written_from_edis_alone(tmp_path):
+    """Data made from EDIs has no UTM zone / origin; the writer uses 0 instead of failing."""
+    out = str(tmp_path / 'from_edis.emdata')
+    with quiet():
+        data = DS.Dataset(listfile=synthetic('edis', 'synthetic.lst')).data
+        data.write(outfile=out, file_format='mare2dem')
+        back = _read(out, file_format='mare2dem')
+    assert (back.NS, back.NP) == (data.NS, data.NP)
 
 
 def test_gofem_file_agrees_with_modem(modem_data):
