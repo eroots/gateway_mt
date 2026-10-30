@@ -1,11 +1,11 @@
 Change Log
 ==========
 
-*29/04/22
+* 29/04/22
 
   * Added function to read mt3dani models, and made corresponding changes to allow the anistropic modesl to be used in the GUIs
 
-*01/03/22
+* 01/03/22
 
 	* Forgot to log changes for a while... Not many big ones probably probably many minor ones.
 
@@ -19,7 +19,7 @@ Change Log
 
   * Added plotting of phi_max, phi_min, and beta within the Data Plot window
 
-*13/07/21
+* 13/07/21
 
   * Removed some of the unused buttons / options from :ref:`Data Plot` and slightly reorganized the layout
 
@@ -27,7 +27,7 @@ Change Log
 
   * Added a :ref:`Mesh Designer` button into the Gateway GUI
 
-*01/01/21
+* 01/01/21
 
   * Added a median filter to 'Regulate Errors' that should help remove outliers so that the generated errors are more sensible
 
@@ -223,7 +223,7 @@ Change Log
   
   * Fixed a few of the issues related to reading multiple data sets into Data Plot
     
-    * Use the 'Recalculate RMS' button in the :ref:`Data Selection` tab to refresh the :ref:`Misfit Table` after switching the data set.
+    * Use the 'Recalculate RMS' button in the 'Data Selection' tab to refresh the :ref:`Misfit Table` after switching the data set.
   
   * Inversion type is detected from available components when loading only a list file into :ref:`Data Plot`
     
@@ -243,7 +243,7 @@ Change Log
   
   * Models can now be read into 'pystart' files in :ref:`Data Plot`.
     
-    * If loaded, plan view slices can be plotted in :ref:`Map View`.
+    * If loaded, plan view slices can be plotted in :ref:`Map Viewer`.
 
 * 26/01/20
   

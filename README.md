@@ -1,6 +1,7 @@
 # gateway_mt
 
 [![tests](https://github.com/eroots/gateway_mt/actions/workflows/tests.yml/badge.svg)](https://github.com/eroots/gateway_mt/actions/workflows/tests.yml)
+[![docs](https://readthedocs.org/projects/gateway-mt/badge/?version=latest)](https://gateway-mt.readthedocs.io)
 
 GUIs and command-line tools for visualization, analysis, and preparation of
 magnetotelluric (MT) data for inversion. Reads and writes the data and model
@@ -9,6 +10,9 @@ and j-format station files.
 
 gateway_mt is the continuation of [pyMT](https://github.com/eroots/pyMT),
 renamed to avoid confusion with [MTpy](https://github.com/MTgeophysics/mtpy-v2).
+
+**Documentation:** <https://gateway-mt.readthedocs.io> -- user guides for each
+GUI, the input file formats, and the API reference.
 
 ![Data Plot: apparent resistivity of six stations, data vs. model response](docs/images/data_plot_main.png)
 
@@ -151,8 +155,8 @@ installed and need their paths edited, but show how to use the library.
 |---|---|
 | `gateway_mt/` | The package: data structures, file I/O, plotting, the GUIs and the command-line tools. |
 | `examples/` | Project scripts using the library (see their README). |
-| `tests/` | Test data (`tests/data/synthetic`, and the script that generates it) and regression checks. |
-| `docs/` | User guides for each GUI (Sphinx). |
+| `tests/` | The pytest suite, and its synthetic test data (`tests/data/synthetic`, and the script that generates it). |
+| `docs/` | Sphinx sources for the documentation: user guides for each GUI and the API reference. |
 
 ## License
 

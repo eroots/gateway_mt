@@ -34,9 +34,11 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+docs = ["sphinx>=7", "sphinx-rtd-theme>=2"]
 
 [project.urls]
 Homepage = "https://github.com/eroots/gateway_mt"
+Documentation = "https://gateway-mt.readthedocs.io"
 
 [project.scripts]
 # GUIs

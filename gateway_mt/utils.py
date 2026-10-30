@@ -26,8 +26,8 @@ it.  Roughly, the functions fall into these groups:
     :func:`geo2utm`, :func:`zone_convert`, :func:`project`, :func:`unproject`,
     :func:`generic_projection`, :func:`to_lambert`.
 
-``MT transfer-function computations`` (operate on a
-:class:`gateway_mt.data_structures.Site`)
+``MT transfer-function computations``
+    Operate on a :class:`gateway_mt.data_structures.Site`:
     :func:`compute_MT_determinant`, :func:`compute_gav`, :func:`compute_aav`,
     :func:`compute_ssq`, :func:`compute_rho`, :func:`compute_phase`,
     :func:`compute_bost1D`, :func:`convert2impedance`, :func:`calculate_misfit`.

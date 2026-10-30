@@ -17,8 +17,13 @@ API
 .. toctree::
     :maxdepth: 3
 
-    content/api_core/data_structures
     content/api_core/input_files
+    content/api_core/data_structures
+    content/api_core/io
+    content/api_core/utils
+    content/api_core/gplot
+    content/api_core/modelling_1D
+    content/api_core/colourmaps
 
 GUIs
 =========
