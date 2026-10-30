@@ -163,6 +163,25 @@ def test_data_plot_rotation_round_trip(data_plot, canned_dialogs):
     np.testing.assert_allclose(data_plot.dataset.data.sites['SYN001'].data['ZXYR'], before, atol=1e-12)
 
 
+@pytest.fixture
+def typed_limits(monkeypatch):
+    """Make every TwoInputDialog accept with the text '2' and '10'."""
+    from PyQt5 import QtWidgets
+    from gateway_mt.GUI_common import classes as gc
+    monkeypatch.setattr(QtWidgets.QDialog, 'exec_', lambda self, *a, **k: 1)
+    monkeypatch.setattr(gc.TwoInputDialog, 'inputs', lambda self: ('2', '10'))
+
+
+def test_data_plot_limits_compare_numbers_not_text(data_plot, typed_limits):
+    """'10' sorts before '2' as text; the limits must still be accepted."""
+    with quiet():
+        data_plot.set_rho_limits()
+        data_plot.show_map()
+        clim = data_plot.map_view.set_cax(1, 5)
+    assert data_plot.dpm.ax_lim_dict['rho'] == [2.0, 10.0]
+    assert clim == (2.0, 10.0)
+
+
 def test_data_plot_map_view(data_plot):
     with quiet():
         data_plot.show_map()

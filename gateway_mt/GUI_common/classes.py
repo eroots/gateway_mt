@@ -288,13 +288,14 @@ class TwoInputDialog(QtWidgets.QDialog):
         inputs : tuple of str
             The two entered strings.
         result : int, list or bool
-            The dialog result, or if ``expected`` was given, the converted
-            inputs (False if they couldn't be converted).
+            The dialog result (0 if cancelled), or if ``expected`` was given
+            and the dialog accepted, the converted inputs (False if they
+            couldn't be converted).
         """
         dialog = TwoInputDialog(label_1, label_2, initial_1, initial_2, parent)
         result = dialog.exec_()
         inputs = dialog.inputs()
-        if expected:
+        if result and expected:
             try:
                 result = [expected(x) for x in inputs]
             except ValueError:
@@ -379,7 +380,7 @@ class SpinBoxDialog(QtWidgets.QDialog):
         dialog = SpinBoxDialog(title, box_labels, box_init, box_increment, box_range, parent)
         result = dialog.exec_()
         inputs = dialog.inputs()
-        if expected:
+        if result and expected:
             try:
                 result = [expected(x) for x in inputs]
             except ValueError:

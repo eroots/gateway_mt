@@ -441,8 +441,8 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.rho_lim = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.rho_lim = list(ret)
         self.plot_model()
 
     def set_depth_limits(self):
@@ -453,8 +453,8 @@ class SyntheticWindow(QSyntheticWindow, UI_SyntheticWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.depth_lim = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.depth_lim = list(ret)
         self.plot_model()
 
     def validate_entry(self, item):

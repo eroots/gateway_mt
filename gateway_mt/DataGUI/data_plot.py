@@ -662,16 +662,16 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         ``set_*_cax`` handler."""
         inputs, ret = self.colourMenu.set_clim(initial_1=str(initial_1),
                                                initial_2=str(initial_2))
-        lower, upper = inputs
-        if ret and lower < upper:
-            try:
-                lower = float(lower)
-                upper = float(upper)
-                return lower, upper
-            except ValueError:
-                print('Bad inputs to clim')
-        else:
-            print('Invalid colour limits')
+        if not ret:
+            return None
+        try:
+            lower, upper = float(inputs[0]), float(inputs[1])
+        except ValueError:
+            print('Bad inputs to clim')
+            return None
+        if lower < upper:
+            return lower, upper
+        print('Invalid colour limits')
         return None
 
     def set_rho_cax(self):
@@ -1633,8 +1633,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.dpm.ax_lim_dict['rho'] = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.dpm.ax_lim_dict['rho'] = list(ret)
                 self.update_dpm()
 
     def set_phase_limits(self):
@@ -1644,8 +1644,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.dpm.ax_lim_dict['phase'] = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.dpm.ax_lim_dict['phase'] = list(ret)
                 self.update_dpm()
 
     def set_impedance_limits(self):
@@ -1655,8 +1655,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.dpm.ax_lim_dict['impedance'] = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.dpm.ax_lim_dict['impedance'] = list(ret)
                 self.update_dpm()
 
     def set_tipper_limits(self):
@@ -1666,8 +1666,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.dpm.ax_lim_dict['tipper'] = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.dpm.ax_lim_dict['tipper'] = list(ret)
                 self.update_dpm()
 
     def set_skew_limits(self):
@@ -1677,8 +1677,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.dpm.ax_lim_dict['skew'] = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.dpm.ax_lim_dict['skew'] = list(ret)
                 self.update_dpm()
 
     def set_azimuth_limits(self):
@@ -1688,8 +1688,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                      parent=self,
                                      expected=float)
         if ret:
-            if limits[0] < limits[1]:
-                self.dpm.ax_lim_dict['azimuth'] = [float(x) for x in limits]
+            if ret[0] < ret[1]:
+                self.dpm.ax_lim_dict['azimuth'] = list(ret)
                 self.update_dpm()
 
     def change_pt_units(self):
