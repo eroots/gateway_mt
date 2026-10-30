@@ -391,7 +391,8 @@ def test_model_viewer_exports_to_paraview(tmp_path):
         model.spatial_units = 'km'                                       # as shown in Model Viewer
         dataset.spatial_units = 'km'
         written = export_to_paraview(str(tmp_path / 'out'), model, data=dataset.data,
-                                     raw_data=dataset.raw_data, resolution=np.ones(model.vals.shape))
+                                     raw_data=dataset.raw_data,
+                                     resolution=np.linspace(0.1, 1, model.vals.size).reshape(model.vals.shape))
     assert [os.path.basename(f) for f in written] == ['out_model.vtk', 'out_sites.vtk']
     text = (tmp_path / 'out_model.vtk').read_text()
     assert 'SCALARS Raw_Resolution' in text
