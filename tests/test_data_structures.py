@@ -138,3 +138,28 @@ def test_model_conductor_sits_under_the_anomaly(model):
     i, j, k = np.unravel_index(np.argmin(model.vals), model.vals.shape)
     assert abs(centres_x[i] - 2000) < 3000 and abs(centres_y[j] + 3000) < 3000
     assert 5e3 < (model.dz[k] + model.dz[k + 1]) / 2 < 25e3
+
+
+# --------------------------------------------------------------------------- #
+# Period tolerance
+# --------------------------------------------------------------------------- #
+def test_borrowed_periods_use_one_tolerance(dataset):
+    """A period 5% from the nearest real one is borrowed at any period; 30% away is flagged."""
+    site = dataset.raw_data.sites['SYN001']
+    short, long = site.periods[2], site.periods[-3]               # one below 1 s, one above
+    assert short < 1 < long
+    resampled = site.get_data(periods=[short * 1.05, long * 1.05, short * 1.3, long * 1.3],
+                              components=['ZXYR', 'ZXYI'])
+    flagged = resampled.errmap['ZXYR'] == DS.Site.NO_PERIOD_FLAG
+    assert list(flagged) == [False, True, False, True]            # sorted: short x1.05, x1.3, long x1.05, x1.3
+
+
+def test_old_tolerance_names_still_work(fresh_dataset):
+    raw = fresh_dataset.raw_data
+    raw.low_tol = 0.05
+    assert raw.tol == raw.high_tol == 0.05
+    raw.remove_high_tol = 0.3
+    assert raw.remove_tol == raw.remove_low_tol == 0.3
+    with quiet():
+        raw.get_data(sites=['SYN001'], periods=list(raw.sites['SYN001'].periods[:3]), lTol=0.02, hTol=0.15)
+    assert raw.tol == 0.15                                         # the larger of the old pair

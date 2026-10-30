@@ -69,6 +69,19 @@ from copy import deepcopy
 DEBUG = False
 
 
+def resolve_tolerance(tol, low=None, high=None, default=0.1):
+    """The period-matching tolerance to use.
+
+    Periods used to have separate tolerances below and above 1 s
+    (``lTol`` / ``hTol``); there is now one. ``tol`` wins if given, otherwise
+    the larger of any old-style values, otherwise ``default``.
+    """
+    if tol is not None:
+        return tol
+    given = [t for t in (low, high) if t is not None]
+    return max(given) if given else default
+
+
 class Dataset(object):
     """Top-level container tying together raw data, inversion data, response and model.
 
@@ -221,8 +234,8 @@ class Dataset(object):
                                     self.raw_data.sites[site].errors[comp][ind]))
                         self.data.sites[site].used_error[comp][ii] = e
 
-    @utils.enforce_input(sites=list, periods=list, components=list, hTol=float, lTol=float)
-    def get_data_from_raw(self, lTol=None, hTol=None, sites=None, periods=None, components=None):
+    @utils.enforce_input(sites=list, periods=list, components=list, hTol=float, lTol=float, tol=float)
+    def get_data_from_raw(self, lTol=None, hTol=None, sites=None, periods=None, components=None, tol=None):
         """(Re)build ``self.data`` from ``self.raw_data``.
 
         Resamples the raw sites onto a common axis (:meth:`RawData.get_data`),
@@ -232,13 +245,15 @@ class Dataset(object):
         Parameters
         ----------
         lTol, hTol : float, optional
-            Fractional period-match tolerance below / above 1 s.
+            Old separate short / long period tolerances; use ``tol``.
         sites, periods, components : list, optional
             Subset to pull; all by default.
+        tol : float, optional
+            Fractional period-match tolerance (default ``raw_data.tol``).
         """
         self.data.sites = self.raw_data.get_data(sites=sites, periods=periods,
                                                  components=components, lTol=lTol,
-                                                 hTol=hTol)
+                                                 hTol=hTol, tol=tol)
         self.data.site_names = [site for site in self.raw_data.site_names]
         for site in self.data.sites.keys():
             self.data.sites[site].detect_outliers(self.data.OUTLIER_MAP)
@@ -258,17 +273,16 @@ class Dataset(object):
     def reset_dummy_periods(self):
         """Re-flag data periods that have no close match in the raw data.
 
-        Periods beyond ``remove_*_tol`` of any raw period are marked
-        ``MISSING_DATA_MAP`` / ``REMOVE_FLAG`` (also in the response); periods
-        merely beyond ``low_tol``/``high_tol`` get a ``NO_PERIOD_MAP`` error
-        map.  Needs both ``data`` and ``raw_data``.
+        Periods further than ``raw_data.remove_tol`` from any raw period are
+        marked ``MISSING_DATA_MAP`` / ``REMOVE_FLAG`` (also in the response);
+        periods merely further than ``raw_data.tol`` get a ``NO_PERIOD_MAP``
+        error map.  Needs both ``data`` and ``raw_data``.
         """
         if self.has_dType('data') and self.has_dType('raw_data'):
             for site in self.data.site_names:
                 for ii, period in enumerate(self.data.periods):
                     min_diff = np.min(abs(period - self.raw_data.sites[site].periods))
-                    if (period < 0.001 and (min_diff / period) > self.raw_data.remove_low_tol) or \
-                        (period > 0.001 and (min_diff / period) > self.raw_data.remove_high_tol):
+                    if (min_diff / period) > self.raw_data.remove_tol:
                         for comp in self.data.components:
                             self.data.sites[site].errmap[comp][ii] = self.data.MISSING_DATA_MAP
                             self.data.sites[site].errors[comp][ii] = self.data.REMOVE_FLAG
@@ -279,8 +293,7 @@ class Dataset(object):
                                     self.response.sites[site].errmap[comp][idx] = self.response.MISSING_DATA_MAP
                                     self.response.sites[site].errors[comp][idx] = self.response.REMOVE_FLAG
                                     self.response.sites[site].used_error[comp][idx] = self.response.REMOVE_FLAG
-                    elif (period < 0.001 and (min_diff / period) > self.raw_data.low_tol) or \
-                        (period > 0.001 and (min_diff / period) > self.raw_data.high_tol):
+                    elif (min_diff / period) > self.raw_data.tol:
                         for comp in self.data.components:
                             self.data.sites[site].change_errmap(periods=period, mult=self.data.NO_PERIOD_MAP,
                                                                 comps=comp,
@@ -3287,13 +3300,12 @@ class Site(object):
                 retval['names'] = False
         return retval
 
-    @utils.enforce_input(periods=list, components=list, lTol=float, hTol=float)
-    def get_data(self, periods=None, components=None, lTol=0.02, hTol=0.10):
+    @utils.enforce_input(periods=list, components=list, lTol=float, hTol=float, tol=float)
+    def get_data(self, periods=None, components=None, lTol=None, hTol=None, tol=None):
         """Return a new :class:`Site` sampled at the requested periods/components.
 
         For each requested period the nearest available period is used.  If it
-        is farther away than the tolerance (``lTol`` for periods <= 1 s,
-        ``hTol`` above), the point is flagged with ``NO_PERIOD_FLAG``;
+        is farther away than ``tol``, the point is flagged with ``NO_PERIOD_FLAG``;
         impedances more than 1% off are scaled by ``sqrt(p_have / p_want)``.
         Missing components are filled with ``NO_COMP_FLAG`` / ``REMOVE_FLAG``.
 
@@ -3304,8 +3316,9 @@ class Site(object):
         components : list of str, optional
             Target components; ``self.components`` by default.
         lTol, hTol : float, optional
-            Fractional period-match tolerance below / above 1 s.
-            Defaults 0.02 / 0.10.
+            Old separate short / long period tolerances; use ``tol``.
+        tol : float, optional
+            Fractional period-match tolerance. Default 0.1.
 
         Returns
         -------
@@ -3319,10 +3332,7 @@ class Site(object):
             invalid_component = set(Site.ACCEPTED_COMPONENTS) - set(components)
             print('{} is not a valid component. Ignoring...'.format(invalid_component))
             components = [comp for comp in components if comp not in invalid_component]
-        if lTol is None:
-            lTol = 0.02
-        if hTol is None:
-            hTol = 0.10
+        tol = resolve_tolerance(tol, lTol, hTol)
         name = self.name
         locations = self.locations
         data = {comp: [] for comp in components}
@@ -3339,10 +3349,7 @@ class Site(object):
             for p in periods:
                 ind = np.argmin(abs(self.periods - p))
                 percdiff = utils.percdiff(self.periods[ind], p)
-                # if (p <= 1 and utils.percdiff(self.periods[ind], p) > lTol) or \
-                #    (p > 1 and utils.percdiff(self.periods[ind], p) > hTol):
-                if (p <= 1 and percdiff > lTol) or \
-                   (p > 1 and percdiff > hTol):
+                if percdiff > tol:
                     mult = self.NO_PERIOD_FLAG  # Flag for missing period
                 else:
                     mult = 1
@@ -3517,9 +3524,14 @@ class RawData(object):
         Period -> site-count maps: every period present anywhere
         (``master``) and the subset common to enough sites within tolerance
         (``narrow``); see :meth:`master_period_list` / :meth:`narrow_period_list`.
-    low_tol, high_tol, count_tol, remove_low_tol, remove_high_tol : float
-        Period-matching tolerances used by :meth:`get_data` and by
-        :class:`Dataset` dummy-period handling.
+    tol, remove_tol, count_tol : float
+        Period-matching tolerances (fractions): ``tol`` for borrowing a nearby
+        period in :meth:`get_data` (default 0.1), ``remove_tol`` beyond which
+        :meth:`Dataset.reset_dummy_periods` removes a point (default 0.2), and
+        ``count_tol``, the fraction of sites a period must be found at for
+        :meth:`narrow_period_list`. ``low_tol`` / ``high_tol`` and
+        ``remove_low_tol`` / ``remove_high_tol`` are old names for ``tol`` and
+        ``remove_tol``.
     azimuth : float
         Current data rotation in degrees.
     """
@@ -3566,11 +3578,9 @@ class RawData(object):
             self.locations = []
             self.initialized = False
         # self.origin = self.center
-        self.low_tol = 0.02
-        self.high_tol = 0.1
+        self.tol = 0.1
         self.count_tol = 0.5
-        self.remove_high_tol = 0.2
-        self.remove_low_tol = 0.04
+        self.remove_tol = 0.2
         self.master_periods = self.master_period_list()
         self.narrow_periods = self.narrow_period_list()
         self._spatial_units = 'm'
@@ -3885,7 +3895,7 @@ class RawData(object):
         return {utils.truncate(period):
                 utils.truncate(periods.count(period) / lp) for period in set(periods)}
 
-    def narrow_period_list(self, periods=None, count_tol=None, low_tol=None, high_tol=None):
+    def narrow_period_list(self, periods=None, count_tol=None, low_tol=None, high_tol=None, tol=None):
         """Periods held (within tolerance) by at least ``count_tol`` of the sites.
 
         Parameters
@@ -3903,25 +3913,22 @@ class RawData(object):
         dict
             ``{period: fraction_of_sites}`` for the surviving periods.
         """
-        self.set_tols(hTol=high_tol, lTol=low_tol, cTol=count_tol)
+        self.set_tols(hTol=high_tol, lTol=low_tol, cTol=count_tol, tol=tol)
         if periods is None:
             periods = [p for p, v in self.master_periods.items() if v >= self.count_tol]
         counter = {period: 0 for period in periods}
         for site in self.sites.values():
             for p in periods:
-                if p < 1:
-                    mult = self.low_tol
-                else:
-                    mult = self.high_tol
+                mult = self.tol
                 if any((site.periods >= p - p * mult) * (site.periods <= p + p * mult)):
                     counter[p] += 1
         return {utils.truncate(p):
                 utils.truncate(val / len(self.sites)) for p, val in counter.items()
                 if val / len(self.sites) >= self.count_tol}
 
-    @utils.enforce_input(sites=list, periods=list, components=list, lTol=float, hTol=float)
+    @utils.enforce_input(sites=list, periods=list, components=list, lTol=float, hTol=float, tol=float)
     def get_data(self, sites=None, periods=None, components=None,
-                 lTol=None, hTol=None):
+                 lTol=None, hTol=None, tol=None):
         """Resample a selection of sites onto a common axis, as a ``{name: Site}`` dict.
 
         This is what a :class:`Data` object is built from.  When ``periods`` is
@@ -3944,7 +3951,7 @@ class RawData(object):
         dict
             ``{site_name: Site}`` on the common period axis.
         """
-        self.set_tols(hTol=hTol, lTol=lTol, cTol=None)
+        self.set_tols(hTol=hTol, lTol=lTol, cTol=None, tol=tol)
         auto_periods = False
         if sites is None:
             sites = self.sites
@@ -3967,7 +3974,7 @@ class RawData(object):
         for site in sites.values():
             # print(site.name)
             ret_sites.update({site.name: site.get_data(periods=periods, components=components,
-                                                       lTol=self.low_tol, hTol=self.high_tol)})
+                                                       tol=self.tol)})
         return ret_sites
 
     def rotate_sites(self, azi=0):
@@ -3982,12 +3989,33 @@ class RawData(object):
             for site_name in self.site_names:
                 self.sites[site_name].rotate_data(azi)
 
-    def set_tols(self, hTol, lTol, cTol):
-        """Update ``high_tol`` / ``low_tol`` / ``count_tol`` from any non-None argument."""
-        if hTol is not None:
-            self.high_tol = hTol
-        if lTol is not None:
-            self.low_tol = lTol
+    # Old names from when short and long periods had separate tolerances
+    @property
+    def low_tol(self):
+        """float: Old name for :attr:`tol`."""
+        return self.tol
+
+    @low_tol.setter
+    def low_tol(self, value):
+        self.tol = value
+
+    high_tol = low_tol
+
+    @property
+    def remove_low_tol(self):
+        """float: Old name for :attr:`remove_tol`."""
+        return self.remove_tol
+
+    @remove_low_tol.setter
+    def remove_low_tol(self, value):
+        self.remove_tol = value
+
+    remove_high_tol = remove_low_tol
+
+    def set_tols(self, hTol=None, lTol=None, cTol=None, tol=None):
+        """Update ``tol`` (from ``tol``, or the old ``hTol`` / ``lTol``) and ``count_tol`` from any non-None argument."""
+        if any(t is not None for t in (tol, hTol, lTol)):
+            self.tol = resolve_tolerance(tol, lTol, hTol)
         if cTol is not None:
             self.count_tol = cTol
 

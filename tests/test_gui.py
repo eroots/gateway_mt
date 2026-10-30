@@ -263,6 +263,14 @@ def test_1d_window_needs_data(no_dialogs):
         Modeling1D(dataset=DS.Dataset())
 
 
+def test_data_plot_period_tolerances(data_plot):
+    raw = data_plot.dataset.raw_data
+    assert (data_plot.periodToleranceFlag.value(), data_plot.periodToleranceRemove.value()) == (10, 20)
+    data_plot.periodToleranceFlag.setValue(5)
+    data_plot.periodToleranceRemove.setValue(15)
+    assert (raw.tol, raw.remove_tol) == pytest.approx((0.05, 0.15))
+
+
 def test_data_plot_map_view(data_plot):
     with quiet():
         data_plot.show_map()

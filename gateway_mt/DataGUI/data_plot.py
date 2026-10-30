@@ -1576,17 +1576,12 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.actionAzimuthLimits.triggered.connect(self.set_azimuth_limits)
         self.resetDummyErrors.clicked.connect(self.reset_dummy_errors)
         if self.dataset.raw_data.initialized:
-            self.lowPeriodToleranceFlag.setValue(self.dataset.raw_data.low_tol * 100)
-            self.highPeriodToleranceFlag.setValue(self.dataset.raw_data.high_tol * 100)
-            self.lowPeriodToleranceFlag.valueChanged.connect(self.set_period_tolerance)
-            self.highPeriodToleranceFlag.valueChanged.connect(self.set_period_tolerance)
-            self.lowPeriodToleranceRemove.setValue(self.dataset.raw_data.remove_low_tol * 100)
-            self.highPeriodToleranceRemove.setValue(self.dataset.raw_data.remove_high_tol * 100)
-            self.lowPeriodToleranceRemove.valueChanged.connect(self.set_period_tolerance)
-            self.highPeriodToleranceRemove.valueChanged.connect(self.set_period_tolerance)
+            self.periodToleranceFlag.setValue(self.dataset.raw_data.tol * 100)
+            self.periodToleranceRemove.setValue(self.dataset.raw_data.remove_tol * 100)
+            self.periodToleranceFlag.valueChanged.connect(self.set_period_tolerance)
+            self.periodToleranceRemove.valueChanged.connect(self.set_period_tolerance)
         else:
-            self.lowPeriodToleranceRemove.setEnabled(False)
-            self.highPeriodToleranceRemove.setEnabled(False)
+            self.periodToleranceRemove.setEnabled(False)
 
         self.plotFlaggedData.clicked.connect(self.plot_flagged_data)
 
@@ -1605,12 +1600,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.update_dpm()
 
     def set_period_tolerance(self):
-        """Copy the four period-tolerance spin boxes (flag / remove, low /
-        high, as fractions) onto ``raw_data``."""
-        self.dataset.raw_data.low_tol = self.lowPeriodToleranceFlag.value() / 100
-        self.dataset.raw_data.high_tol = self.highPeriodToleranceFlag.value() / 100
-        self.dataset.raw_data.remove_low_tol = self.lowPeriodToleranceRemove.value() / 100
-        self.dataset.raw_data.remove_high_tol = self.highPeriodToleranceRemove.value() / 100
+        """Copy the flag / remove period tolerances (%) onto ``raw_data`` (as fractions)."""
+        self.dataset.raw_data.tol = self.periodToleranceFlag.value() / 100
+        self.dataset.raw_data.remove_tol = self.periodToleranceRemove.value() / 100
 
     def plot_flagged_data(self):
         """Toggle whether points flagged with ``REMOVE_FLAG`` are still
@@ -2306,7 +2298,6 @@ class DataMain(QMainWindow, Ui_MainWindow):
             return
         self.dataset.data.inv_type = self.check_inv_type()
         if self.actionRemoveFlags.isChecked():
-            self.dataset.data.NO_PERIOD_COMP = self.missingPeriodMap.value()
             self.reset_dummy_errors()
         if not self.dataset.data.inv_type:
             reply = QtWidgets.QMessageBox.question(self, 'Message',
