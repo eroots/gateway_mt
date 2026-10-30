@@ -711,12 +711,15 @@ def dms2dd(dms):
     Returns
     -------
     float
-        Decimal degrees, sign taken from the degrees field.
+        Decimal degrees. Negative if the string starts with '-' (so
+        ``'-0:30:00'`` is -0.5).
     """
     try:
         d, m, s = parse_dms(dms)
         dd = abs(d) + abs(m) / 60 + abs(s) / 3600
-        val = dd * np.sign(d)
+        # Take the sign from the text: within a degree of 0 the degrees field is -0
+        negative = dms.strip().startswith('-') or min(d, m, s) < 0
+        val = -dd if negative else dd
     except ValueError:  # already decimal degrees
         return float(dms)
     return val

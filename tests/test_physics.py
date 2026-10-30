@@ -159,11 +159,9 @@ def test_degrees_minutes_seconds_round_trip(dd):
     assert utils.dms2dd(_as_dms_text(dd)) == pytest.approx(dd, abs=1e-9)
 
 
-@pytest.mark.xfail(strict=True, reason='Known bug: dms2dd takes the sign from the degrees field, so any '
-                                       'coordinate with 0 degrees (within 1 degree of the equator / Greenwich) '
-                                       'is converted to 0.')
 @pytest.mark.parametrize('dd', [0.5, -0.25])
 def test_degrees_minutes_seconds_round_trip_below_one_degree(dd):
+    """Within a degree of the equator / Greenwich the degrees field is (-)0, so the sign comes from the text."""
     assert utils.dms2dd(_as_dms_text(dd)) == pytest.approx(dd, abs=1e-9)
 
 
