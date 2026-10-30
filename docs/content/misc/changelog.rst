@@ -11,6 +11,8 @@ Change Log
 
   * Documentation is now on Read the Docs, with an API reference built from the docstrings, and the GUI guides have been brought up to date.
 
+  * :ref:`Model Viewer`: transects can be drawn through stations ('Snap to stations'), their points dragged to new positions, and cleared; nearby stations are marked on the section, which now follows colour, limit and trim changes. File > Export to ParaView (VTK) writes the model, stations and resolution, and the section can be exported to CSV.
+
   * Changes that affect results or files:
 
     * Borrowing a nearby period now uses one tolerance at all periods (10% to flag, 20% to remove), instead of 2% below 1 s. The Dummy Data box in :ref:`Data Plot` has one Flag and one Remove value, and the unused 'Missing Period Error' box is gone.
