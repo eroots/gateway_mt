@@ -11,9 +11,13 @@ from gateway_mt.e_colours import colourmaps
 PERIOD_IDX = 8          # ~6 s
 
 
-@pytest.mark.parametrize('name', colourmaps.COLOUR_MAPS + ('viridis', 'fire'))
+GUI_COLOUR_MENU = ('bgy', 'viridis', 'jet', 'jet_plus', 'bwr', 'greys', 'turbo', 'turbo_capped',
+                   'turbo_mod', 'twilight', 'twilight_shifted', 'colorwheel', 'hot')   # GUI_common.classes.ColourMenu
+
+
+@pytest.mark.parametrize('name', sorted(set(colourmaps.COLOUR_MAPS + GUI_COLOUR_MENU + ('fire',))))
 def test_colour_maps_resolve(name):
-    """Every colour map the GUIs offer, plus matplotlib and (unprefixed) colorcet names, can be built."""
+    """Every named colour map, the GUIs' colour menu, and an unprefixed colorcet name can be built."""
     cmap = colourmaps.get_cmap(name, N=32)
     assert isinstance(cmap, Colormap)
     assert len(cmap(0.5)) == 4             # an RGBA colour

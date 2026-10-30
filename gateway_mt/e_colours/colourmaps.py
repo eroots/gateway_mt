@@ -1,3 +1,10 @@
+"""Colour maps used by the gateway_mt plots and GUIs.
+
+:func:`get_cmap` is the entry point: it takes one of the names in
+:data:`COLOUR_MAPS` (or any matplotlib / colorcet colour map name) and
+returns a :class:`matplotlib.colors.Colormap` with ``N`` levels. The other
+functions build the individual maps.
+"""
 from scipy.interpolate import interp1d
 from matplotlib import colors, colormaps
 import numpy as np
@@ -5,6 +12,7 @@ from gateway_mt.e_colours.utils import rgb2hls, hls2rgb
 import colorcet  # This needs to be imported to register the cet colourmaps into mpl
 
 
+#: Colour maps with their own entry in :func:`get_cmap`.
 COLOUR_MAPS = ('jet', 'jet_r', 'jet_plus', 'jet_plus_r',
                'bwr', 'bwr_r', 'bgy', 'bgy_r', 'turbo', 'turbo_r',
                'turbo_capped', 'turbo_capped_r', 'turbo_r_mod',
@@ -12,6 +20,7 @@ COLOUR_MAPS = ('jet', 'jet_r', 'jet_plus', 'jet_plus_r',
 
 
 def jet_plus(N=64):
+    """Red-green-blue map like ``jet``, with the lightness evened out (``N`` levels)."""
     cmap = np.array(([1, 0, 0],
                      [0.2, 1, 0],
                      [0, 0.2, 1]))
@@ -30,6 +39,7 @@ def jet_plus(N=64):
 
 
 def jet_plus_r(N=64):
+    """Reversed :func:`jet_plus`."""
     cmap = np.array(([1, 0, 0],
                      [0.2, 1, 0],
                      [0, 0.2, 1]))
@@ -47,49 +57,62 @@ def jet_plus_r(N=64):
 
 
 def mpl_cmap(name, lut=None):
-    # Stands in for matplotlib.cm.get_cmap, which matplotlib 3.11 removed.
-    # Raises KeyError for an unknown name.
+    """A registered matplotlib (or colorcet ``cet_*``) colour map, resampled to ``lut`` levels.
+
+    Stands in for ``matplotlib.cm.get_cmap``, which matplotlib 3.11 removed.
+    Raises KeyError for an unknown name.
+    """
     cmap = colormaps[name]
     return cmap.resampled(lut) if lut else cmap
 
 
 def jet(N=64):
+    """matplotlib's ``jet``, with ``N`` levels."""
     return mpl_cmap('jet', lut=N)
 
 
 def jet_r(N=64):
+    """Reversed ``jet``, with ``N`` levels."""
     return mpl_cmap('jet_r', lut=N)
 
 
 def hsv(N=64):
+    """matplotlib's ``hsv``, with ``N`` levels."""
     return mpl_cmap('hsv', lut=N)
 
 
 def bgy(N=64):
+    """colorcet's ``bgy`` (blue-green-yellow), with ``N`` levels."""
     return mpl_cmap('cet_bgy', lut=N)
 
 
 def bgy_r(N=64):
+    """Reversed ``bgy``, with ``N`` levels."""
     return mpl_cmap('cet_bgy_r', lut=N)
 
 
 def bwr(N=64):
+    """matplotlib's ``bwr`` (blue-white-red), with ``N`` levels."""
     return mpl_cmap('bwr', lut=N)
 
 
 def bwr_r(N=64):
+    """Reversed ``bwr``, with ``N`` levels."""
     return mpl_cmap('bwr_r', lut=N)
 
 
 def greys(N=64):
+    """matplotlib's ``gray``, with ``N`` levels."""
     return mpl_cmap('gray', lut=N)
 
 
 def greys_r(N=64):
+    """Reversed ``gray``, with ``N`` levels."""
     return mpl_cmap('gray_r', lut=N)
 
 
 def turbo(N=64):
+    """Google's Turbo colour map, as an ``(N, 3)`` array of RGB values (not a Colormap)."""
     turbo = [[0.18995, 0.07176, 0.23217],
              [0.19483, 0.08339, 0.26149],
              [0.19956, 0.09498, 0.29024],
@@ -359,10 +382,31 @@ def turbo(N=64):
 
 
 def turbo_r(N=64):
+    """Reversed :func:`turbo` (an RGB array)."""
     return np.flipud(turbo(N))
 
 
 def get_cmap(cmap, N=64, invert=True):
+    """Get a colour map by name.
+
+    Parameters
+    ----------
+    cmap : str
+        One of :data:`COLOUR_MAPS`, ``'greys'`` / ``'greys_r'``,
+        ``'turbo_mod'``, or any matplotlib or colorcet name (colorcet names
+        work with or without the ``cet_`` prefix). The ``*_mod`` and
+        ``*_capped`` variants of turbo trim its dark ends or add a purple
+        end colour for values outside the colour limits.
+    N : int, optional
+        Number of colour levels (default 64).
+    invert : bool, optional
+        Reverse the map (default True). The GUIs use this so that low
+        resistivities plot in warm colours.
+
+    Returns
+    -------
+    matplotlib.colors.Colormap
+    """
     if cmap in ('cet_bgy', 'bgy'):
         new_cmap = bgy(N)
     elif cmap in('cet_bgy_r', 'bgy_r'):

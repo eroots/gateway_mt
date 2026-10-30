@@ -1,8 +1,10 @@
+"""RGB <-> HLS conversion for arrays of colours (used to build :func:`~gateway_mt.e_colours.colourmaps.jet_plus`)."""
 import colorsys
 import numpy as np
 
 
 def rgb2hls(rgb):
+    """Convert an ``(N, 3)`` or ``(M, N, 3)`` array of RGB values to HLS."""
     hls = np.zeros(rgb.shape)
     if rgb.ndim == 3:
         for ix in range(rgb.shape[0]):
@@ -19,6 +21,7 @@ def rgb2hls(rgb):
 
 
 def hls2rgb(hls):
+    """Convert an ``(N, 3)`` or ``(M, N, 3)`` array of HLS values to RGB."""
     rgb = np.zeros(hls.shape)
     if rgb.ndim == 3:
         for ix in range(hls.shape[0]):

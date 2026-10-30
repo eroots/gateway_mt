@@ -1,3 +1,15 @@
+"""1-D magnetotelluric forward modelling and a simple 1-D inversion.
+
+:func:`wait_1D` computes the impedance of a layered earth with Wait's
+recursion. :func:`invert_1DMT` fits a smooth layered model to the average
+apparent resistivity of a :class:`~gateway_mt.data_structures.Data` set,
+using CMA-ES (the ``cma`` package) to minimise :func:`objective_function`.
+The 1-D modelling window in the GUIs (:mod:`gateway_mt.GUI_common.windows`)
+is built on these.
+
+Impedances here are in ohms (E/H), with a positive imaginary part for a
+half-space.
+"""
 import numpy as np
 import cma
 from gateway_mt.utils import compute_ssq, compute_MT_determinant
@@ -6,31 +18,50 @@ from gateway_mt.utils import compute_ssq, compute_MT_determinant
 mu = 4 * np.pi * 1e-7
 
 def compute_rho(Z, periods):
+    """Apparent resistivity (ohm-m) of impedance ``Z`` (ohms) at ``periods`` (s)."""
     return np.real(Z * np.conj(Z) * periods / (mu * 2 * np.pi))
 
 def compute_phase(Z):
+    """Phase of ``Z`` in degrees."""
     return np.rad2deg(np.arctan2(np.imag(Z), np.real(Z)))
 
 def compute_det1D(Z):
-    # Determinant and SSQ determinant are equivalent in 1D
+    """Determinant impedance of a 1-D response, i.e. ``abs(Z)``.
+
+    The determinant and SSQ invariants are equivalent in 1-D.
+    """
     return np.sqrt((Z * np.conj(Z)))
 
 def wait_1D(periods, model, dz):
-    """
-    Takes a model and periods and returns the 1-D impedance response
-    Inputs:
-        periods: A NPx1 numpy array containing the periods to generate the resposne at
-        model: A Mx1 numpy array containing the resistivity values of the 1D model
-        dz: A M+1x1 numpy array containing the interface depths of the model
-    Outputs:
-        z_obs: A NPx1 array containing the 1D impedance response for the given model at the given periods
+    """Takes a model and periods and returns the 1-D impedance response.
+
+    Parameters
+    ----------
+    periods : numpy.ndarray
+        ``(NP,)`` periods (s) to generate the response at.
+    model : array_like
+        ``(M,)`` layer resistivities (ohm-m), top to bottom. The last layer
+        is the basement half-space.
+    dz : array_like
+        ``(M,)`` layer thicknesses (m), one per layer. The last entry (the
+        half-space) is not used, but must be present: with fewer than two
+        entries the layer recursion is skipped, which is only right for a
+        uniform half-space.
+
+    Returns
+    -------
+    z_obs : numpy.ndarray
+        ``(NP,)`` complex impedance (ohms).
+
+    Examples
+    --------
+    A 1 km thick, 100 ohm-m layer over a 10 ohm-m half-space:
+
+    >>> Z = wait_1D(np.logspace(-3, 3, 30), [100, 10], [1000, 0])
     """
     cond = 1 / np.array(model)
     omega = 2 * np.pi / periods
-    scale = 1 / (4 * np.pi / 10000000)
     z_obs = np.zeros(len(periods), dtype=np.complex128)
-    rhoa = np.zeros(len(periods))
-    phi = np.zeros(len(periods))
     for nfreq, w in enumerate(omega):
         prop_const = np.sqrt(1j*mu*cond[-1] * w)
         C = np.zeros(len(cond), dtype=np.complex128)
@@ -47,8 +78,26 @@ def wait_1D(periods, model, dz):
 
 
 def objective_function(model, *args):
-    """
-    Calculates the objective function for a given model and set of arguments
+    """Calculates the objective function for a given model and set of arguments.
+
+    ``phi = |misfit - target_misfit| / regpar + roughness``, where ``misfit``
+    is the RMS misfit of log10 apparent resistivity and ``roughness`` is
+    ``sum(|m[i+1] - m[i]| ** model_norm)``.
+
+    Parameters
+    ----------
+    model : numpy.ndarray
+        log10 layer resistivities.
+    *args
+        ``(data_obs, err_obs, periods, dz, data_norm, model_norm, regpar,
+        target_misfit, mantle_transition)``, as passed by
+        :func:`invert_1DMT`. ``data_obs`` and ``err_obs`` are in log10
+        apparent resistivity; ``data_norm`` and ``mantle_transition`` are
+        not used here.
+
+    Returns
+    -------
+    float
     """
     (data_obs, err_obs, periods, dz, data_norm, model_norm, regpar, target_misfit, mantle_transition) = args
     # rhoa_obs = compute_rho(compute_det1D(data_obs), periods)
@@ -96,8 +145,52 @@ def invert_1DMT(data, rho_initial, dz,
                 mode='ssq', uncertainty=0.1, regpar=0.1, data_norm=2,
                 model_norm=2, rho_min=1e-2, rho_max=1e6,
                 maxiter=100, target_misfit=1.0, mantle_transition=False):
-    """
-        Wraps _invert_1DMT to take a gateway_mt Data structure as its input
+    """Invert the average apparent resistivity of a data set for a 1-D model.
+
+    Wraps ``_invert_1DMT`` to take a gateway_mt Data structure as its input:
+    the data are the geometric mean over sites of the ``mode`` apparent
+    resistivity (:meth:`~gateway_mt.data_structures.Data.average_rho`), with a
+    uniform uncertainty in log10 units.
+
+    Parameters
+    ----------
+    data : gateway_mt.data_structures.Data
+        Data to invert.
+    rho_initial : array_like
+        Starting resistivity (ohm-m) for each layer.
+    dz : array_like
+        Layer thicknesses, as for :func:`wait_1D`.
+    mode : str, optional
+        Apparent resistivity to fit, passed to
+        :func:`gateway_mt.utils.compute_rho` (default ``'ssq'``).
+    uncertainty : float, optional
+        Data uncertainty in log10(rho) (default 0.1).
+    regpar : float, optional
+        Trade-off parameter; smaller values weight the data fit more.
+    data_norm : int, optional
+        Not currently used (the misfit is always an RMS).
+    model_norm : float, optional
+        Exponent of the roughness term (default 2).
+    rho_min, rho_max : float, optional
+        Resistivity bounds (ohm-m).
+    maxiter : int, optional
+        Maximum CMA-ES iterations.
+    target_misfit : float, optional
+        RMS misfit to aim for (default 1.0).
+    mantle_transition : bool, optional
+        If True, fix the resistivity at 20 ohm-m from the layer whose ``dz``
+        entry is nearest 410 km down.
+
+    Returns
+    -------
+    final_model : numpy.ndarray
+        Layer resistivities (ohm-m).
+    rhoa_best : numpy.ndarray
+        Apparent resistivity (ohm-m) of ``final_model``.
+    z_best : numpy.ndarray
+        Complex impedance (ohms) of ``final_model``.
+    rms_best : float
+        RMS misfit of ``rhoa_best``.
     """
     _, rhoa_obs = data.average_rho(comp=mode)
     rhoa_obs = np.log10(rhoa_obs)
