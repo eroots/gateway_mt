@@ -38,6 +38,8 @@ it.  Roughly, the functions fall into these groups:
 ``Filesystem``
     :func:`check_file`, :func:`fileparts`, :func:`check_extension`.
 """
+import functools
+import inspect
 import os
 from copy import deepcopy
 from math import log10, floor
@@ -165,14 +167,16 @@ def list_or_numpy(func):
 
 
 def enforce_input(**types):
-    """Decorator factory that coerces named keyword arguments to given types.
+    """Decorator factory that converts named arguments to given types.
 
     Each keyword passed to :func:`enforce_input` names an argument of the
-    decorated function and the type it should have.  When the function is
-    called, any of those keyword arguments that is not already an instance of
-    the requested type (and is not ``None``) is coerced: ``list`` via
-    :func:`to_list`, :class:`numpy.ndarray` via :func:`numpy.array`, anything
-    else by calling the type.
+    decorated function and the type it should have. When the function is
+    called (with positional or keyword arguments), each of those arguments,
+    including a default it falls back on, that is not already an instance
+    of the type (and is not ``None``) is converted: ``list`` via
+    :func:`to_list`, :class:`numpy.ndarray` via :func:`numpy.array`,
+    anything else by calling the type. Other arguments are passed on as
+    they are.
 
     Parameters
     ----------
@@ -192,21 +196,26 @@ def enforce_input(**types):
     >>> f(periods=[1, 2, 3])
     'ndarray'
     """
+    def convert(value, t):
+        if value is None or isinstance(value, t):
+            return value
+        if t == list:
+            return to_list(value)
+        if t is np.ndarray:
+            return np.array(value)
+        return t(value)
+
     def decorator(func):
+        signature = inspect.signature(func)
+
+        @functools.wraps(func)
         def new_func(*args, **kwargs):
-            newargs = {}
-            for k, t in types.items():
-                arg = kwargs.get(k, None)
-                if isinstance(arg, t) or arg is None:
-                    newargs.update({k: arg})
-                else:
-                    if t == list:
-                        newargs.update({k: to_list(kwargs[k])})
-                    elif t is np.ndarray:
-                        newargs.update({k: np.array(kwargs[k])})
-                    else:
-                        newargs.update({k: t(kwargs[k])})
-            return func(*args, **newargs)
+            bound = signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            for name, t in types.items():
+                if name in bound.arguments:
+                    bound.arguments[name] = convert(bound.arguments[name], t)
+            return func(*bound.args, **bound.kwargs)
         return new_func
     return decorator
 

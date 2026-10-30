@@ -2442,9 +2442,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         with :meth:`~gateway_mt.gplot.DataPlotManager.redraw_single_axis` after
         pointing ``dpm.sites['data']`` at the current ``Dataset`` site.
         To swap one station for another, call
-        :meth:`~gateway_mt.gplot.DataPlotManager.replace_sites` first.  Takes
-        keyword arguments (``@utils.enforce_input``, see the note in
-        :mod:`gateway_mt.gplot`).
+        :meth:`~gateway_mt.gplot.DataPlotManager.replace_sites` first.
 
         Parameters
         ----------

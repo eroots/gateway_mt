@@ -178,6 +178,20 @@ def test_degrees_minutes_seconds_round_trip_below_one_degree(dd):
     assert utils.dms2dd(_as_dms_text(dd)) == pytest.approx(dd, abs=1e-9)
 
 
+def test_enforce_input_converts_without_losing_arguments():
+    """Typed arguments are converted (positional or not); defaults and other arguments are kept."""
+    import inspect
+
+    @utils.enforce_input(values=np.ndarray, names=list)
+    def f(values, names=None, scale=2, label='x'):
+        return values, names, scale, label
+
+    values, names, scale, label = f([1, 2], 'a', label='y')
+    assert isinstance(values, np.ndarray) and names == ['a']
+    assert (scale, label) == (2, 'y')
+    assert list(inspect.signature(f).parameters) == ['values', 'names', 'scale', 'label']
+
+
 def test_utm_projection_matches_pyproj():
     pyproj = pytest.importorskip('pyproj')
     zone, letter, easting, northing = utils.project((-84.5, 49.0))

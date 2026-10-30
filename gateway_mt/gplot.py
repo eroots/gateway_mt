@@ -37,9 +37,8 @@ Notes
 * Methods decorated with ``@utils.enforce_input(...)``
   (``plot_phase_tensor``, ``plot_phase_bar``, ``plan_pseudosection``,
   ``plot_induction_arrows``, ``link_axes``, ``tensor_*_pseudosection``)
-  coerce the listed arguments to the declared types but must be called
-  with **keyword** arguments: positional args past ``self`` break the
-  wrapper, and any keyword not named in the decorator is dropped.
+  convert the listed arguments to the declared types (e.g. a single
+  ``data_type`` string to a list).
 * Redrawing is coarse: most update paths clear whole axes and re-plot
   rather than mutating existing artists.
 * Rotation of raw vs. inverted data through the plotting path has not
@@ -606,11 +605,8 @@ class DataPlotManager(object):
                 self.axes[0].set_ylim([y1, y2])
 
     @utils.enforce_input(axnum=list, x_bounds=list, y_bounds=list)
-    def link_axes(self, axnum, x_bounds=None, y_bounds=None):
+    def link_axes(self, axnum=None, x_bounds=None, y_bounds=None):
         """Give every listed axis the same x / y limits.
-
-        Call with keyword arguments (see the module note on
-        ``enforce_input``).
 
         Parameters
         ----------
@@ -1614,9 +1610,6 @@ class MapView(object):
     def plot_induction_arrows(self, data_type='data', normalize=True, period_idx=1, arrow_type=['R'], arrow_convention='parkinson'):
         """Draw tipper (induction) arrows at one period.
 
-        Call with keyword arguments (see the module note on
-        ``enforce_input``).
-
         Parameters
         ----------
         data_type : list of str
@@ -1899,9 +1892,6 @@ class MapView(object):
     @utils.enforce_input(data_type=list, normalize=bool, fill_param=str, period_idx=int, pt_type=str, bostick_depth=float, cb_slot=int)
     def plot_phase_tensor(self, data_type='data', normalize=True, fill_param='Beta', period_idx=1, pt_type=None, bostick_depth=0, cb_slot=1):
         """Draw a phase-tensor ellipse per station at one period.
-
-        Call with keyword arguments (see the module note on
-        ``enforce_input``).
 
         Parameters
         ----------
@@ -2220,9 +2210,6 @@ class MapView(object):
     def plan_pseudosection(self, data_type='data', fill_param='rhoxy', n_interp=200, period_idx=0, cb_slot=1):
         """Interpolate a per-station scalar onto the map as a filled
         ``pcolor`` image at one period.
-
-        Call with keyword arguments (see the module note on
-        ``enforce_input``).
 
         Parameters
         ----------
@@ -2618,9 +2605,6 @@ class MapView(object):
     def tensor_ellipse_pseudosection(self, sites=None, data_type='data', fill_param='beta', periods=(), pt_type=None, x_axis='linear', annotate_sites=False):
         """Phase-tensor ellipse pseudosection: station distance across,
         :math:`\\log_{10}` period down.
-
-        Call with keyword arguments (see the module note on
-        ``enforce_input``).
 
         Parameters
         ----------
