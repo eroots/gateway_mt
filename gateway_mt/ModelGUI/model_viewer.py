@@ -212,7 +212,6 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
         if files.get('resolution', None):
             try:
                 self.resolution = DS.Model(files['resolution'])
-                self.use_resolution = 'Resolution'
             except ValueError:
                 with open(files['resolution'], 'r') as f:
                     r = [float(x.strip()) for x in f.readlines()]
@@ -220,15 +219,11 @@ class ModelWindow(QModelWindow, UI_ModelWindow):
                     self.resolution.vals = np.transpose(np.reshape(r, [self.resolution.nz,
                                                                        self.resolution.ny,
                                                                        self.resolution.nx]), [2, 1, 0])
-                    self.use_resolution = 'Resolution'
             except KeyError:
                 self.resolution = None
         else:
             self.resolution = None
-        # NOTE: this unconditionally overrides the 'Resolution' value set
-        # above, so a resolution file has no effect until the user ticks
-        # the resolution checkbox.  Left as-is (changing it would alter
-        # first-render output).
+        # Start without resolution shading, to match the (unticked) resolution checkbox
         self.use_resolution = 1
         self.use_scalar = 'Resistivity'
         self.rho_axis = 'rho_x'
