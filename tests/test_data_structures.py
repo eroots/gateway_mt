@@ -69,13 +69,20 @@ def test_rotating_a_dataset_is_reversible(fresh_dataset):
             np.testing.assert_allclose(fresh_dataset.data.sites[name].data[comp], data[comp], atol=1e-12)
 
 
-def test_remove_and_add_a_site(fresh_dataset):
+def test_remove_and_add_a_site(fresh_dataset, tmp_path):
     data = fresh_dataset.data
     removed = deepcopy(data.sites['SYN010'])
     data.remove_sites(sites=['SYN010'])
     assert data.NS == 29 and 'SYN010' not in data.site_names
+    assert data.locations.shape[0] == 29
     data.add_site(removed)
     assert data.NS == 30 and 'SYN010' in data.site_names
+    assert data.locations.shape[0] == 30
+    with quiet():
+        data.write(str(tmp_path / 'readded'), file_format='modem')
+        back = DS.Data(datafile=str(tmp_path / 'readded.dat'))
+    assert back.site_names == data.site_names
+    np.testing.assert_allclose(back.locations, data.locations, atol=1e-6)
 
 
 def test_phase_tensors_exist_for_every_period(dataset):

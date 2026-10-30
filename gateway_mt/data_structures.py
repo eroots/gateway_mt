@@ -1361,6 +1361,7 @@ class Data(object):
         else:  # Adding the first site to the data instance
             self.sites.update({site.name: site})
             self.site_names.append(site.name)
+        self.locations = self.get_locs()
 
     @utils.enforce_input(sites=list)
     def remove_sites(self, sites):
