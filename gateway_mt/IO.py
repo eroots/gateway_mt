@@ -109,6 +109,9 @@ INVERSION_TYPES = {1: ('ZXXR', 'ZXXI',  # 1-5 are WS formats
                         'log10RhoZYY', 'PhsZYY',
                         'TZYR', 'TZYI')}
 
+#: Extension given to data files written in each format (from the GUIs).
+DATA_FILE_EXTENSIONS = {'wsinv3dmt': 'data', 'modem': 'dat', 'gofem': 'gdat'}
+
 
 #: Path separator used for the hand-rolled path joins in this module.
 if os.name == 'nt':

@@ -104,6 +104,9 @@ class Dataset(object):
         Common rotation of the sub-objects, in degrees.
     freqset : object or None
         Frequency-set metadata read from ``datpath`` if present.
+    removed_sites : dict
+        ``{name: {data type: Site}}`` for the sites taken out with
+        :meth:`remove_sites`, so :meth:`restore_sites` can put them back.
 
     Notes
     -----
@@ -144,6 +147,7 @@ class Dataset(object):
         self.model = Model(modelfile=modelfile, progress_bar=progress_bar)
         self.response = Data(listfile=listfile, datafile=responsefile, progress_bar=progress_bar)
         self.smoothed_data = deepcopy(self.raw_data)
+        self.removed_sites = {}
         self.rms = self.calculate_RMS()
         self._spatial_units = 'm'
         if not self.data.site_names and self.raw_data.initialized:
@@ -442,8 +446,20 @@ class Dataset(object):
             self.response.rotate_sites(azi=azi)
             assert (self.azimuth % 360 == self.response.azimuth % 360)
 
+    @utils.enforce_input(sites=list)
     def remove_sites(self, sites):
-        """Remove the given sites from ``data``, ``response`` and ``raw_data``."""
+        """Remove the given sites from ``data``, ``response`` and ``raw_data``.
+
+        They are kept in :attr:`removed_sites`, so :meth:`restore_sites`
+        can put them back.
+
+        Parameters
+        ----------
+        sites : list of str
+        """
+        for name in sites:
+            self.removed_sites[name] = {dType: getattr(self, dType).sites[name] for dType in self.data_types
+                                        if self.has_dType(dType) and name in getattr(self, dType).sites}
         if self.has_dType('data'):
             self.data.remove_sites(sites=sites)
         if self.has_dType('response'):
@@ -466,6 +482,42 @@ class Dataset(object):
             self.response.add_site(site['response'])
         if self.has_dType('raw_data'):
             self.raw_data.add_site(site['raw_data'])
+        self.removed_sites.pop(next(iter(site.values())).name, None)
+
+    @utils.enforce_input(sites=list)
+    def restore_sites(self, sites):
+        """Put back sites taken out with :meth:`remove_sites`.
+
+        Parameters
+        ----------
+        sites : list of str
+            Names from :attr:`removed_sites`.
+        """
+        for name in sites:
+            self.add_site(self.removed_sites[name])
+
+    def add_period(self, period, tol=0.05):
+        """Add a period to the inversion data, taken from the raw data.
+
+        Nothing is added if the data already has a period within ``tol``.
+
+        Parameters
+        ----------
+        period : float
+        tol : float, optional
+            Fractional difference (see :func:`gateway_mt.utils.percdiff`).
+
+        Returns
+        -------
+        bool
+            Whether the period was added.
+        """
+        nearest = self.data.periods[np.argmin(abs(self.data.periods - period))]
+        if utils.percdiff(nearest, period) < tol:
+            return False
+        self.data.add_periods(self.raw_data.get_data(periods=period, components=self.data.components,
+                                                     lTol=None, hTol=None))
+        return True
 
     def sort_sites(self, order=None):
         """Reorder ``data`` (and ``response``) site names.
@@ -1232,6 +1284,16 @@ class Data(object):
             raise Exception('{} is not a valid inversion type'.format(val))
         self._inv_type = val
 
+    def missing_components(self, inv_type):
+        """Components inversion type ``inv_type`` needs that the data doesn't have."""
+        return [comp for comp in Data.INVERSION_TYPES[inv_type] if comp not in self.components]
+
+    def set_inversion_type(self, inv_type):
+        """Set :attr:`inv_type`, and ``dimensionality`` to match it
+        ('3D' for types 1 to 7, '2D' otherwise)."""
+        self.inv_type = inv_type
+        self.dimensionality = '3D' if inv_type in range(1, 8) else '2D'
+
     def write(self, outfile, to_write=None, file_format='ModEM', use_elevation=False, write_removed=False):
         """Write the data to ``outfile`` (via :func:`gateway_mt.IO.write_data`).
 
@@ -1296,6 +1358,11 @@ class Data(object):
             for site_name in self.site_names:
                 self.sites[site_name].rotate_data(azi)
             self.azimuth = azi
+
+    def location_centre(self):
+        """Centre of the stations' bounding box, ``(x, y)``. :meth:`center_locs` moves it to 0, 0."""
+        X, Y = self.locations[:, 0], self.locations[:, 1]
+        return (np.max(X) + np.min(X)) / 2, (np.max(Y) + np.min(Y)) / 2
 
     def center_locs(self):
         """Recentre ``locations`` on the bounding-box centre; store it as ``_center``."""
@@ -3169,7 +3236,8 @@ class Site(object):
             # self.periods.delete(ind)
             self.periods = np.delete(self.periods, ind)
             if self.phase_tensors:
-                del self.phase_tensors[int(ind)]
+                for ii in sorted(ind, reverse=True):
+                    del self.phase_tensors[ii]
             for comp in self.data.keys():
                 self.data[comp] = np.delete(self.data[comp], ind)
                 self.errors[comp] = np.delete(self.errors[comp], ind)

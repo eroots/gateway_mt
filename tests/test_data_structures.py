@@ -98,6 +98,43 @@ def test_remove_and_add_a_site(fresh_dataset, tmp_path):
     np.testing.assert_allclose(back.locations, data.locations, atol=1e-6)
 
 
+def test_dataset_keeps_removed_sites_to_restore(fresh_dataset):
+    site = fresh_dataset.data.sites['SYN010']
+    fresh_dataset.remove_sites(['SYN010', 'SYN011'])
+    assert fresh_dataset.data.NS == fresh_dataset.raw_data.NS == fresh_dataset.response.NS == 28
+    assert sorted(fresh_dataset.removed_sites) == ['SYN010', 'SYN011']
+    assert fresh_dataset.removed_sites['SYN010']['data'] is site
+    fresh_dataset.restore_sites('SYN010')
+    assert fresh_dataset.data.NS == fresh_dataset.raw_data.NS == fresh_dataset.response.NS == 29
+    assert fresh_dataset.data.sites['SYN010'] is site
+    assert list(fresh_dataset.removed_sites) == ['SYN011']
+
+
+def test_dataset_adds_a_period_from_the_raw_data(fresh_dataset):
+    data = fresh_dataset.data
+    raw_periods = fresh_dataset.raw_data.sites['SYN001'].periods
+    period = next(p for p in raw_periods if np.min(np.abs(data.periods - p) / p) > 0.2)
+    with quiet():
+        assert fresh_dataset.add_period(period)
+        assert not fresh_dataset.add_period(period * 1.01)              # within 5% of one already there
+    assert data.NP == 19
+    assert all(np.any(np.isclose(site.periods, period)) for site in data.sites.values())
+
+
+def test_inversion_type_checks(fresh_dataset):
+    data = fresh_dataset.data
+    assert data.missing_components(1) == []
+    assert data.missing_components(6) == ['PTXX', 'PTXY', 'PTYX', 'PTYY']
+    data.set_inversion_type(10)
+    assert (data.inv_type, data.dimensionality) == (10, '2D')
+    data.set_inversion_type(5)
+    assert (data.inv_type, data.dimensionality) == (5, '3D')
+    data.locations = data.locations + [100, 200]                       # the synthetic stations are centred
+    assert data.location_centre() == pytest.approx((100, 200))
+    data.center_locs()
+    assert data.location_centre() == pytest.approx((0, 0), abs=1e-9)
+
+
 def test_phase_tensors_exist_for_every_period(dataset):
     site = dataset.raw_data.sites['SYN001']
     assert len(site.phase_tensors) == site.NP
