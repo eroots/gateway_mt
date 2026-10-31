@@ -1,8 +1,8 @@
 """The GUIs, run offscreen: they load the synthetic project and draw it.
 
 These are smoke tests: they catch crashes and wiring mistakes, not visual
-details. Model Viewer's window needs a real OpenGL display, so only its
-model-to-VTK conversion is tested here.
+details. Model Viewer's window needs a real OpenGL display, so it isn't
+built here; its helpers are tested in test_model_tools.
 """
 import os
 
@@ -355,58 +355,11 @@ def test_mesh_designer_writes_a_readable_model(mesh_designer_window, canned_dial
 
 
 # --------------------------------------------------------------------------- #
-# Model Viewer (conversion only; the window needs OpenGL)
+# Model Viewer (the window needs OpenGL; its helpers are tested in test_model_tools)
 # --------------------------------------------------------------------------- #
-def test_model_viewer_converts_a_model_to_a_vtk_grid():
-    pytest.importorskip('pyvista')
-    import gateway_mt.data_structures as DS
-    from gateway_mt.ModelGUI.model_viewer import model_to_rectgrid
-    with quiet():
-        model = DS.Model(synthetic('synthetic.model'))
-    grid = model_to_rectgrid(model)
-    assert grid.n_cells == model.nx * model.ny * model.nz
-    resistivity = grid.cell_data['Resistivity']               # log10(ohm-m)
-    assert resistivity.min() == pytest.approx(np.log10(model.vals.min()))
-    assert resistivity.max() == pytest.approx(np.log10(model.vals.max()))
-
-
-def test_transect_path_follows_every_segment():
-    """North-south segments used to collapse to a point; every segment is now sampled along its length."""
-    from gateway_mt.ModelGUI.model_viewer import sample_path
-    qx, qy = sample_path([0, 0, 10], [0, 10, 10], 20)                # north, then east
-    assert qy.max() == 10 and len(np.unique(qy[qx == 0])) > 5          # the N-S leg has many points
-    assert (qx[0], qy[0], qx[-1], qy[-1]) == (0, 0, 10, 10)
-    steps = np.hypot(np.diff(qx), np.diff(qy))
-    assert np.all(steps > 0)                                            # vertices not repeated
-
-
-def test_stations_project_onto_the_transect():
-    from gateway_mt.ModelGUI.model_viewer import nearest_point, project_onto_path
-    along, across = project_onto_path([2, 11, 5], [1, 4, -3], [0, 10, 10], [0, 0, 10])
-    np.testing.assert_allclose(along, [2, 14, 5])
-    np.testing.assert_allclose(across, [1, 1, 3])
-    assert nearest_point(9, 9, [0, 10, 3], [0, 10, 3]) == (1, pytest.approx(np.sqrt(2)))
-
-
-def test_model_viewer_exports_to_paraview(tmp_path):
-    """The model (with resolution) and stations are written in metres, as by the to_vtk command."""
-    import gateway_mt.data_structures as DS
-    from gateway_mt.ModelGUI.model_viewer import export_to_paraview, write_section_csv
-    with quiet():
-        model = DS.Model(synthetic('synthetic.model'))
-        dataset = DS.Dataset(listfile=synthetic('edis', 'synthetic.lst'), datafile=synthetic('synthetic_modem.dat'))
-        west_edge, centre_east = model.dy[0], dataset.raw_data.origin[0]   # in m
-        model.spatial_units = 'km'                                       # as shown in Model Viewer
-        dataset.spatial_units = 'km'
-        written = export_to_paraview(str(tmp_path / 'out'), model, data=dataset.data,
-                                     raw_data=dataset.raw_data,
-                                     resolution=np.linspace(0.1, 1, model.vals.size).reshape(model.vals.shape))
-    assert [os.path.basename(f) for f in written] == ['out_model.vtk', 'out_sites.vtk']
-    text = (tmp_path / 'out_model.vtk').read_text()
-    assert 'SCALARS Raw_Resolution' in text
-    east = float(text.split('X_COORDINATES')[1].splitlines()[1].split()[0])
-    assert east == pytest.approx(centre_east + west_edge, rel=1e-6)         # UTM easting, in m
-    write_section_csv(str(tmp_path / 'section.csv'), np.array([0., 3.]), np.array([0., 4.]),
-                      np.array([0., 1.]), np.array([[1., 2.], [3., 4.]]), 'km')
-    rows = (tmp_path / 'section.csv').read_text().splitlines()
-    assert rows[0].startswith('#') and rows[-1] == '3.0000,4.0000,5.0000,1.0000,4.00000'
+def test_model_viewer_helpers_still_import_from_it():
+    from gateway_mt import model_tools
+    from gateway_mt.ModelGUI import model_viewer
+    for name in ('model_to_rectgrid', 'sample_path', 'nearest_point', 'project_onto_path',
+                 'export_to_paraview', 'write_section_csv'):
+        assert getattr(model_viewer, name) is getattr(model_tools, name)

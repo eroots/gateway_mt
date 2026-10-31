@@ -13,6 +13,8 @@ Change Log
 
   * :ref:`Model Viewer`: transects can be drawn through stations ('Snap to stations'), their points dragged to new positions, and cleared; nearby stations are marked on the section, which now follows colour, limit and trim changes. File > Export to ParaView (VTK) writes the model, stations and resolution, and the section can be exported to CSV.
 
+  * The model tools behind Model Viewer (grid conversion, transect sections, the ParaView export) are in the new gateway_mt.model_tools module, which doesn't need Qt, and Model.trim removes padding cells from a model.
+
   * Changes that affect results or files:
 
     * Borrowing a nearby period now uses one tolerance at all periods (10% to flag, 20% to remove), instead of 2% below 1 s. The Dummy Data box in :ref:`Data Plot` has one Flag and one Remove value, and the unused 'Missing Period Error' box is gone.
@@ -25,7 +27,7 @@ Change Log
 
     * Regenerate Mesh in :ref:`Mesh Designer` starts from cell sizes based on the station spread, and asks before building a very large mesh.
 
-  * Fixed: colour maps with matplotlib 3.11; data_plot -b; writing a data file after re-adding a removed station; limits such as 2 and 10 being rejected; tipper-only data with a response; Gateway projects dropping the resolution file; anisotropic 1-D starting models; plus a number of smaller fixes.
+  * Fixed: colour maps with matplotlib 3.11; data_plot -b; writing a data file after re-adding a removed station; limits such as 2 and 10 being rejected; tipper-only data with a response; Gateway projects dropping the resolution file; to_vtk --trim with --resolution (the resolution wasn't trimmed with the model); a transect with an anisotropy ratio shown in :ref:`Model Viewer`, and its resolution shading after trimming (the resolution kept its outer mesh lines); anisotropic 1-D starting models; plus a number of smaller fixes.
 
 * 29/04/22
 

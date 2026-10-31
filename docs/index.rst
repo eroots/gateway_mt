@@ -23,6 +23,7 @@ API
     content/api_core/utils
     content/api_core/gplot
     content/api_core/modelling_1D
+    content/api_core/model_tools
     content/api_core/colourmaps
 
 GUIs
