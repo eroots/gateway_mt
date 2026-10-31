@@ -99,19 +99,12 @@ def to_vtk(outfile, datafile=None, listfile=None, modelfile=None,
         model.origin = origin
         model.UTM_zone = UTM
         print('Writing model to {}'.format('_'.join([outfile, 'model.vtk'])))
-        if trim:
-            for ix in range(trim[0]):
-                model.dx_delete(0)
-                model.dx_delete(model.nx)
-            for ix in range(trim[1]):
-                model.dy_delete(0)
-                model.dy_delete(model.ny)
-            for ix in range(trim[2]):
-                model.dz_delete(model.nz)
+        clips = {'x': (trim[0], trim[0]), 'y': (trim[1], trim[1]), 'z': (0, trim[2])} if trim else {}
+        model = model.trim(**clips)
         if resolutionfile:
             print('Adding resolution')
             resolution = WSDS.Model(modelfile=resolutionfile)
-            model.resolution = resolution.vals
+            model.resolution = resolution.trim(**clips).vals
         model.to_vtk(outfile, sea_level=sea_level)
     if listfile:
         print('Writing sites to {}'.format('_'.join([outfile, 'sites.vtk'])))

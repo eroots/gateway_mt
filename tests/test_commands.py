@@ -1,6 +1,7 @@
 """The installed command-line tools, run on the synthetic data in a temporary folder."""
 import re
 
+import numpy as np
 import pytest
 
 from gateway_mt.scripts import autogen_report, f2l, plot_dataset, plot_edi, to_vtk
@@ -107,6 +108,24 @@ def test_to_vtk_sea_level_and_flat_sites(tmp_path):
     start = next(i for i, l in enumerate(lines) if l.startswith('POINTS')) + 1
     heights = {float(l.split()[2]) for l in lines[start:start + 30]}
     assert heights == {50.0}
+
+
+def test_to_vtk_trims_the_model_and_its_resolution(tmp_path):
+    """--trim cuts each side in x / y and the bottom in z, from the resolution as well.
+
+    The model is used as its own resolution, which is written inverted, so
+    the two fields multiply to 1 only if they line up.
+    """
+    base = tmp_path / 'trimmed'
+    assert to_vtk.main(['-o', str(base), '-m', MODEL, '--origin', '0', '0',
+                        '--trim', '3', '2', '4', '--resolution', MODEL]) == 0
+    text = (tmp_path / 'trimmed_model.vtk').read_text(errors='replace')
+    assert 'DIMENSIONS 29 27 32' in text          # (ny, nx, nz) + 1 for a 32 x 32 x 35 model trimmed to 26 x 28 x 31
+
+    def field(name):
+        return np.array(text.split('SCALARS ' + name)[1].split('SCALARS')[0].split()[3:], dtype=float)
+
+    np.testing.assert_allclose(field('Resistivity') * field('Raw_Resolution'), 1, rtol=1e-4)
 
 
 def test_to_vtk_rejects_gofem(tmp_path):

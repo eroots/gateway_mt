@@ -2292,6 +2292,44 @@ class Model(object):
             self._zCS = list(np.diff(self._dz))
             self.update_vals(axis=2, index=mod_idx, new_vals=new_vals)
 
+    def trim(self, x=(0, 0), y=(0, 0), z=(0, 0)):
+        """Return a copy with cells removed from the edges of the mesh.
+
+        Parameters
+        ----------
+        x, y, z : tuple of int, optional
+            Number of cells to remove from the start and the end of each
+            axis. For ``z`` that is the top and the bottom.
+
+        Returns
+        -------
+        Model
+            The trimmed copy. This model is unchanged.
+
+        Raises
+        ------
+        ValueError
+            If an axis would be left with no cells.
+
+        Examples
+        --------
+        Remove 5 padding cells from each side and the bottom 3 layers:
+
+        >>> core = model.trim(x=(5, 5), y=(5, 5), z=(0, 3))
+        """
+        for axis, (start, end) in zip('xyz', (x, y, z)):
+            if start < 0 or end < 0 or start + end >= getattr(self, 'n' + axis):
+                raise ValueError('Cannot trim {} and {} cells from the {} axis, which has {}.'.format(
+                    start, end, axis, getattr(self, 'n' + axis)))
+        trimmed = deepcopy(self)
+        for axis, (start, end) in zip('xyz', (x, y, z)):
+            delete = getattr(trimmed, 'd{}_delete'.format(axis))
+            for _ in range(start):
+                delete(0)
+            for _ in range(end):
+                delete(getattr(trimmed, 'n' + axis))
+        return trimmed
+
     # --- mesh properties -------------------------------------------------- #
     # ``dx``/``dy``/``dz`` are cell edges; ``xCS``/``yCS``/``zCS`` are cell
     # sizes.  Setting either kind rebuilds the other and calls update_vals().

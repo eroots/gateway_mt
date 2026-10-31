@@ -131,6 +131,17 @@ def test_deleting_and_inserting_mesh_lines(model):
     assert model.nx == nx and new_line in model.dx
 
 
+def test_trimming_a_model(model):
+    trimmed = model.trim(x=(2, 3), y=(1, 0), z=(0, 5))
+    assert (trimmed.nx, trimmed.ny, trimmed.nz) == (27, 31, 30)
+    np.testing.assert_allclose(trimmed.vals, model.vals[2:-3, 1:, :-5])
+    np.testing.assert_allclose(trimmed.dx, model.dx[2:-3])
+    np.testing.assert_allclose(trimmed.dz, model.dz[:-5])
+    assert (model.nx, model.ny, model.nz) == (32, 32, 35)            # the original is untouched
+    with pytest.raises(ValueError):
+        model.trim(z=(20, 15))
+
+
 def test_model_conductor_sits_under_the_anomaly(model):
     """The synthetic model's most conductive cells lie close to the tipper anomaly (2 km N, 3 km W)."""
     centres_x = (np.array(model.dx[:-1]) + np.array(model.dx[1:])) / 2
