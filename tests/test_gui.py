@@ -287,6 +287,159 @@ def test_data_plot_map_view(data_plot):
     assert map_view.window['axes'][0].collections          # stations drawn
 
 
+def _select(site_list, names):
+    for row in range(site_list.count()):
+        site_list.item(row).setSelected(site_list.item(row).text() in names)
+
+
+@pytest.mark.parametrize('pages, removed, expected', [
+    (0, ['SYN003'], ['SYN001', 'SYN002', 'SYN007', 'SYN004', 'SYN005', 'SYN006']),
+    (5, ['SYN030'], ['SYN025', 'SYN026', 'SYN027', 'SYN028', 'SYN029', 'SYN024']),   # at the end: fill from before
+])
+def test_data_plot_removes_and_restores_sites(data_plot, pages, removed, expected):
+    """Removed sites on screen are replaced by the next ones; re-adding them restores the data."""
+    original = data_plot.dataset.data.sites[removed[0]]
+    with quiet():
+        for _ in range(pages):
+            data_plot.Forward()
+        _select(data_plot.siteList, removed)
+        data_plot.remove_sites()
+    assert data_plot.dpm.site_names == expected
+    assert data_plot.dataset.data.NS == 29 and data_plot.dataset.raw_data.NS == 29
+    assert [data_plot.rmSitesList.item(0).text()] == removed
+    with quiet():
+        _select(data_plot.rmSitesList, removed)
+        data_plot.add_sites()
+    assert data_plot.dataset.data.NS == 30 and data_plot.dataset.raw_data.NS == 30
+    assert data_plot.dataset.data.sites[removed[0]] is original
+    assert data_plot.rmSitesList.count() == 0
+
+
+class _Pick:
+    """Just enough of a matplotlib pick event for DataMain.onpick."""
+    def __init__(self, ax, ind, button, raw):
+        self.mouseevent = type('MouseEvent', (), {'inaxes': ax, 'button': button})()
+        self.ind = [ind]
+        properties = {'markeredgewidth': 0 if raw else 1, 'linestyle': 'None'}
+        self.artist = type('Artist', (), {'properties': lambda self: properties})()
+
+
+def test_data_plot_adds_and_removes_periods_by_clicking(data_plot):
+    """Left-click a raw-data point to add its period; right-click a data point to remove it."""
+    data, raw_site = data_plot.dataset.data, data_plot.dataset.raw_data.sites['SYN001']
+    ax = data_plot.dpm.axes[0]
+    ind = next(i for i, p in enumerate(raw_site.periods)
+               if np.min(np.abs(data.periods - p) / p) > 0.2)              # a raw period not in the data
+    period = raw_site.periods[ind]
+    with quiet():
+        data_plot.onpick(_Pick(ax, ind, button=1, raw=True))
+    assert data.NP == 19 and np.any(np.isclose(data.periods, period))
+    assert all(np.any(np.isclose(site.periods, period)) for site in data.sites.values())
+    with quiet():
+        data_plot.onpick(_Pick(ax, ind, button=1, raw=True))                 # already there: no change
+    assert data.NP == 19
+    with quiet():
+        data_plot.onpick(_Pick(ax, list(data.sites['SYN001'].periods).index(period), button=3, raw=False))
+    assert data.NP == 18 and not np.any(np.isclose(data.periods, period))
+
+
+@pytest.mark.parametrize('keys, text, n_sites, n_periods, n_comps', [
+    ('', '3', 1, 1, 1),
+    ('Shift', '3', 1, 18, 1),
+    ('Control', '3', 1, 1, 12),
+    ('Alt', '3', 30, 1, 1),
+    ('', '-2', 1, 1, 1),
+])
+def test_data_plot_error_tree_edits(data_plot, keys, text, n_sites, n_periods, n_comps):
+    """An edit sets the error multiplier at one point, widened to all periods / components / sites by
+    Shift / Ctrl / Alt. A negative value divides the error instead and resets the multiplier."""
+    from PyQt5 import QtCore
+    data = data_plot.dataset.data
+    before = {name: {comp: (site.errmap[comp].copy(), site.used_error[comp].copy())
+                     for comp in data.components} for name, site in data.sites.items()}
+    item = data_plot.tree_dict['SYN002'].child(4)                       # SYN002, 5th period
+    column = 2 + 2                                                     # 3rd component
+    modifiers = {'': QtCore.Qt.NoModifier, 'Shift': QtCore.Qt.ShiftModifier,
+                 'Control': QtCore.Qt.ControlModifier, 'Alt': QtCore.Qt.AltModifier}
+    data_plot.stored_key_presses = modifiers[keys]
+    data_plot.current_tree_item, data_plot.current_tree_col = item, column
+    data_plot.old_val = item.text(column)
+    with quiet():
+        item.setText(column, text)                                     # emits itemChanged -> post_edit_error
+    changed = [(name, comp, ii) for name, site in data.sites.items() for comp in data.components
+               for ii in np.flatnonzero(site.used_error[comp] != before[name][comp][1])]
+    assert len({c[0] for c in changed}) == n_sites
+    assert len({c[2] for c in changed}) == n_periods
+    assert len({c[1] for c in changed}) == n_comps
+    name, comp, ii = changed[0]
+    old_map, old_error = before[name][comp][0][ii], before[name][comp][1][ii]
+    if text == '3':
+        assert data.sites[name].errmap[comp][ii] == 3
+        assert data.sites[name].used_error[comp][ii] == pytest.approx(old_error / old_map * 3)
+    else:
+        assert data.sites[name].errmap[comp][ii] == 1
+        assert data.sites[name].used_error[comp][ii] == pytest.approx(old_error / 2)
+
+
+def test_data_plot_error_tree_rejects_zero(data_plot):
+    data = data_plot.dataset.data
+    before = data.sites['SYN002'].used_error[data.components[0]].copy()
+    item = data_plot.tree_dict['SYN002'].child(0)
+    data_plot.current_tree_item, data_plot.current_tree_col = item, 2
+    data_plot.old_val = item.text(2)
+    with quiet():
+        item.setText(2, '0')
+    assert item.text(2) == data_plot.old_val
+    np.testing.assert_array_equal(data.sites['SYN002'].used_error[data.components[0]], before)
+
+
+def test_replacement_sites():
+    from gateway_mt.DataGUI.data_plot import replacement_sites
+    names = ['S{}'.format(i) for i in range(10)]
+    assert replacement_sites(names, ['S2', 'S3', 'gone'], 1) == ['S4']           # next after the plotted ones
+    assert replacement_sites(names, ['S7', 'S8', 'S9', 'gone'], 2) == ['S6', 'S5']  # at the end: before them
+    assert replacement_sites(names, ['S6', 'S7', 'S8'], 2) == ['S9', 'S5']         # after, then before
+    assert replacement_sites(['S0', 'S1'], ['S0', 'gone'], 3) == ['S1', 'S1', 'S1']  # not enough: repeat
+
+
+def test_error_tree_values():
+    from gateway_mt.DataGUI.data_plot import error_multiplier, period_label, period_from_label
+    assert error_multiplier('4') == (4, 4)
+    assert error_multiplier('-2') == (1, -2)
+    for bad in ('0', '1.5', 'x'):
+        with pytest.raises(ValueError):
+            error_multiplier(bad)
+    assert period_label(0.01) == -100 and period_label(10.0) == 10
+    assert period_from_label(str(period_label(0.01))) == pytest.approx(0.01)
+    assert period_from_label('10.0') == 10
+
+
+def test_data_plot_keeps_removed_sites_with_their_dataset(no_dialogs):
+    """Each dataset has its own removed sites; switching shows that dataset's list."""
+    import gateway_mt.DataGUI.data_plot as dp
+    files = _project_files()
+    (name, paths), = files.items()
+    with quiet():
+        window = dp.DataMain({'a': dict(paths), 'b': dict(paths)})
+    try:
+        a, b = window.stored_datasets['a'], window.stored_datasets['b']
+        with quiet():
+            _select(window.siteList, ['SYN010'])
+            window.remove_sites()
+            window.currentDataset.setCurrentIndex(1)
+        assert window.dataset is b and window.rmSitesList.count() == 0
+        assert b.data.NS == 30 and b.data.site_names.count('SYN010') == 1
+        with quiet():
+            window.currentDataset.setCurrentIndex(0)
+        assert [window.rmSitesList.item(i).text() for i in range(window.rmSitesList.count())] == ['SYN010']
+        with quiet():
+            _select(window.rmSitesList, ['SYN010'])
+            window.add_sites()
+        assert a.data.NS == a.raw_data.NS == 30 and not a.removed_sites
+    finally:
+        window.close()
+
+
 # --------------------------------------------------------------------------- #
 # Mesh Designer
 # --------------------------------------------------------------------------- #

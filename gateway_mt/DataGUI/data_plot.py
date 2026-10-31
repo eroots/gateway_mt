@@ -68,10 +68,11 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar)
 import sys
 import os
-from gateway_mt import gplot, utils, data_structures
+from gateway_mt import gplot, utils, data_structures, IO
 from gateway_mt import resources
 from gateway_mt.GUI_common.classes import FileDialog, ColourMenu, TwoInputDialog, FileInputParser, MyPopupDialog
 from gateway_mt.GUI_common.windows import Modeling1D
+from gateway_mt.GUI_common.common_functions import check_key_presses
 from gateway_mt.IO import debug_print
 try:
     import importlib.resources as pkg_resources
@@ -1020,8 +1021,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
         The sites currently plotted (property; also drives the subplot
         count).
     stored_sites : dict
-        ``{site_name: {data_type: Site}}``: data for sites removed
-        during the session, so they can be re-added.
+        The active dataset's
+        :attr:`~gateway_mt.data_structures.Dataset.removed_sites`: data
+        for the sites removed, so they can be re-added.
 
     Notes
     -----
@@ -1041,7 +1043,6 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.DEBUG = False
         self.setupUi(self)
         self.cid = {'DataSelect': []}
-        self.stored_sites = {}
         self.old_val = ''
         self.fig = Figure()
         self.file_dialog = FileDialog(self)
@@ -1110,6 +1111,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.synthetic_window = None
 
         self.set_nparam_labels()
+
+    @property
+    def stored_sites(self):
+        return self.dataset.removed_sites
 
     def launch_1D_window(self):
         if not self.modeling_window:
@@ -1963,6 +1968,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                active_sites=self.site_names)
         self.set_data_toggles()
         self.sort_sites()
+        self.rmSitesList.clear()
+        self.rmSitesList.addItems(list(self.dataset.removed_sites))
         self.update_error_tree()
         # Call if using different sites, otherwise just plot the new data
         if shift_sites:
@@ -2022,59 +2029,25 @@ class DataMain(QMainWindow, Ui_MainWindow):
     def remove_sites(self):
         """Move the sites selected in ``siteList`` to the removed list.
 
-        Their data is stashed in :attr:`stored_sites` (so :meth:`add_sites`
-        can restore them), they are dropped from the dataset, and any that
-        were on screen are replaced with the next available sites before
-        the map and labels refresh.
-
-        Note: assumes enough sites remain to fill the current subplot
-        count: removing down to fewer than that can error.
+        The dataset keeps their data (:attr:`stored_sites`), so
+        :meth:`add_sites` can restore them. Any that were on screen are
+        replaced (see :func:`replacement_sites`) before the map and labels
+        refresh.
         """
         site_names = []
         min_row = np.inf
         for site in self.siteList.selectedItems():
             min_row = min(min_row, self.siteList.row(site))
-            name = site.text()
-            site_names.append(name)
+            site_names.append(site.text())
             self.rmSitesList.addItem(self.siteList.takeItem(self.siteList.row(site)))
-            self.stored_sites.update({name: {dType: getattr(self.dataset, dType).sites[name]
-                                             for dType in self.dataset.data_types
-                                             if self.dataset.has_dType(dType)}})
         min_row = max(min_row - 1, 0)
         self.siteList.scrollToItem(self.siteList.item(min_row), hint=1)
         self.dataset.remove_sites(sites=site_names)
-        intersect = set(site_names).intersection(set(self.dpm.site_names))
-        idx_plotted = list(sorted([self.dataset.data.site_names.index(x) for x in self.dpm.site_names
-                                   if x in self.dataset.data.site_names]))
+        intersect = [name for name in self.dpm.site_names if name in site_names]
         if intersect:
-            max_idx = len(self.dataset.data.site_names) - 1
-            # If any of the plotted sites remain
-            if idx_plotted:
-                # If we are at the end of the list
-                if idx_plotted[-1] == max_idx:
-                    direction = -1
-                    start = idx_plotted[-1]
-                    end = 0
-                else:
-                    direction = 1
-                    start = idx_plotted[0]
-                    end = max_idx
-            # if you removed all the plotted sites
-            else:
-                start = 0
-                end = max_idx
-                direction = 1
-            to_add = []
-            new_sites = []
-            for ii, site in enumerate(intersect):
-                dont_add_these = set(idx_plotted) | set(to_add)
-                try:
-                    to_add.append(next(x for x in range(start, end, direction)
-                                       if x not in dont_add_these))
-                except StopIteration:
-                    print('No more sites to add')
-                    to_add.append(end)
-                new_sites.append(self.dataset.data.site_names[to_add[ii]])
+            new_sites = replacement_sites(self.dataset.data.site_names, self.dpm.site_names, len(intersect))
+            if len(set(new_sites) - set(self.dpm.site_names)) < len(intersect):
+                print('No more sites to add')
             nsites = self.dataset.get_sites(site_names=new_sites, dTypes='all')
             self.dpm.replace_sites(sites_out=intersect, sites_in=nsites)
             self.site_names = self.dpm.site_names
@@ -2098,14 +2071,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
         Not optimised: adding many sites at once can be slow.
         """
         site_names = []
-        min_row = np.inf
         for site in self.rmSitesList.selectedItems():
-            min_row = min(min_row, self.rmSitesList.row(site))
-            name = site.text()
-            site_names.append(name)
+            site_names.append(site.text())
             self.siteList.addItem(self.rmSitesList.takeItem(self.rmSitesList.row(site)))
-            self.dataset.add_site(self.stored_sites[name])
-            del self.stored_sites[name]
+        self.dataset.restore_sites(site_names)
         self.map_view.init_map(dataset=self.dataset,
                                sites=self.dataset.data.site_names,
                                active_sites=self.site_names)
@@ -2256,24 +2225,10 @@ class DataMain(QMainWindow, Ui_MainWindow):
     def check_inv_type(self):
         """Return the inversion type selected in the menu group (1-10),
         or the dataset's current ``inv_type`` if none is checked."""
-        if self.inv_type1.isChecked():
-            return 1
-        elif self.inv_type2.isChecked():
-            return 2
-        elif self.inv_type3.isChecked():
-            return 3
-        elif self.inv_type4.isChecked():
-            return 4
-        elif self.inv_type5.isChecked():
-            return 5
-        elif self.inv_type8.isChecked():
-            return 8
-        elif self.inv_type9.isChecked():
-            return 9
-        elif self.inv_type10.isChecked():
-            return 10
-        else:
-            return self.dataset.data.inv_type
+        for inv_type in (1, 2, 3, 4, 5, 8, 9, 10):
+            if getattr(self, 'inv_type{}'.format(inv_type)).isChecked():
+                return inv_type
+        return self.dataset.data.inv_type
 
     def write_data(self, file_format='WSINV3DMT'):
         """Write the active dataset to a data file.
@@ -2291,23 +2246,21 @@ class DataMain(QMainWindow, Ui_MainWindow):
         file_format : {'WSINV3DMT', 'ModEM', 'gofem'}
         """
         inv_type = self.check_inv_type()
-        if not set(self.dataset.data.INVERSION_TYPES[inv_type]).issubset(self.dataset.data.components):
-            reply = QtWidgets.QMessageBox.question(self, 'Message',
-                                                   'Selected inversion type is invalid for current data (components missing)',
-                                                   QtWidgets.QMessageBox.Ok)
-            return
-        self.dataset.data.inv_type = self.check_inv_type()
-        if self.actionRemoveFlags.isChecked():
-            self.reset_dummy_errors()
-        if not self.dataset.data.inv_type:
+        if not inv_type:
             reply = QtWidgets.QMessageBox.question(self, 'Message',
                                                    'No inversion type selected. Please choose one before writing',
                                                    QtWidgets.QMessageBox.Ok)
             return
-        if self.dataset.data.inv_type in range(1, 8):
-            self.dataset.data.dimensionality = '3D'
-        else:
-            self.dataset.data.dimensionality = '2D'
+        missing = self.dataset.data.missing_components(inv_type)
+        if missing:
+            reply = QtWidgets.QMessageBox.question(self, 'Message',
+                                                   'Selected inversion type is invalid for current data '
+                                                   '(missing {})'.format(', '.join(missing)),
+                                                   QtWidgets.QMessageBox.Ok)
+            return
+        self.dataset.data.set_inversion_type(inv_type)
+        if self.actionRemoveFlags.isChecked():
+            self.reset_dummy_errors()
         keep_going = True
         if self.sortSites.itemText(self.sortSites.currentIndex()) != 'Default':
             reply = QtWidgets.QMessageBox.question(self, 'Message',
@@ -2322,12 +2275,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
             if not ret or not outfile:
                 break
             if ret and outfile:
-                if file_format.lower() == 'wsinv3dmt':
-                    outfile = utils.check_extention(outfile, expected='data')
-                elif file_format.lower() == 'modem':
-                    outfile = utils.check_extention(outfile, expected='dat')
-                elif file_format.lower() == 'gofem':
-                    outfile = utils.check_extention(outfile, expected='gdat')
+                outfile = utils.check_extention(outfile, expected=IO.DATA_FILE_EXTENSIONS[file_format.lower()])
                 write_removed = False
                 if file_format.lower() == 'modem' and self.dataset.data.has_flagged_data:
                     reply = QtWidgets.QMessageBox.question(self, 'Message',
@@ -2335,8 +2283,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
                                                             QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
                     if reply == QtWidgets.QMessageBox.Yes:
                         write_removed = True
-                X, Y = self.dataset.data.locations[:, 0], self.dataset.data.locations[:, 1]
-                ox, oy = ((np.max(X) + np.min(X)) / 2, (np.max(Y) + np.min(Y)) / 2)
+                ox, oy = self.dataset.data.location_centre()
                 if (abs(ox) > 0.5) or (abs(oy) > 0.5):
                     reply = QtWidgets.QMessageBox.question(self, 'Message',
                                                             'Data origin is ({:10.3g},{:10.3g}). Do you want to center the stations?'.format(ox, oy),
@@ -2520,40 +2467,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         modifier keys that widen an error-tree edit to all components /
         periods / sites.  With ``verbose`` it also prints which axis the
         edit will span."""
-        msg = ''
-        retval = {'Control': False, 'Shift': False, 'Alt': False}
-        if self.stored_key_presses == QtCore.Qt.ShiftModifier:
-            retval['Shift'] = True
-        elif self.stored_key_presses == QtCore.Qt.ControlModifier:
-            retval['Control'] = True
-        elif self.stored_key_presses == QtCore.Qt.AltModifier:
-            retval['Alt'] = True
-        elif self.stored_key_presses == (QtCore.Qt.ControlModifier |
-                                         QtCore.Qt.ShiftModifier):
-            retval['Shift'] = True
-            retval['Control'] = True
-        elif self.stored_key_presses == (QtCore.Qt.AltModifier |
-                                         QtCore.Qt.ShiftModifier):
-            retval['Alt'] = True
-            retval['Shift'] = True
-        elif self.stored_key_presses == (QtCore.Qt.ControlModifier |
-                                         QtCore.Qt.AltModifier):
-            retval['Control'] = True
-            retval['Alt'] = True
-        elif self.stored_key_presses == (QtCore.Qt.ControlModifier |
-                                         QtCore.Qt.ShiftModifier |
-                                         QtCore.Qt.AltModifier):
-            retval['Shift'] = True
-            retval['Alt'] = True
-            retval['Control'] = True
-        if any(retval.values()):
-            msg = '+'.join([k for k in retval if retval[k]])
-            msg = msg.replace('Shift', 'Periods')
-            msg = msg.replace('Control', 'Components')
-            msg = msg.replace('Alt', 'Sites')
-        if verbose and msg:
-            print(' '.join(['Editting all', msg]))
-        return retval
+        return check_key_presses(self.stored_key_presses, verbose=verbose)
 
     def update_error_tree(self):
         """Rebuild the error tree: one top-level node per site, a child
@@ -2585,8 +2499,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
             for ii, p in enumerate(periods):
                 # self.error_tree.insertTopLevelItem(1, QtWidgets.QTreeWidgetItem([str(p)]))
                 # sitenode.addChild(QtWidgets.QTreeWidgetItem([str(p)]))
-                if p < 1:
-                    p = round(-1 / p, 1)
+                p = period_label(p)
                 pnode = QtWidgets.QTreeWidgetItem(sitenode, [str(p)])
                 pnode.setFlags(QtCore.Qt.ItemIsEditable |
                                QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
@@ -2637,19 +2550,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
         parents = []
         initial_parent = item.parent()
         try:
-            new_val = int(item.text(column))
-            if new_val < 0:
-                use_val = 1 * new_val
-                new_val = 1
-            elif new_val > 0:
-                use_val = new_val
-            else:
-                print('Multiplier cannot be zero')
-                item.setText(column, self.old_val)
-                self.error_tree.itemChanged.connect(self.post_edit_error)
-                return
+            new_val, use_val = error_multiplier(item.text(column))
         except ValueError:
-            print('Value must be an integer')
+            print('The multiplier must be a non-zero integer')
             item.setText(column, self.old_val)
             self.error_tree.itemChanged.connect(self.post_edit_error)
             return
@@ -2681,11 +2584,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
                     item.setText(col, str(new_val))
                     site_names.append(item.parent().text(0))
                     comps.append(self.error_tree.headerItem().text(col))
-                    p = float(item.text(1))
-                    if p < 0:
-                        periods.append(-1 / p)
-                    else:
-                        periods.append(p)
+                    periods.append(period_from_label(item.text(1)))
         comps = set(comps)
         periods = set(periods)
         for site in set(site_names):
@@ -2791,16 +2690,11 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 return
             if israw:
                 period = float(raw_site.periods[ind])
-                npd = data_site.periods[np.argmin(abs(data_site.periods - period))]
-                if utils.percdiff(npd, period) < self.pick_tol:
+                if not self.dataset.add_period(period, tol=self.pick_tol):
                     if self.DEBUG:
                         print('There is already a period pretty close to that...')
                     return
                 else:
-                    toadd = self.dataset.raw_data.get_data(periods=period,
-                                                           components=self.dataset.data.components,
-                                                           lTol=None, hTol=None)
-                    self.dataset.data.add_periods(toadd)
                     print('Adding period {}, freq {}'.format(period, 1 / period))
                     self.update_dpm(updated_sites=self.dpm.site_names,
                                     updated_comps=self.dataset.data.components)
@@ -2825,7 +2719,6 @@ class DataMain(QMainWindow, Ui_MainWindow):
                 return
             if isdata:
                 period = float(data_site.periods[ind])
-                npd = data_site.periods[np.argmin(abs(data_site.periods - period))]
                 self.dataset.data.remove_periods(periods=period)
                 print('Removing period {}, freq {}'.format(period, 1 / period))
                 self.debugInfo.append('Removing period {}, freq {}\n'.format(period, 1 / period))
@@ -2911,6 +2804,69 @@ class DataMain(QMainWindow, Ui_MainWindow):
             self.cid['DataSelect'] = self.canvas.mpl_connect('pick_event', self.onpick)
         elif self.selectFlagged.checkState():
             self.cid['DataSelect'] = self.canvas.mpl_connect('pick_event', self.onpick_flagged)
+
+
+def replacement_sites(site_names, plotted, n):
+    """Pick ``n`` sites to plot in place of removed ones.
+
+    Takes the first sites not already plotted, looking forward from the
+    first plotted site and then back from it. If there aren't enough, the
+    last one found (or the last site) is repeated, so every subplot still
+    has a site.
+
+    Parameters
+    ----------
+    site_names : list of str
+        All the sites, in order.
+    plotted : list of str
+        The sites on screen (any no longer in ``site_names`` are ignored).
+    n : int
+
+    Returns
+    -------
+    list of str
+    """
+    indices = [site_names.index(name) for name in plotted if name in site_names]
+    start = min(indices) if indices else 0
+    order = list(range(start, len(site_names))) + list(range(start - 1, -1, -1))
+    chosen = [site_names[ii] for ii in order if site_names[ii] not in plotted][:n]
+    filler = chosen[-1] if chosen else site_names[-1]
+    return chosen + [filler] * (n - len(chosen))
+
+
+def error_multiplier(text):
+    """Read an error-tree entry.
+
+    A positive integer is the new error multiplier. A negative one divides
+    the error by its size instead, and resets the multiplier to 1.
+
+    Returns
+    -------
+    shown : int
+        What the tree shows afterwards.
+    mult : int
+        What to pass to :meth:`~gateway_mt.data_structures.Site.change_errmap`.
+
+    Raises
+    ------
+    ValueError
+        If ``text`` isn't a non-zero integer.
+    """
+    mult = int(text)
+    if mult == 0:
+        raise ValueError('The multiplier cannot be zero')
+    return (1 if mult < 0 else mult), mult
+
+
+def period_label(period):
+    """How the error tree shows a period: below 1 s, as minus the frequency."""
+    return round(-1 / period, 1) if period < 1 else period
+
+
+def period_from_label(label):
+    """The period for an error-tree label (see :func:`period_label`)."""
+    value = float(label)
+    return -1 / value if value < 0 else value
 
 
 def parse_commandline(args):
