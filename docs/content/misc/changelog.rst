@@ -17,6 +17,8 @@ Change Log
 
   * Rules :ref:`Data Plot` applied inside its dialogs are now on the data structures, so scripts can use them: Dataset.remove_sites keeps the removed sites for Dataset.restore_sites, Dataset.add_period adds a period from the raw data, and Data.missing_components / Data.set_inversion_type check and set the inversion type.
 
+  * The maps the :ref:`Map Viewer` draws can be drawn from a script: gplot.MapView.load_dataset loads a dataset and MapView.draw draws the layers chosen in a gplot.MapSettings (see :ref:`Recipes`).
+
   * Changes that affect results or files:
 
     * Borrowing a nearby period now uses one tolerance at all periods (10% to flag, 20% to remove), instead of 2% below 1 s. The Dummy Data box in :ref:`Data Plot` has one Flag and one Remove value, and the unused 'Missing Period Error' box is gone.
@@ -29,7 +31,7 @@ Change Log
 
     * Regenerate Mesh in :ref:`Mesh Designer` starts from cell sizes based on the station spread, and asks before building a very large mesh.
 
-  * Fixed: colour maps with matplotlib 3.11; data_plot -b; writing a data file after re-adding a removed station; limits such as 2 and 10 being rejected; tipper-only data with a response; Gateway projects dropping the resolution file; to_vtk --trim with --resolution (the resolution wasn't trimmed with the model); a transect with an anisotropy ratio shown in :ref:`Model Viewer`, and its resolution shading after trimming (the resolution kept its outer mesh lines); anisotropic 1-D starting models; in :ref:`Data Plot`, removed sites re-added after switching dataset went into the wrong dataset (each dataset now keeps its own removed sites), and removing plotted sites could repeat one site on screen when others were free; plus a number of smaller fixes.
+  * Fixed: colour maps with matplotlib 3.11; data_plot -b; writing a data file after re-adding a removed station; limits such as 2 and 10 being rejected; tipper-only data with a response; Gateway projects dropping the resolution file; to_vtk --trim with --resolution (the resolution wasn't trimmed with the model); a transect with an anisotropy ratio shown in :ref:`Model Viewer`, and its resolution shading after trimming (the resolution kept its outer mesh lines); anisotropic 1-D starting models; in :ref:`Data Plot`, removed sites re-added after switching dataset went into the wrong dataset (each dataset now keeps its own removed sites), and removing plotted sites could repeat one site on screen (if too few sites are left, the extra subplots are now dropped); plus a number of smaller fixes.
 
 * 29/04/22
 

@@ -287,6 +287,24 @@ def test_data_plot_map_view(data_plot):
     assert map_view.window['axes'][0].collections          # stations drawn
 
 
+def test_map_viewer_reads_its_controls(data_plot):
+    with quiet():
+        data_plot.show_map()
+        view = data_plot.map_view
+        view.toggle_dataPhaseTensor.click()
+    view.toggle_dataPseudo.setChecked(True)
+    view.toggle_dataInduction.setChecked(True)
+    view.arrowType.setCurrentIndex(view.arrowType.findText('Both'))
+    settings = view.map_settings()
+    assert settings.phase_tensors == ['data'] and settings.induction_arrows == ['data']
+    assert settings.pseudosection == ['data'] and settings.pseudosection_fill == 'RhoXY'
+    assert settings.arrow_type == ['R', 'I'] and settings.plan_slice is None
+    view.toggle_planView.setChecked(True)
+    settings = view.map_settings()
+    assert settings.plan_slice == 0 and settings.pseudosection == []
+    assert not view.toggle_dataPseudo.isChecked()
+
+
 def _select(site_list, names):
     for row in range(site_list.count()):
         site_list.item(row).setSelected(site_list.item(row).text() in names)

@@ -52,3 +52,19 @@ Make note of (or intentionally set up) any patterns you can use to distinguish y
 This writes two files. 'demo_flagged.dat' has a uniform period band, with the flagged data written at the end of the file with errors equal to Data.REMOVE_FLAG (at the time of writing, it is 1234567). 'demo_flagged_removed.dat' is the same file with the flagged data left out.
 
 You can now invert 'demo_flagged_removed.dat'. gateway_mt can read this file (and the response file created by inverting it) directly: any data missing from a station is filled in as dummy data and flagged, so that the period band is uniform again.
+
+Drawing a Map Without the GUI
+-----------------------------
+
+The maps the :ref:`Map Viewer` draws can also be drawn from a script, for example to save the same map at every period. gplot.MapSettings says which layers to draw. The styling (colour limits, scales, markers) is set on the MapView itself::
+
+    import gateway_mt.gplot as gplot
+
+    dataset = ds.Dataset(listfile='raw/all.lst', datafile='demo.dat', responsefile='demo_resp.dat')
+    view = gplot.MapView()
+    view.load_dataset(dataset, spatial_units='km')
+    view.rho_cax = [0, 4]
+    for ii, period in enumerate(dataset.data.periods):
+        view.draw(gplot.MapSettings(period_idx=ii, pseudosection=['data'], pseudosection_fill='RhoXY',
+                                    phase_tensors=['data'], pt_fill='Beta', induction_arrows=['data']))
+        view.window['figure'].savefig('map_{:.3g}s.png'.format(period))

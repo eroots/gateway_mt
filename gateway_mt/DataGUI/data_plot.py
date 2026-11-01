@@ -93,10 +93,10 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
 
     Thin controller around a :class:`gateway_mt.gplot.MapView` (``self.map``):
     the menu actions and toggles read GUI widgets, set attributes on
-    ``self.map``, and call :meth:`update_map`, which clears the axis and
-    re-plots every enabled layer (background image, model plan slice,
-    plan pseudosection, phase-tensor ellipses / bars, induction arrows,
-    site markers / annotations).  Constructed by :class:`DataMain`.
+    ``self.map``, and call :meth:`update_map`. That reads the controls
+    into a :class:`gateway_mt.gplot.MapSettings` (:meth:`map_settings`)
+    and redraws with :meth:`gateway_mt.gplot.MapView.draw`.
+    Constructed by :class:`DataMain`.
 
     Most handlers follow one shape and are not documented individually:
     a ``set_<thing>`` method reads a value (a ``QInputDialog``, a menu
@@ -113,6 +113,16 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
     active_sites : list of str
         The highlighted subset.
     """
+
+    #: ``pseudoFillType`` entries (lower case) and the quantity each plots.
+    PSEUDOSECTION_FILLS = {'apparent resistivity': 'Rho', 'phase': 'Pha', 'tipper amplitude': 'tip',
+                           'bostick depth': 'bost', 'beta': 'beta', 'abs. beta': 'absbeta',
+                           'pt azimuth': 'azimuth', 'pt split': 'pt_split', 'phi_max': 'phi_max',
+                           'phi_min': 'phi_min'}
+    #: ``arrowType`` entries (lower case) and the arrows each draws.
+    ARROW_TYPES = {'real': ['R'], 'imaginary': ['I'], 'both': ['R', 'I']}
+    #: Phase-tensor types, in ``phaseTensorType`` order.
+    PT_TYPES = ('phi', 'phi_a', 'Ua', 'Va')
 
     def __init__(self, dataset, sites, active_sites):
         super(MapMain, self).__init__()
@@ -311,16 +321,8 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         """str: Phase-tensor family selected in the ``phaseTensorType``
         combo: ``'phi'`` / ``'phi_a'`` / ``'Ua'`` / ``'Va'`` (defaults
         to ``'phi'``)."""
-        if self.phaseTensorType.currentIndex() == 0:
-            return 'phi'
-        elif self.phaseTensorType.currentIndex() == 1:
-            return 'phi_a'
-        elif self.phaseTensorType.currentIndex() == 2:
-            return 'Ua'
-        elif self.phaseTensorType.currentIndex() == 3:
-            return 'Va'
-        else:
-            return 'phi'
+        index = self.phaseTensorType.currentIndex()
+        return self.PT_TYPES[index] if 0 <= index < len(self.PT_TYPES) else 'phi'
 
     def set_rms_plot(self):
         self.map.rms_plot_style = []
@@ -350,17 +352,9 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
 
     def set_pt_rot_axis(self):
         """Set the phase-tensor rotation reference axis (``'x'`` / ``'y'``)
-        from the menu, and propagate it to every ``PhaseTensor`` on every
-        site so the ellipses recompute."""
-        if self.actionPTRotAxisX.isChecked():
-            axis = 'x'
-        else:
-            axis = 'y'
-        if axis != self.map.pt_rotation_axis or axis != self.map.dataset.data.sites[self.map.dataset.data.site_names[0]].phase_tensors[0].rotation_axis:
-            self.map.pt_rotation_axis = axis
-            for site in self.map.dataset.data.site_names:
-                for ii in range(self.map.dataset.data.NP):
-                    self.map.dataset.data.sites[site].phase_tensors[ii].rotation_axis = axis
+        from the menu (see
+        :meth:`gateway_mt.gplot.MapView.set_pt_rotation_axis`)."""
+        self.map.set_pt_rotation_axis('x' if self.actionPTRotAxisX.isChecked() else 'y')
 
     def coord_system(self):
         """Switch the map coordinate system from the menu selection
@@ -584,18 +578,8 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
         redraw when a data-minus-response tensor is showing."""
         index = self.PTDifference.currentIndex()
         definition = self.PTDifference.itemText(index)
-        if definition == 'Booker':
-            self.map.pt_difference_definition = 'Booker'
-        elif definition == 'Hill':
-            self.map.pt_difference_definition = 'Hill'
-        elif definition == 'Heise':
-            self.map.pt_difference_definition = 'Heise'
-        elif definition == 'Castro':
-            self.map.pt_difference_definition = 'Castro'
-        elif definition == 'Roots_1':
-            self.map.pt_difference_definition = 'Roots_1'
-        elif definition == 'Roots_2':
-            self.map.pt_difference_definition = 'Roots_2'
+        if definition in ('Booker', 'Hill', 'Heise', 'Castro', 'Roots_1', 'Roots_2'):
+            self.map.pt_difference_definition = definition
         if self.toggle_dataPhaseTensor.isChecked() and self.toggle_responsePhaseTensor.isChecked():
             self.update_map()
 
@@ -778,119 +762,66 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
     def init_map(self, dataset, sites, active_sites):
         """Load ``dataset`` into ``self.map`` and compute the initial
         site locations (generic / active / all) in the current
-        coordinate system."""
-        self.map.dataset = dataset
-        self.map.data = dataset.data
-        self.map.raw_data = dataset.raw_data
-        self.map.response = dataset.response
-        self.map.model = dataset.model
-        self.map.site_names = sites
-        self.map._active_sites = active_sites
-        if self.actionKilometers.isChecked():
-            self.map.dataset.spatial_units = 'km'
-        elif self.actionMeters.isChecked():
-            self.map.dataset.spatial_units = 'm'
-        self.map.site_locations['generic'] = self.map.get_locations(
-            sites=self.map.generic_sites)
-        self.map.site_locations['active'] = self.map.get_locations(
-            sites=self.map.active_sites)
-        self.map.site_locations['all'] = self.map.get_locations(self.map.site_names)
+        coordinate system (see
+        :meth:`gateway_mt.gplot.MapView.load_dataset`)."""
+        units = 'km' if self.actionKilometers.isChecked() else 'm' if self.actionMeters.isChecked() else None
+        self.map.load_dataset(dataset, sites=sites, active_sites=active_sites, spatial_units=units)
         if self.map.model:
             self.planSlice.setMaximum(self.map.dataset.model.nz - 1)
 
     def update_map(self):
-        """Redraw the whole map.
+        """Redraw the whole map from the current controls (see
+        :meth:`map_settings` and :meth:`gateway_mt.gplot.MapView.draw`).
 
-        Clears the axis and colour bars, then plots each enabled layer in
-        z-order: background JPEG, model plan slice, plan pseudosection,
-        site annotations, phase-tensor ellipses (+ a bar layer when a
-        single data type and a different bar fill are selected), induction
-        arrows, and (if neither PTs nor arrows are shown) the plain
-        site markers.  Colour bars are assigned to successive ``cb_slot``
-        s.  (Every change triggers a full redraw; there is no incremental
-        path yet.)
+        Every change triggers a full redraw; there is no incremental path
+        yet.
         """
-        cb_slot = 1
         self.x_lim = self.map.window['axes'][0].get_xlim()
         self.y_lim = self.map.window['axes'][0].get_ylim()
-        if self.map.window['colorbar']:
-            self.map.window['colorbar'].remove()
-            self.map.window['colorbar'] = None
-        if self.map.window['colorbar_twin']:
-            self.map.window['colorbar_twin'].remove()
-            self.map.window['colorbar_twin'] = None
-        self.map.window['axes'][0].clear()
-        # DEBUG
-        
-        if self.actionShow_JPEG.isChecked():
-            self.map.plot_image(image=self.background_image['image'],
-                               extents=self.background_image['extent'])
-        if self.toggle_planView.checkState():
-            self.map.plot_plan_view(z_slice=self.planSlice.value(), rho_axis=self.rhoAxis.currentText(), cb_slot=0)#, cb_slot=cb_slot)
-            # cb_slot += 1
-            depth = self.map.model.dz[self.planSlice.value()]
-            depth = '{:0.6g} {}'.format(depth, self.map.model.spatial_units)
-            self.planDepth.setText(depth)
+        settings = self.map_settings()
+        self.map.draw(settings)
+        if settings.plan_slice is not None:
+            depth = self.map.model.dz[settings.plan_slice]
+            self.planDepth.setText('{:0.6g} {}'.format(depth, self.map.model.spatial_units))
+        self.set_axis_settings()
+        self.canvas.draw()
+
+    def map_settings(self):
+        """Read the controls into a :class:`gateway_mt.gplot.MapSettings`.
+
+        Showing the model plan view unticks the pseudosection boxes, and
+        any data type without sites is unticked (see the ``get_*_toggles``
+        methods).
+        """
+        plan_view = bool(self.toggle_planView.checkState())
+        if plan_view:
             self.toggle_responsePseudo.setCheckState(0)
             self.toggle_dataPseudo.setCheckState(0)
-        pseudosection_toggles = self.get_pseudosection_toggles()
-        if pseudosection_toggles['data'] and pseudosection_toggles['fill']:
-            self.map.interpolant = self.Interpolant.itemText(self.Interpolant.currentIndex()).lower()
-            fill_param = ''.join([pseudosection_toggles['fill'],
-                                  pseudosection_toggles['component']])
-            self.map.plan_pseudosection(data_type=pseudosection_toggles['data'],
-                                        fill_param=fill_param,
-                                        period_idx=self.active_period,
-                                        n_interp=self.nInterp.value(),
-                                        cb_slot=cb_slot)
-            cb_slot += 1
-        self.map.plot_rms = self.plotRMS.checkState()
-        # self.map.plot_locations()
-        self.map.plot_annotate()
-        PT_toggles = self.get_PT_toggles()
-        bar_fill = self.Bar_fill.itemText(self.Bar_fill.currentIndex())
-        
-        if 'None' not in PT_toggles['data']:
-            self.set_pt_rot_axis()
-            self.map.plot_phase_tensor(data_type=PT_toggles['data'],
-                                       fill_param=PT_toggles['fill'],
-                                       period_idx=self.active_period,
-                                       pt_type=self.PT_type,
-                                       bostick_depth=0,
-                                       cb_slot=cb_slot)
-            cb_slot += 1
-            # Because the characteristics of a subtracted PT are not predictable, don't draw a bar if you're doing subtracted PTs
-            if bar_fill != PT_toggles['fill'] and len(PT_toggles['data']) == 1:
-                self.map.plot_phase_bar(data_type=PT_toggles['data'],
-                                        fill_param=bar_fill,
-                                        period_idx=self.active_period,
-                                        pt_type=self.PT_type,
-                                        cb_slot=cb_slot)
-                cb_slot += 1
-        induction_toggles = self.get_induction_toggles()
-        if induction_toggles['data']:
-            if self.arrowType.itemText(self.arrowType.currentIndex()).lower() == 'real':
-                arrowType = ['R']
-            elif self.arrowType.itemText(self.arrowType.currentIndex()).lower() == 'imaginary':
-                arrowType = ['I']
-            else:
-                arrowType = ['R', 'I']
-            if self.actionParkinson.isChecked():
-                arrow_convention = 'parkinson'
-            elif self.actionWeise.isChecked():
-                arrow_convention = 'weise'
-            self.map.plot_induction_arrows(data_type=induction_toggles['data'],
-                                           normalize=induction_toggles['normalize'],
-                                           period_idx=self.active_period,
-                                           arrow_type=arrowType,
-                                           arrow_convention=arrow_convention)
-        if 'None' in PT_toggles['data'] and not induction_toggles['data']:
-            self.map.plot_locations(cb_slot=cb_slot)
-        # if self.map.window['colorbar']:
-        #     self.map.window['colorbar'].ax.tick_params(labelsize=self.map.cb_fontsize)
-        self.set_axis_settings()
-        self.map.set_axis_labels()
-        self.canvas.draw()
+        pseudosection = self.get_pseudosection_toggles()
+        phase_tensors = self.get_PT_toggles()
+        induction = self.get_induction_toggles()
+        show_image = self.actionShow_JPEG.isChecked() and len(self.background_image['extent'])
+        return gplot.MapSettings(
+            period_idx=self.active_period,
+            image=self.background_image['image'] if show_image else None,
+            image_extent=self.background_image['extent'],
+            plan_slice=self.planSlice.value() if plan_view else None,
+            rho_axis=self.rhoAxis.currentText(),
+            pseudosection=pseudosection['data'] if pseudosection['fill'] else [],
+            pseudosection_fill=''.join([pseudosection['fill'] or '', pseudosection['component']]),
+            interpolant=self.Interpolant.currentText().lower(),
+            n_interp=self.nInterp.value(),
+            plot_rms=bool(self.plotRMS.checkState()),
+            phase_tensors=[] if 'None' in phase_tensors['data'] else phase_tensors['data'],
+            pt_fill=phase_tensors['fill'],
+            pt_bar_fill=self.Bar_fill.currentText(),
+            pt_type=self.PT_type,
+            pt_rotation_axis='x' if self.actionPTRotAxisX.isChecked() else 'y',
+            induction_arrows=induction['data'],
+            normalize_arrows=induction['normalize'],
+            arrow_type=self.ARROW_TYPES.get(self.arrowType.currentText().lower(), ['R', 'I']),
+            arrow_convention='weise' if self.actionWeise.isChecked() else 'parkinson',
+            equal_aspect=self.actionEqualAspect.isChecked())
 
     def set_axis_settings(self):
         """Apply the equal-aspect and lock-axis menu options and refresh
@@ -916,28 +847,7 @@ class MapMain(QMapViewMain, UI_MapViewWindow):
             toggles['data'].append('response')
         else:
             self.toggle_responsePseudo.setCheckState(0)
-        index = self.pseudoFillType.currentIndex()
-        item = self.pseudoFillType.itemText(index).lower()
-        if item == 'apparent resistivity':
-            toggles['fill'] = 'Rho'
-        elif item == 'phase':
-            toggles['fill'] = 'Pha'
-        elif item == 'tipper amplitude':
-            toggles['fill'] = 'tip'
-        elif item == 'bostick depth':
-            toggles['fill'] = 'bost'
-        elif item == 'beta':
-            toggles['fill'] = 'beta'
-        elif item == 'abs. beta':
-            toggles['fill'] = 'absbeta'
-        elif item == 'pt azimuth':
-            toggles['fill'] = 'azimuth'
-        elif item == 'pt split':
-            toggles['fill'] = 'pt_split'
-        elif item == 'phi_max':
-            toggles['fill'] = 'phi_max'
-        elif item == 'phi_min':
-            toggles['fill'] = 'phi_min'
+        toggles['fill'] = self.PSEUDOSECTION_FILLS.get(self.pseudoFillType.currentText().lower())
         index = self.Pseudosection_fill.currentIndex()
         toggles['component'] = self.Pseudosection_fill.itemText(index)
         return toggles

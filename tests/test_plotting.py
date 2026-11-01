@@ -103,3 +103,34 @@ def test_plan_pseudosection(dataset, fill):
     # (matplotlib < 3.9 stores only the filled cells of a pcolor grid, so don't rely on its size)
     grid = np.ma.masked_invalid(np.asarray(ax.collections[0].get_array(), dtype=float))
     assert 0 < grid.count() <= 30 * 30
+
+
+def _drawn(view, settings=None):
+    view.draw(settings)
+    ax = view.window['axes'][0]
+    return {'patches': len(ax.patches), 'collections': [type(c).__name__ for c in ax.collections],
+            'colour bars': len(view.window['figure'].axes) - 1}
+
+
+def test_map_view_draws_layers_from_settings(dataset):
+    view = gplot.MapView()
+    view.load_dataset(dataset, active_sites=['SYN001'])
+    assert len(view.site_locations['all']) == 30 and len(view.site_locations['active']) == 1
+    markers = _drawn(view)
+    assert markers['patches'] == 0 and markers['collections']
+    layers = _drawn(view, gplot.MapSettings(period_idx=PERIOD_IDX, phase_tensors=['data'], pt_fill='Beta',
+                                            induction_arrows=['data']))
+    assert layers['patches'] == 30 and 'Quiver' in layers['collections']
+    assert layers['colour bars'] == 1
+    with_bars = _drawn(view, gplot.MapSettings(period_idx=PERIOD_IDX, phase_tensors=['data'], pt_fill='Beta',
+                                               pt_bar_fill='Alpha'))
+    assert with_bars['patches'] > 30
+
+
+def test_map_view_plan_view_replaces_the_pseudosection(dataset):
+    view = gplot.MapView()
+    view.load_dataset(dataset)
+    pseudosection = _drawn(view, gplot.MapSettings(pseudosection=['data'], n_interp=30, interpolant='linear'))
+    plan_view = _drawn(view, gplot.MapSettings(plan_slice=10))
+    assert pseudosection != plan_view
+    assert _drawn(view, gplot.MapSettings(plan_slice=10, pseudosection=['data'], n_interp=30)) == plan_view

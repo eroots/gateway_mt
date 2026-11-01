@@ -54,6 +54,7 @@ from scipy.interpolate import RBFInterpolator
 import gateway_mt.utils as utils
 from gateway_mt.e_colours import colourmaps as cm
 from copy import deepcopy
+from dataclasses import dataclass
 try:
     import naturalneighbor as nn
     has_nn = True
@@ -865,6 +866,85 @@ class DataPlotManager(object):
                 self.axes[axnum].set_yscale('log')
 
 
+@dataclass
+class MapSettings:
+    """Which layers :meth:`MapView.draw` shows, and at which period.
+
+    The styling (colour limits, scales, markers, tolerances) stays on the
+    :class:`MapView` itself. The defaults draw just the station markers.
+
+    Attributes
+    ----------
+    period_idx : int
+        Index of the period to plot.
+    image, image_extent : array, list of float
+        Background image and its ``[x0, x1, y0, y1]`` extent. No image if
+        ``image`` is None.
+    plan_slice : int or None
+        Depth index of the model plan view, or None for no plan view. The
+        plan view replaces the pseudosection.
+    rho_axis : str
+        Model resistivity to show in the plan view (see
+        :meth:`MapView.plot_plan_view`).
+    pseudosection : list of str
+        Data types (``'data'``, ``'response'``) for the plan pseudosection.
+        Empty for none.
+    pseudosection_fill : str
+        Quantity and component, e.g. ``'RhoXY'`` (see
+        :meth:`MapView.plan_pseudosection`).
+    interpolant : str or None
+        Interpolant for the pseudosection. None keeps
+        :attr:`MapView.interpolant`.
+    n_interp : int
+        Pseudosection grid size.
+    plot_rms : bool
+        Show the station RMS on the markers.
+    phase_tensors : list of str
+        Data types for the phase-tensor ellipses. Both gives the
+        difference. Empty for none.
+    pt_fill, pt_bar_fill : str
+        Ellipse fill, and a bar fill drawn on top. The bar is only drawn
+        for a single data type, and if it differs from ``pt_fill``.
+    pt_type : str
+        ``'phi'``, ``'phi_a'``, ``'Ua'`` or ``'Va'``.
+    pt_rotation_axis : str
+        ``'x'`` or ``'y'`` (see :meth:`MapView.set_pt_rotation_axis`).
+    induction_arrows : list of str
+        Data types for the induction arrows. Empty for none.
+    normalize_arrows : bool
+    arrow_type : list of str
+        ``['R']``, ``['I']`` or both.
+    arrow_convention : str
+        ``'parkinson'`` or ``'weise'``.
+    equal_aspect : bool
+
+    Examples
+    --------
+    >>> settings = MapSettings(period_idx=5, phase_tensors=['data'], pt_fill='Beta',
+    ...                        induction_arrows=['data'])
+    """
+    period_idx: int = 0
+    image: object = None
+    image_extent: list = None
+    plan_slice: int = None
+    rho_axis: str = 'rho_x'
+    pseudosection: list = ()
+    pseudosection_fill: str = 'RhoXY'
+    interpolant: str = None
+    n_interp: int = 200
+    plot_rms: bool = False
+    phase_tensors: list = ()
+    pt_fill: str = 'Alpha'
+    pt_bar_fill: str = None
+    pt_type: str = 'phi'
+    pt_rotation_axis: str = 'x'
+    induction_arrows: list = ()
+    normalize_arrows: bool = False
+    arrow_type: list = ('R',)
+    arrow_convention: str = 'parkinson'
+    equal_aspect: bool = True
+
+
 class MapView(object):
     """Plan-view map / pseudosection / model-slice figure.
 
@@ -880,7 +960,8 @@ class MapView(object):
     through :attr:`site_data`; several methods also expect the caller to
     have assigned :attr:`dataset` (a
     :class:`gateway_mt.data_structures.Dataset`), which ``__init__`` does *not*
-    create.
+    create. :meth:`load_dataset` sets both up, and :meth:`draw` draws a
+    whole map from a :class:`MapSettings`, as Data Plot's map window does.
 
     Parameters
     ----------
@@ -1219,6 +1300,114 @@ class MapView(object):
                 self.site_data['raw_data'].spatial_units = units
             if self.site_data['data']:
                 self.site_data['data'].spatial_units = units
+
+    def load_dataset(self, dataset, sites=None, active_sites=None, spatial_units=None):
+        """Map ``dataset``: its data, response, raw data and model.
+
+        Parameters
+        ----------
+        dataset : gateway_mt.data_structures.Dataset
+        sites : list of str, optional
+            Sites to show (default: all of ``dataset.data``).
+        active_sites : list of str, optional
+            The highlighted ones (default: none).
+        spatial_units : {'m', 'km'}, optional
+            Set on the dataset first, if given.
+        """
+        self.dataset = dataset
+        self.data = dataset.data
+        self.raw_data = dataset.raw_data
+        self.response = dataset.response
+        self.model = dataset.model
+        self.site_names = list(dataset.data.site_names) if sites is None else sites
+        self._active_sites = active_sites or []
+        if spatial_units:
+            dataset.spatial_units = spatial_units
+        self.set_locations()
+
+    def set_pt_rotation_axis(self, axis):
+        """Set the reference axis (``'x'`` or ``'y'``) of the data's phase
+        tensors, and :attr:`pt_rotation_axis`."""
+        first = self.dataset.data.sites[self.dataset.data.site_names[0]]
+        if axis != self.pt_rotation_axis or axis != first.phase_tensors[0].rotation_axis:
+            self.pt_rotation_axis = axis
+            for site in self.dataset.data.site_names:
+                for ii in range(self.dataset.data.NP):
+                    self.dataset.data.sites[site].phase_tensors[ii].rotation_axis = axis
+
+    def draw(self, settings=None):
+        """Clear the map and draw the layers in ``settings``.
+
+        Layers are drawn from the bottom up: background image, model plan
+        view or plan pseudosection, site names, phase tensors (and bars),
+        induction arrows. If there are neither phase tensors nor arrows,
+        the station markers are drawn instead. Each layer with a colour
+        scale takes the next colour bar slot.
+
+        Parameters
+        ----------
+        settings : MapSettings, optional
+            Default: just the station markers.
+
+        Examples
+        --------
+        >>> view = MapView()
+        >>> view.load_dataset(dataset, active_sites=['SYN001'])
+        >>> view.draw(MapSettings(period_idx=5, phase_tensors=['data']))
+        >>> view.window['figure'].savefig('pt_map.png')
+        """
+        if settings is None:
+            settings = MapSettings()
+        ax = self.window['axes'][0]
+        for key in ('colorbar', 'colorbar_twin'):
+            if self.window[key]:
+                self.window[key].remove()
+                self.window[key] = None
+        ax.clear()
+        cb_slot = 1
+        if settings.image is not None:
+            self.plot_image(image=settings.image, extents=settings.image_extent)
+        if settings.plan_slice is not None:
+            self.plot_plan_view(z_slice=settings.plan_slice, rho_axis=settings.rho_axis, cb_slot=0)
+        elif settings.pseudosection and settings.pseudosection_fill:
+            if settings.interpolant:
+                self.interpolant = settings.interpolant
+            self.plan_pseudosection(data_type=list(settings.pseudosection),
+                                    fill_param=settings.pseudosection_fill,
+                                    period_idx=settings.period_idx,
+                                    n_interp=settings.n_interp,
+                                    cb_slot=cb_slot)
+            cb_slot += 1
+        self.plot_rms = settings.plot_rms
+        self.plot_annotate()
+        if settings.phase_tensors:
+            self.set_pt_rotation_axis(settings.pt_rotation_axis)
+            self.plot_phase_tensor(data_type=list(settings.phase_tensors),
+                                   fill_param=settings.pt_fill,
+                                   period_idx=settings.period_idx,
+                                   pt_type=settings.pt_type,
+                                   bostick_depth=0,
+                                   cb_slot=cb_slot)
+            cb_slot += 1
+            # A difference tensor's shape isn't predictable, so only draw bars for a single data type
+            if (settings.pt_bar_fill and settings.pt_bar_fill != settings.pt_fill
+                    and len(settings.phase_tensors) == 1):
+                self.plot_phase_bar(data_type=list(settings.phase_tensors),
+                                    fill_param=settings.pt_bar_fill,
+                                    period_idx=settings.period_idx,
+                                    pt_type=settings.pt_type,
+                                    cb_slot=cb_slot)
+                cb_slot += 1
+        if settings.induction_arrows:
+            self.plot_induction_arrows(data_type=list(settings.induction_arrows),
+                                       normalize=settings.normalize_arrows,
+                                       period_idx=settings.period_idx,
+                                       arrow_type=list(settings.arrow_type),
+                                       arrow_convention=settings.arrow_convention)
+        if not settings.phase_tensors and not settings.induction_arrows:
+            self.plot_locations(cb_slot=cb_slot)
+        ax.set_aspect('equal' if settings.equal_aspect else 'auto')
+        self.set_axis_labels()
 
     def get_locations(self, sites=None, coordinate_system=None, inquire_only=False):
         """Return station locations as an ``(N, 2)`` ``[northing, easting]``
