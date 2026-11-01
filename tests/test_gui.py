@@ -315,6 +315,22 @@ def test_data_plot_removes_and_restores_sites(data_plot, pages, removed, expecte
     assert data_plot.rmSitesList.count() == 0
 
 
+def test_data_plot_drops_subplots_when_sites_run_out(data_plot):
+    """Removing all but three sites leaves three subplots, none repeated."""
+    removed = ['SYN{:03d}'.format(ii) for ii in range(1, 28)]
+    with quiet():
+        _select(data_plot.siteList, removed)
+        data_plot.remove_sites()
+    assert data_plot.dpm.site_names == ['SYN028', 'SYN029', 'SYN030']
+    assert data_plot.site_names == data_plot.dpm.site_names
+    assert len(data_plot.dpm.axes) == 3 and data_plot.numSubplots.value() == 3
+    with quiet():
+        _select(data_plot.rmSitesList, removed)
+        data_plot.add_sites()
+        data_plot.numSubplots.setValue(6)
+    assert data_plot.dpm.site_names == ['SYN028', 'SYN029', 'SYN030', 'SYN001', 'SYN002', 'SYN003']
+
+
 class _Pick:
     """Just enough of a matplotlib pick event for DataMain.onpick."""
     def __init__(self, ax, ind, button, raw):
@@ -399,7 +415,7 @@ def test_replacement_sites():
     assert replacement_sites(names, ['S2', 'S3', 'gone'], 1) == ['S4']           # next after the plotted ones
     assert replacement_sites(names, ['S7', 'S8', 'S9', 'gone'], 2) == ['S6', 'S5']  # at the end: before them
     assert replacement_sites(names, ['S6', 'S7', 'S8'], 2) == ['S9', 'S5']         # after, then before
-    assert replacement_sites(['S0', 'S1'], ['S0', 'gone'], 3) == ['S1', 'S1', 'S1']  # not enough: repeat
+    assert replacement_sites(['S0', 'S1'], ['S0', 'gone'], 3) == ['S1']                # not enough: fewer
 
 
 def test_error_tree_values():

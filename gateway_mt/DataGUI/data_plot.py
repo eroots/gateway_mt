@@ -2031,8 +2031,9 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
         The dataset keeps their data (:attr:`stored_sites`), so
         :meth:`add_sites` can restore them. Any that were on screen are
-        replaced (see :func:`replacement_sites`) before the map and labels
-        refresh.
+        replaced (see :func:`replacement_sites`). If there aren't enough
+        sites left to replace them all, the extra subplots are dropped.
+        Then the map and labels refresh.
         """
         site_names = []
         min_row = np.inf
@@ -2046,10 +2047,17 @@ class DataMain(QMainWindow, Ui_MainWindow):
         intersect = [name for name in self.dpm.site_names if name in site_names]
         if intersect:
             new_sites = replacement_sites(self.dataset.data.site_names, self.dpm.site_names, len(intersect))
-            if len(set(new_sites) - set(self.dpm.site_names)) < len(intersect):
-                print('No more sites to add')
-            nsites = self.dataset.get_sites(site_names=new_sites, dTypes='all')
-            self.dpm.replace_sites(sites_out=intersect, sites_in=nsites)
+            if new_sites:
+                nsites = self.dataset.get_sites(site_names=new_sites, dTypes='all')
+                self.dpm.replace_sites(sites_out=intersect[:len(new_sites)], sites_in=nsites)
+            leftover = intersect[len(new_sites):]
+            if leftover:
+                keep = [ii for ii, name in enumerate(self.dpm.site_names) if name not in leftover]
+                for dType, sites in self.dpm.sites.items():
+                    if sites:
+                        self.dpm.sites[dType] = [sites[ii] for ii in keep]
+                self.dpm.plot_data()
+                self.numSubplots.setValue(self.dpm.num_sites)
             self.site_names = self.dpm.site_names
             self.dpm.fig.canvas.draw()
             self.expand_tree_nodes(to_expand=self.site_names, expand=True)
@@ -2807,12 +2815,11 @@ class DataMain(QMainWindow, Ui_MainWindow):
 
 
 def replacement_sites(site_names, plotted, n):
-    """Pick ``n`` sites to plot in place of removed ones.
+    """Pick up to ``n`` sites to plot in place of removed ones.
 
     Takes the first sites not already plotted, looking forward from the
-    first plotted site and then back from it. If there aren't enough, the
-    last one found (or the last site) is repeated, so every subplot still
-    has a site.
+    first plotted site and then back from it. If there aren't enough,
+    fewer than ``n`` are returned.
 
     Parameters
     ----------
@@ -2829,9 +2836,7 @@ def replacement_sites(site_names, plotted, n):
     indices = [site_names.index(name) for name in plotted if name in site_names]
     start = min(indices) if indices else 0
     order = list(range(start, len(site_names))) + list(range(start - 1, -1, -1))
-    chosen = [site_names[ii] for ii in order if site_names[ii] not in plotted][:n]
-    filler = chosen[-1] if chosen else site_names[-1]
-    return chosen + [filler] * (n - len(chosen))
+    return [site_names[ii] for ii in order if site_names[ii] not in plotted][:n]
 
 
 def error_multiplier(text):
