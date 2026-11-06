@@ -62,7 +62,7 @@ def test_launcher_starts_what_is_installed(monkeypatch, tmp_path):
     assert started == []
     window.buttons['mtplot'].click()
     window.buttons['Gateway'].click()
-    assert started == [['/bin/mtplot'], ['/bin/gateway_mt']]
+    assert started == [['/bin/mtplot', '--new'], ['/bin/gateway_mt']]    # Gateway asks for a project itself
 
 
 def test_launcher_warns_if_a_program_will_not_start(monkeypatch):
@@ -97,7 +97,7 @@ def test_launcher_opens_the_project_in_its_folder(monkeypatch, tmp_path):
     window.buttons['Gateway'].click()
     assert started[-1] == (['gateway_mt', os.path.join(folder, 'wst.pymt')], folder)
     window.buttons['mtinv'].click()
-    assert started[-1] == (['mtinv'], folder)
+    assert started[-1] == (['mtinv', '--new'], folder)
     # Two projects: ask which, and don't start anything if that's cancelled
     answer = [('wst.mtplot.json', True)]
     monkeypatch.setattr(QtWidgets.QInputDialog, 'getItem', staticmethod(lambda *a, **k: answer[0]))

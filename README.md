@@ -122,8 +122,9 @@ are greyed out). Each one runs as its own program.
 Choose a project folder (or start it with `mt_launcher <folder>`; the default
 is the current folder), and each button opens that program's project from the
 folder: a `.pymt` for Gateway, a `.mtinv.json` for mtinv and a `.mtplot.json`
-for mtplot. If there is more than one it asks which, and if there are none the
-program starts in that folder, ready to save a new one there.
+for mtplot. If there is more than one it asks which. If there are none, the
+program starts in that folder: mtinv and mtplot with a blank project, and
+Gateway asking for a project name as usual.
 
 Gateway can also open a project directly with `gateway_mt project.pymt`.
 

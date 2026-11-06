@@ -17,10 +17,11 @@ import sysconfig
 
 from PyQt5 import QtWidgets
 
-#: The buttons: label, command, project files and a short description.
-PROGRAMS = (('Gateway', 'gateway_mt', '*.pymt', 'Projects, plus Data Plot, Model Viewer and Mesh Designer'),
-            ('mtinv', 'mtinv', '*.mtinv.json', 'Inversion setup'),
-            ('mtplot', 'mtplot', '*.mtplot.json', 'Model plotting'))
+#: The buttons: label, command, project files, the option that starts a blank
+#: project (Gateway has none, it asks for a project itself) and a short description.
+PROGRAMS = (('Gateway', 'gateway_mt', '*.pymt', None, 'Projects, plus Data Plot, Model Viewer and Mesh Designer'),
+            ('mtinv', 'mtinv', '*.mtinv.json', '--new', 'Inversion setup'),
+            ('mtplot', 'mtplot', '*.mtplot.json', '--new', 'Model plotting'))
 
 
 def find_command(command):
@@ -46,7 +47,8 @@ class Launcher(QtWidgets.QWidget):
     folder : str, optional
         Project folder (default: the current folder).
     programs : sequence of tuple, optional
-        ``(label, command, project files, description)`` for each button.
+        ``(label, command, project files, new project option, description)``
+        for each button.
 
     Attributes
     ----------
@@ -72,13 +74,13 @@ class Launcher(QtWidgets.QWidget):
         choose = QtWidgets.QPushButton('Project Folder...')
         choose.clicked.connect(self.choose_folder)
         layout.addWidget(choose)
-        for label, command, pattern, description in programs:
+        for label, command, pattern, new_option, description in programs:
             button = QtWidgets.QPushButton()
             path = find_command(command)
             button.setEnabled(path is not None)
             button.setToolTip(description if path else "'{}' isn't installed in this environment".format(command))
-            button.clicked.connect(lambda checked=False, label=label, path=path, pattern=pattern:
-                                   self.start(label, path, pattern))
+            button.clicked.connect(lambda checked=False, label=label, path=path, pattern=pattern, new=new_option:
+                                   self.start(label, path, pattern, new))
             layout.addWidget(button)
             self.buttons[label] = button
         self.show_folder()
@@ -90,7 +92,7 @@ class Launcher(QtWidgets.QWidget):
     def show_folder(self):
         """Show the folder, and on each button what it would open."""
         self.folderLabel.setText(self.folder)
-        for label, command, pattern, description in self.programs:
+        for label, command, pattern, new_option, description in self.programs:
             files = self.project_files(pattern)
             if len(files) == 1:
                 project = os.path.basename(files[0])
@@ -105,11 +107,13 @@ class Launcher(QtWidgets.QWidget):
             self.folder = os.path.abspath(folder)
             self.show_folder()
 
-    def start(self, label, path, pattern):
+    def start(self, label, path, pattern, new_option=None):
         """Start a program on its project from the folder.
 
-        If there are several projects, asks which to open. Shows a warning if
-        the program can't be started.
+        If there are several projects, asks which to open. If there are none,
+        ``new_option`` (if any) starts a blank project rather than whichever
+        one the program would reopen. Shows a warning if the program can't be
+        started.
         """
         files = self.project_files(pattern)
         if len(files) > 1:
@@ -118,8 +122,9 @@ class Launcher(QtWidgets.QWidget):
             if not ok:
                 return
             files = [os.path.join(self.folder, name)]
+        arguments = files or ([new_option] if new_option else [])
         try:
-            self.processes.append(subprocess.Popen([path] + files, cwd=self.folder))
+            self.processes.append(subprocess.Popen([path] + arguments, cwd=self.folder))
         except OSError as e:
             QtWidgets.QMessageBox.warning(self, 'Launcher', 'Could not start {}: {}'.format(label, e))
 
