@@ -113,6 +113,12 @@ gateway_mt
 
 and open `synthetic.pymt`.
 
+### Launcher
+
+`mt_launcher` opens a small window with a button for Gateway, plus mtinv and
+mtplot if they are installed in the same environment (otherwise their buttons
+are greyed out). Each one runs as its own program.
+
 ## Command-line tools
 
 | Command | What it does |

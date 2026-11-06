@@ -19,6 +19,8 @@ Change Log
 
   * The maps the :ref:`Map Viewer` draws can be drawn from a script: gplot.MapView.load_dataset loads a dataset and MapView.draw draws the layers chosen in a gplot.MapSettings (see :ref:`Recipes`).
 
+  * Added mt_launcher, a small window that starts Gateway, and mtinv / mtplot if they are installed in the same environment.
+
   * Changes that affect results or files:
 
     * Borrowing a nearby period now uses one tolerance at all periods (10% to flag, 20% to remove), instead of 2% below 1 s. The Dummy Data box in :ref:`Data Plot` has one Flag and one Remove value, and the unused 'Missing Period Error' box is gone.

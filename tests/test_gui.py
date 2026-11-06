@@ -49,6 +49,36 @@ def canned_dialogs(monkeypatch, tmp_path):
     return answers
 
 
+def test_launcher_starts_what_is_installed(monkeypatch):
+    """Each program runs as its own process; one that isn't installed is greyed out."""
+    from gateway_mt import launcher
+    started = []
+    monkeypatch.setattr(launcher, 'find_command', {'gateway_mt': '/bin/gateway_mt', 'mtplot': '/bin/mtplot'}.get)
+    monkeypatch.setattr(launcher.subprocess, 'Popen', lambda command: started.append(command))
+    window = launcher.Launcher()
+    assert list(window.buttons) == ['Gateway', 'mtinv', 'mtplot']
+    assert not window.buttons['mtinv'].isEnabled() and 'installed' in window.buttons['mtinv'].toolTip()
+    window.buttons['mtinv'].click()
+    assert started == []
+    window.buttons['mtplot'].click()
+    window.buttons['Gateway'].click()
+    assert started == [['/bin/mtplot'], ['/bin/gateway_mt']]
+
+
+def test_launcher_warns_if_a_program_will_not_start(monkeypatch):
+    from PyQt5 import QtWidgets
+    from gateway_mt import launcher
+
+    def fail(command):
+        raise OSError('broken')
+    warnings = []
+    monkeypatch.setattr(launcher, 'find_command', lambda command: '/bin/' + command)
+    monkeypatch.setattr(launcher.subprocess, 'Popen', fail)
+    monkeypatch.setattr(QtWidgets.QMessageBox, 'warning', staticmethod(lambda *a: warnings.append(a[2])))
+    launcher.Launcher().buttons['mtinv'].click()
+    assert warnings == ['Could not start mtinv: broken']
+
+
 def _project_files():
     """The synthetic .pymt project, with its relative paths resolved."""
     from gateway_mt.GUI_common.classes import FileInputParser

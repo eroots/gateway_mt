@@ -46,6 +46,7 @@ gateway_mt = "gateway_mt.GatewayGUI.gateway_main:main"
 data_plot = "gateway_mt.DataGUI.data_plot:main"
 mesh_designer = "gateway_mt.ModelGUI.mesh_designer:main"
 model_viewer = "gateway_mt.ModelGUI.model_viewer:main"
+mt_launcher = "gateway_mt.launcher:main"
 # Command-line tools
 f2l = "gateway_mt.scripts.f2l:main"
 plot_edi = "gateway_mt.scripts.plot_edi:main"
