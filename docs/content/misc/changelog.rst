@@ -19,7 +19,9 @@ Change Log
 
   * The maps the :ref:`Map Viewer` draws can be drawn from a script: gplot.MapView.load_dataset loads a dataset and MapView.draw draws the layers chosen in a gplot.MapSettings (see :ref:`Recipes`).
 
-  * Added mt_launcher, a small window that starts Gateway, and mtinv / mtplot if they are installed in the same environment.
+  * Added mt_launcher, a small window that starts Gateway, and mtinv / mtplot if they are installed in the same environment. Choosing a project folder opens each program's project from it. gateway_mt can also be given a project file (gateway_mt project.pymt).
+
+  * Project files with full paths on a Windows drive can be opened from both Windows and WSL.
 
   * Changes that affect results or files:
 

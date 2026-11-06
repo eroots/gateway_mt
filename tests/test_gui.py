@@ -49,13 +49,13 @@ def canned_dialogs(monkeypatch, tmp_path):
     return answers
 
 
-def test_launcher_starts_what_is_installed(monkeypatch):
+def test_launcher_starts_what_is_installed(monkeypatch, tmp_path):
     """Each program runs as its own process; one that isn't installed is greyed out."""
     from gateway_mt import launcher
     started = []
     monkeypatch.setattr(launcher, 'find_command', {'gateway_mt': '/bin/gateway_mt', 'mtplot': '/bin/mtplot'}.get)
-    monkeypatch.setattr(launcher.subprocess, 'Popen', lambda command: started.append(command))
-    window = launcher.Launcher()
+    monkeypatch.setattr(launcher.subprocess, 'Popen', lambda command, cwd: started.append(command))
+    window = launcher.Launcher(str(tmp_path))
     assert list(window.buttons) == ['Gateway', 'mtinv', 'mtplot']
     assert not window.buttons['mtinv'].isEnabled() and 'installed' in window.buttons['mtinv'].toolTip()
     window.buttons['mtinv'].click()
@@ -69,7 +69,7 @@ def test_launcher_warns_if_a_program_will_not_start(monkeypatch):
     from PyQt5 import QtWidgets
     from gateway_mt import launcher
 
-    def fail(command):
+    def fail(command, cwd):
         raise OSError('broken')
     warnings = []
     monkeypatch.setattr(launcher, 'find_command', lambda command: '/bin/' + command)
@@ -77,6 +77,74 @@ def test_launcher_warns_if_a_program_will_not_start(monkeypatch):
     monkeypatch.setattr(QtWidgets.QMessageBox, 'warning', staticmethod(lambda *a: warnings.append(a[2])))
     launcher.Launcher().buttons['mtinv'].click()
     assert warnings == ['Could not start mtinv: broken']
+
+
+def test_launcher_opens_the_project_in_its_folder(monkeypatch, tmp_path):
+    """Each program opens its own file from the folder, and starts in that folder."""
+    from PyQt5 import QtWidgets
+    from gateway_mt import launcher
+    (tmp_path / 'wst.pymt').touch()
+    (tmp_path / 'wst.mtplot.json').touch()
+    (tmp_path / 'b.mtplot.json').touch()
+    started = []
+    monkeypatch.setattr(launcher, 'find_command', lambda command: command)
+    monkeypatch.setattr(launcher.subprocess, 'Popen', lambda command, cwd: started.append((command, cwd)))
+    window = launcher.Launcher(str(tmp_path))
+    assert window.buttons['Gateway'].text() == 'Gateway: wst.pymt'
+    assert window.buttons['mtinv'].text() == 'mtinv: new project'
+    assert window.buttons['mtplot'].text() == 'mtplot: 2 projects'
+    folder = str(tmp_path)
+    window.buttons['Gateway'].click()
+    assert started[-1] == (['gateway_mt', os.path.join(folder, 'wst.pymt')], folder)
+    window.buttons['mtinv'].click()
+    assert started[-1] == (['mtinv'], folder)
+    # Two projects: ask which, and don't start anything if that's cancelled
+    answer = [('wst.mtplot.json', True)]
+    monkeypatch.setattr(QtWidgets.QInputDialog, 'getItem', staticmethod(lambda *a, **k: answer[0]))
+    window.buttons['mtplot'].click()
+    assert started[-1] == (['mtplot', os.path.join(folder, 'wst.mtplot.json')], folder)
+    answer[0] = ('', False)
+    count = len(started)
+    window.buttons['mtplot'].click()
+    assert len(started) == count
+    # A new folder updates the buttons
+    other = tmp_path / 'other'
+    other.mkdir()
+    monkeypatch.setattr(QtWidgets.QFileDialog, 'getExistingDirectory', staticmethod(lambda *a, **k: str(other)))
+    window.choose_folder()
+    assert window.folder == str(other) and window.buttons['Gateway'].text() == 'Gateway: new project'
+    monkeypatch.setattr(QtWidgets.QFileDialog, 'getExistingDirectory', staticmethod(lambda *a, **k: ''))
+    window.choose_folder()
+    assert window.folder == str(other)
+
+
+def test_gateway_opens_a_project_without_asking(no_dialogs, monkeypatch):
+    from PyQt5 import QtWidgets
+    from gateway_mt.GatewayGUI import gateway_main
+
+    def no_prompt(*args, **kwargs):
+        raise AssertionError('Should not have asked for a project')
+    monkeypatch.setattr(QtWidgets.QFileDialog, 'getSaveFileName', staticmethod(no_prompt))
+    project = synthetic('synthetic.pymt')
+    window = gateway_main.NewProject(project)
+    assert window.datasetTable.item(0, 0).text() == 'synthetic'
+    assert window.projectName.text() == 'synthetic.pymt'
+    assert window.project_path == os.path.dirname(project)
+    window.close()
+
+
+def test_start_file_paths_on_a_windows_drive_suit_this_system(tmp_path):
+    """The same project file opens from Windows and WSL."""
+    from gateway_mt.GUI_common.classes import FileInputParser
+    from gateway_mt.utils import local_path
+    start = tmp_path / 'pystart'
+    start.write_text('% run\nlist edis/a.lst\ndata /mnt/c/my data/a.dat\nmodel C:/my data/a.model\n')
+    files = FileInputParser.read_pystart(str(start))['run']
+    assert files['list'] == 'edis/a.lst'
+    assert files['data'] == local_path('/mnt/c/my data/a.dat')
+    assert files['model'] == local_path('C:/my data/a.model')
+    if os.name == 'nt':
+        assert files['data'] == 'C:/my data/a.dat'
 
 
 def _project_files():

@@ -41,6 +41,7 @@ it.  Roughly, the functions fall into these groups:
 import functools
 import inspect
 import os
+import re
 from copy import deepcopy
 from math import log10, floor
 
@@ -1720,6 +1721,45 @@ def regrid_model(mod, new_x, new_y, new_z, rho_axis=None):
 # --------------------------------------------------------------------------- #
 # Filesystem
 # --------------------------------------------------------------------------- #
+def local_path(path):
+    """Write a path the way this system names it, for files on a Windows drive.
+
+    Windows calls a file ``C:/data/a.dat`` and WSL calls it
+    ``/mnt/c/data/a.dat``, so a project can be opened from either. Any other
+    path is returned as it is, as is a drive letter on a Linux system
+    without that drive mounted.
+
+    Parameters
+    ----------
+    path : str
+
+    Returns
+    -------
+    str
+
+    Examples
+    --------
+    On Windows:
+
+    >>> local_path('/mnt/c/data/a.dat')
+    'C:/data/a.dat'
+
+    In WSL:
+
+    >>> local_path('C:/data/a.dat')
+    '/mnt/c/data/a.dat'
+    """
+    if os.name == 'nt':
+        match = re.match(r'/mnt/([a-zA-Z])(/.*)?$', path)
+        if match:
+            return '{}:{}'.format(match.group(1).upper(), match.group(2) or '/')
+    else:
+        match = re.match(r'([a-zA-Z]):[\\/](.*)$', path)
+        if match and os.path.isdir('/mnt/' + match.group(1).lower()):
+            return '/mnt/{}/{}'.format(match.group(1).lower(), match.group(2).replace('\\', '/'))
+    return path
+
+
 def check_file(outfile):
     """Return ``True`` if ``outfile`` exists and can be opened for reading.
 

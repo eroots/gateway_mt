@@ -646,7 +646,9 @@ class FileInputParser(object):
         ``data``, ``response`` (or ``resp``), ``model`` (or ``mod``),
         ``resolution`` (or ``res``) and ``raw_path`` (or ``raw``) files. A ``path`` line is prepended to file
         names given without a directory, and lines starting with ``#`` are
-        ignored (see :ref:`Startup File`).
+        ignored (see :ref:`Startup File`). Paths on a Windows drive are
+        converted for the system reading them (see
+        :func:`gateway_mt.utils.local_path`).
 
         Parameters
         ----------
@@ -708,6 +710,8 @@ class FileInputParser(object):
                     for file_type in dataset_files.keys():
                         if not os.path.dirname(dataset_files[file_type]):
                             dataset_files[file_type] = os.path.join(path, dataset_files[file_type])
+                for file_type, file in dataset_files.items():
+                    dataset_files[file_type] = utils.local_path(file)
         except FileNotFoundError:
             print('File not found: {}'.format(startup))
             return False

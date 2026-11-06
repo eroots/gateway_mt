@@ -65,6 +65,11 @@ class NewProject(QNewProject, Ui_NewProject):
     Built from ``new_project.ui``; multiple-row selection is enabled so
     Data Plot can be launched with several datasets at once.
 
+    Parameters
+    ----------
+    project_file : str, optional
+        Project to open. If omitted the window asks for one.
+
     Attributes
     ----------
     datasetTable : PyQt5.QtWidgets.QTableWidget
@@ -83,7 +88,7 @@ class NewProject(QNewProject, Ui_NewProject):
         "save first?" prompt in :meth:`open_project`.
     """
 
-    def __init__(self):
+    def __init__(self, project_file=None):
         super(NewProject, self).__init__()
         self.setupUi(self)
         self.setWindowFlag(QtCore.Qt.WindowMinimizeButtonHint, True)
@@ -100,7 +105,7 @@ class NewProject(QNewProject, Ui_NewProject):
         self.file_to_index = {'dataset': 0, 'list': 1, 'data': 2, 'response': 3, 'model': 4, 'resolution': 5}
         self.index_to_file = {0: 'dataset', 1: 'list', 2: 'data', 3: 'response', 4: 'model', 5: 'resolution'}
         self.setup_widgets()
-        ret = self.open_project()
+        ret = self.load_project(project_file) if project_file else self.open_project()
         if not ret:
             self.init_dataset_table()
         self.datasetTable.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
@@ -385,8 +390,6 @@ class NewProject(QNewProject, Ui_NewProject):
         pick the file to open, so that typing a new name here starts a
         fresh project rather than erroring (see :meth:`write_project`).
         """
-        files_dict = None
-
         if self.empty_table or not self.table_modified:
             pass
         else:
@@ -402,16 +405,33 @@ class NewProject(QNewProject, Ui_NewProject):
                                                              'gateway_mt Project Files (*.pymt);; All Files (*)',
                                                              options=QtWidgets.QFileDialog.DontConfirmOverwrite)[0]
         if project_file:
-            if os.path.exists(project_file):
-                files_dict = FileInputParser.read_pystart(project_file)
-            self.current_dir = os.path.abspath(project_file)
-            self.projectName.setText(os.path.basename(project_file))
-            self.datasetTable.cellChanged.disconnect()
-            self.init_dataset_table(files_dict)
-            self.datasetTable.cellChanged.connect(self.modify_table_cell)
-            self.project_path = os.path.dirname(project_file)
-            self.project_name = project_file
-            return True
+            return self.load_project(project_file)
+
+    def load_project(self, project_file):
+        """Load ``project_file`` into the table, or start a new project with
+        that name if it doesn't exist yet.
+
+        Parameters
+        ----------
+        project_file : str
+            Full path of the project file.
+
+        Returns
+        -------
+        bool
+            Always ``True``.
+        """
+        files_dict = None
+        if os.path.exists(project_file):
+            files_dict = FileInputParser.read_pystart(project_file)
+        self.current_dir = os.path.abspath(project_file)
+        self.projectName.setText(os.path.basename(project_file))
+        self.datasetTable.cellChanged.disconnect()
+        self.init_dataset_table(files_dict)
+        self.datasetTable.cellChanged.connect(self.modify_table_cell)
+        self.project_path = os.path.dirname(project_file)
+        self.project_name = project_file
+        return True
 
     def write_project(self, all_datasets):
         """Write ``all_datasets`` to a user-chosen ``.pymt`` file.
@@ -573,9 +593,10 @@ class NewProject(QNewProject, Ui_NewProject):
 
 
 def main():
-    """Console entry point (``gateway_mt``): run the project manager."""
+    """Console entry point (``gateway_mt [project_file]``): run the project manager."""
     app = QtWidgets.QApplication(sys.argv)  # Starts GUI event loop
-    mainGUI = NewProject()  # Instantiate a GUI window
+    project_file = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else None
+    mainGUI = NewProject(project_file)  # Instantiate a GUI window
     mainGUI.show()  # Show it.
     ret = app.exec_()
     sys.exit(ret)  # Properly close the loop when the window is closed.

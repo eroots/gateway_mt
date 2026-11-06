@@ -28,6 +28,8 @@ Assuming this file is called 'pystart' and the terminal is in the same folder, t
 
 	data_plot -n pystart -c data_set1:data_set2
 
+Full paths on a Windows drive can be written either way ('C:/data/inv.dat' or '/mnt/c/data/inv.dat'), and are converted for the system reading the file, so the same project can be opened from Windows and WSL.
+
 .. _Data File:
 
 Data File
