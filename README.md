@@ -69,6 +69,10 @@ Tested method (Python 3.10 or newer):
 If you are also using pyMT, install gateway_mt in its own environment: both
 packages install commands with the same names.
 
+If you also want to build meshes and set up GoFEM inversions, install
+[gateway_mesh](https://github.com/eroots/gateway_mesh) instead (Linux or
+WSL2): its environment includes gateway_mt alongside mtinv and mtplot.
+
 **On Linux**, Qt and VTK need a few system libraries that desktop installs
 usually already have. On a minimal Ubuntu / Debian system (or a fresh WSL),
 these are the ones the automated tests install:
