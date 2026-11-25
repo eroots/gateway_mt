@@ -10,6 +10,7 @@ Getting Started
 
    content/api_core/installation
    content/api_core/testing_installation
+   content/api_core/first_project
 
 API
 ===

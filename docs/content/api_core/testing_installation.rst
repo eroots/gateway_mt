@@ -22,6 +22,7 @@ From that folder, try launching each of the GUIs from the command line:
 
 If they all launch, you should be good to go.
 If not, most likely there is a dependency issue somewhere.
+:ref:`First Project` goes through a whole session with the same data.
 
 From the top of the repository you can also run the automated tests, which
 need no display::
