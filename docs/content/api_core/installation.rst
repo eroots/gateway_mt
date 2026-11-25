@@ -12,8 +12,11 @@ The tested route uses Anaconda (or Miniconda):
 
 1. Create and activate an environment::
 
-	conda create -n gateway_mt python=3.12 pip
+	conda create -n gateway_mt python=3.12 pip git
 	conda activate gateway_mt
+
+   ``git`` is there so pip can download from GitHub; leave it out if git is
+   already installed.
 
 2. Install gateway_mt::
 
@@ -22,6 +25,10 @@ The tested route uses Anaconda (or Miniconda):
 3. To update later::
 
 	pip install --upgrade git+https://github.com/eroots/gateway_mt.git
+
+To install a particular release instead of the latest code, add its tag::
+
+	pip install git+https://github.com/eroots/gateway_mt.git@v0.20.0
 
 If you intend to modify the code, clone the repository and install it in
 editable mode instead::
@@ -32,6 +39,15 @@ editable mode instead::
 
 Then check the installation with the bundled test data (see
 :ref:`Testing Installation`).
+
+System libraries on Linux
+-------------------------
+
+Qt and VTK need a few system libraries that desktop Linux installs usually
+already have. On a minimal Ubuntu / Debian system (or a fresh WSL), these are
+the ones the automated tests install::
+
+	sudo apt install libgl1 libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libxrender1
 
 Optional: natural-neighbour interpolation
 -----------------------------------------

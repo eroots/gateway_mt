@@ -44,9 +44,12 @@ Tested method (Python 3.10 or newer):
 2. Create an environment for gateway_mt and activate it:
 
    ```
-   conda create -n gateway_mt python=3.12 pip
+   conda create -n gateway_mt python=3.12 pip git
    conda activate gateway_mt
    ```
+
+   (`git` is there so pip can download from GitHub; leave it out if git is
+   already installed.)
 
 3. Install gateway_mt:
 
@@ -60,8 +63,19 @@ Tested method (Python 3.10 or newer):
    pip install --upgrade git+https://github.com/eroots/gateway_mt.git
    ```
 
+   To install a particular release instead, add its tag, e.g.
+   `pip install git+https://github.com/eroots/gateway_mt.git@v0.20.0`.
+
 If you are also using pyMT, install gateway_mt in its own environment: both
 packages install commands with the same names.
+
+**On Linux**, Qt and VTK need a few system libraries that desktop installs
+usually already have. On a minimal Ubuntu / Debian system (or a fresh WSL),
+these are the ones the automated tests install:
+
+```
+sudo apt install libgl1 libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libxrender1
+```
 
 **Optional:** plan-view pseudosections use scipy's interpolators by default.
 If you prefer natural neighbor interpolation, an updated version (compatible
@@ -103,11 +117,13 @@ easily compare data and/or models from different inversions.
 
 ### Try it on the test data
 
-A small synthetic dataset (30 stations, with a response and a model) is
-included in `tests/data/synthetic`:
+A small synthetic dataset (30 stations, with a response and a model) is in
+the repository's `tests/data/synthetic` folder. pip doesn't install it, so
+get a copy of the repository first (or download it as a zip from GitHub):
 
 ```
-cd tests/data/synthetic
+git clone https://github.com/eroots/gateway_mt.git
+cd gateway_mt/tests/data/synthetic
 gateway_mt
 ```
 
