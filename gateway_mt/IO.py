@@ -110,7 +110,7 @@ INVERSION_TYPES = {1: ('ZXXR', 'ZXXI',  # 1-5 are WS formats
                         'TZYR', 'TZYI')}
 
 #: Extension given to data files written in each format (from the GUIs).
-DATA_FILE_EXTENSIONS = {'wsinv3dmt': 'data', 'modem': 'dat', 'gofem': 'gdat'}
+DATA_FILE_EXTENSIONS = {'wsinv3dmt': 'data', 'modem': 'dat', 'gofem': 'gdat', 'femtic': 'dat'}
 
 
 #: Path separator used for the hand-rolled path joins in this module.
@@ -2528,13 +2528,183 @@ def write_covariance(file_name, NX, NY, NZ, exceptions=None, sigma_x=0.3, sigma_
             f.write('0')
 
 
+def read_receivers(receiver_file):
+    """Read a GoFEM receiver file (as written by mtinv / pyGoFEM).
+
+    Parameters
+    ----------
+    receiver_file : str
+        Lines of ``Dipole <site> 1 <X> <Y> <Z>``: metres in the mesh frame,
+        X north, Y east, Z down.
+
+    Returns
+    -------
+    dict
+        ``{site: (X, Y, Z)}``.
+    """
+    locations = {}
+    with open(receiver_file, 'r') as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) < 6:
+                continue
+            try:
+                locations[parts[1]] = tuple(float(v) for v in parts[3:6])
+            except ValueError:
+                continue
+    return locations
+
+
+#: FEMTIC phase tensor (P11, P12, P21, P22) <- the stored component, X and Y
+#: swapped as in the ModEM writer (Caldwell's definition).  FEMTIC's is
+#: X^-1 Y of its own exp(-i omega t) impedance (ObservedDataStationPT.cpp),
+#: which is the negative of the stored one, so :func:`write_femtic` negates it
+#: (about -I for a 1-D earth, as in FEMTIC's examples).
+_FEMTIC_PT = (('PTYY', (1, 1)), ('PTYX', (1, 0)), ('PTXY', (0, 1)), ('PTXX', (0, 0)))
+
+
+def _femtic_vtf_offset(n_sites):
+    """Station ids of FEMTIC's tipper block start above the impedance ones:
+    101, 102, ... for up to 99 sites (as in FEMTIC's examples), 1001, ... up to 999."""
+    return 10 ** max(2, len(str(max(n_sites, 1))))
+
+
+def write_femtic(data, out_file, locations=None, sites_file=True):
+    """Write a FEMTIC ``observe.dat``.
+
+    One block per data group in ``data.used_components``: ``MT`` (impedance),
+    ``PT`` (phase tensor) and / or ``VTF`` (tipper).  Values are written as
+    stored, which is FEMTIC's convention already: SI units (ohm) and
+    ``exp(-i omega t)``, the same as the ModEM writer.  Phase-tensor components
+    are swapped back X <-> Y as in the ModEM writer and negated: FEMTIC's
+    phase tensor is the negative of the stored one (see :data:`_FEMTIC_PT`).
+
+    FEMTIC takes one standard error per number; a negative one leaves that
+    number out of the inversion.  Components not in ``used_components``,
+    flagged points (:data:`REMOVE_FLAG`) and non-finite values are written that
+    way, so flagged data stay in the file but aren't inverted.  A period with
+    nothing usable is left out for that site, and a site with nothing usable
+    is left out of the block.
+
+    Station ids are unique across blocks (FEMTIC requires it): 1..NS for the
+    impedance / phase tensor, :func:`_femtic_vtf_offset` + 1.. for the tipper.
+    Each station refers to its own magnetic field.  Unless ``sites_file`` is
+    False, ``observe_sites.csv`` next to ``out_file`` maps the ids to names.
+
+    Parameters
+    ----------
+    data : gateway_mt.data_structures.Data
+    out_file : str
+        FEMTIC reads a file named ``observe.dat``.
+    locations : dict, optional
+        ``{site: (X, Y, ...)}`` in metres, X north, in the frame of the FEMTIC
+        mesh, e.g. :func:`read_receivers` of the mesh's
+        ``receivers_projected.csv``.  Default: ``data.locations``.  FEMTIC only
+        takes X and Y and puts each station on the mesh's earth surface.
+
+    Returns
+    -------
+    dict
+        Number of sites written per block, e.g. ``{'MT': 30, 'VTF': 29}``.
+
+    Raises
+    ------
+    ValueError
+        A site has no entry in ``locations``, or nothing at all is usable.
+    """
+    used = set(data.used_components)
+    blocks = []
+    if any(c.startswith('Z') for c in used):
+        blocks.append('MT')
+    if any(c.startswith('PT') for c in used):
+        blocks.append('PT')
+    if any(c.startswith('TZ') for c in used):
+        blocks.append('VTF')
+    if locations is None:
+        scale = 1000 if data.spatial_units == 'km' else 1
+        xy = {site: (data.locations[ii, 0] * scale, data.locations[ii, 1] * scale)
+              for ii, site in enumerate(data.site_names)}
+    else:
+        missing = [site for site in data.site_names if site not in locations]
+        if missing:
+            raise ValueError('No location for {} site(s): {}'.format(len(missing), ', '.join(missing)))
+        xy = {site: tuple(locations[site][:2]) for site in data.site_names}
+
+    def number(site, comp, jj):
+        """(value, error) for one stored component; error -1 if unusable."""
+        if comp not in used:
+            return 0., -1.
+        value = site.data[comp][jj]
+        error = abs(site.used_error[comp][jj])
+        if not (np.isfinite(value) and np.isfinite(error)) or error == data.REMOVE_FLAG or error <= 0:
+            return 0., -1.
+        return value, error
+
+    def rows(site, block):
+        out = []
+        for jj, period in enumerate(data.periods):
+            if block == 'MT':
+                pairs = [number(site, comp + part, jj)
+                         for comp in ('ZXX', 'ZXY', 'ZYX', 'ZYY') for part in ('R', 'I')]
+            elif block == 'VTF':
+                pairs = [number(site, comp + part, jj) for comp in ('TZX', 'TZY') for part in ('R', 'I')]
+            else:
+                pairs = []
+                for comp, (i, j) in _FEMTIC_PT:
+                    if comp in site.components:
+                        value, error = number(site, comp, jj)
+                    else:
+                        pt = site.phase_tensors[jj]
+                        value, error = pt.phi[i, j], abs(pt.phi_error[i, j])
+                        if not (np.isfinite(value) and np.isfinite(error) and error > 0):
+                            value, error = 0., -1.
+                    pairs.append((-value if error > 0 else 0., error))
+            if max(e for _, e in pairs) > 0:
+                out.append((1 / period, pairs))
+        return out
+
+    lines, table, counts = [], [], {}
+    offset = _femtic_vtf_offset(data.NS)
+    for block in blocks:
+        entries = []
+        for ii, name in enumerate(data.site_names):
+            site_rows = rows(data.sites[name], block)
+            if site_rows:
+                site_id = ii + 1 + (offset if block == 'VTF' else 0)
+                entries.append((site_id, name, site_rows))
+        counts[block] = len(entries)
+        if not entries:
+            continue
+        lines.append('{} {}'.format(block, len(entries)))
+        for site_id, name, site_rows in entries:
+            X, Y = xy[name]
+            lines.append('{} {} {:.6f} {:.6f}'.format(site_id, site_id, X / 1000, Y / 1000))
+            lines.append(str(len(site_rows)))
+            for freq, pairs in site_rows:
+                lines.append(' '.join(['{:.6e}'.format(freq)]
+                                      + ['{:.6e}'.format(v) for v, _ in pairs]
+                                      + ['{:.6e}'.format(e) for _, e in pairs]))
+            table.append((site_id, block, name, X, Y))
+    if not any(counts.values()):
+        raise ValueError('Nothing usable to write to {}'.format(out_file))
+    lines.append('END')
+    with open(out_file, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+    if sites_file:
+        with open(os.path.join(os.path.dirname(os.path.abspath(out_file)), 'observe_sites.csv'), 'w') as f:
+            f.write('id,block,name,north_m,east_m\n')
+            for site_id, block, name, X, Y in table:
+                f.write('{},{},{},{:.3f},{:.3f}\n'.format(site_id, block, name, X, Y))
+    return counts
+
+
 def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_elevation=False, include_flagged=True):
     """Write a :class:`~gateway_mt.data_structures.Data` object to file.
 
     Dispatches to a nested per-format writer (``write_ws``, ``write_ModEM3D``,
     ``write_ModEM2D``, ``write_MARE2DEM``, ``write_occam``, ``write_em3dani``,
-    ``write_gofem`` (which also writes a ``frequencies`` sidecar) or an
-    ``edi`` branch).
+    ``write_gofem`` (which also writes a ``frequencies`` sidecar), the
+    module-level :func:`write_femtic`, or an ``edi`` branch).
 
     Parameters
     ----------
@@ -2544,7 +2714,7 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
         Which fields to write (WSINV3DMT).  Default all.
     file_format : str, optional
         ``'wsinv3dmt'``, ``'modem'``, ``'mare2dem'``, ``'occam'``,
-        ``'em3dani'``, ``'gofem'``, ``'edi'``.  Default ``'ModEM'``.
+        ``'em3dani'``, ``'gofem'``, ``'femtic'``, ``'edi'``.  Default ``'ModEM'``.
     use_elevation : bool, optional
         Write site elevations rather than zeros.
     include_flagged : bool, optional
@@ -3176,6 +3346,8 @@ def write_data(data, outfile=None, to_write=None, file_format='ModEM', use_eleva
         write_em3dani(data, outfile)
     elif file_format.lower() == 'gofem':
         write_gofem(data, outfile)
+    elif file_format.lower() == 'femtic':
+        write_femtic(data, outfile)
     elif file_format.lower() == 'edi':
         path = outfile
         for site in data.site_names:

@@ -23,6 +23,8 @@ Change Log
 
   * Project files with full paths on a Windows drive can be opened from both Windows and WSL.
 
+  * :ref:`Data Plot` can write FEMTIC data (Write > FEMTIC, or IO.write_femtic): an observe.dat with impedance, phase tensor and / or tipper blocks, plus observe_sites.csv mapping FEMTIC's station ids to site names. Station positions can come from the mesh's receivers_projected.csv (IO.read_receivers).
+
   * Changes that affect results or files:
 
     * Borrowing a nearby period now uses one tolerance at all periods (10% to flag, 20% to remove), instead of 2% below 1 s. The Dummy Data box in :ref:`Data Plot` has one Flag and one Remove value, and the unused 'Missing Period Error' box is gone.

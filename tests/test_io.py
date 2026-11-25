@@ -205,6 +205,108 @@ def test_response_file_holds_the_analytic_responses():
             np.testing.assert_allclose(site.data[comp + 'I'], -Z[:, i, j].imag, rtol=1e-5, atol=1e-9)
 
 
+# --------------------------------------------------------------------------- #
+# FEMTIC
+# --------------------------------------------------------------------------- #
+def read_observe(path):
+    """{block: {id: (x_km, y_km, rows)}} from a FEMTIC observe.dat; rows are
+    (frequency, values..., errors...) per frequency."""
+    n_values = {'MT': 16, 'PT': 8, 'VTF': 8}
+    with open(path) as f:
+        tok = f.read().split()
+    out, i = {}, 0
+    while tok[i] != 'END':
+        block, n = tok[i], int(tok[i + 1])
+        i += 2
+        out[block] = {}
+        for _ in range(n):
+            sid, x, y, nf = int(tok[i]), float(tok[i + 2]), float(tok[i + 3]), int(tok[i + 4])
+            i += 5
+            width = 1 + n_values[block]
+            out[block][sid] = (x, y, np.array(tok[i:i + nf * width], dtype=float).reshape(nf, width))
+            i += nf * width
+    return out
+
+
+def _femtic_row(rows, period):
+    hit = np.flatnonzero(np.isclose(rows[:, 0], 1 / period, rtol=1e-6))
+    return rows[hit[0]] if hit.size else None
+
+
+def test_femtic_file_holds_the_data_as_stored(tmp_path, modem_data):
+    """Impedances and tippers go out as stored (ohm, exp(-i omega t): FEMTIC's convention),
+    flagged points with a negative error (FEMTIC skips them), stations at the receiver-file
+    positions in km, and the tipper stations with their own ids from 101."""
+    out = str(tmp_path / 'observe.dat')
+    receivers = IO.read_receivers(synthetic('receivers_projected.csv'))
+    counts = IO.write_femtic(modem_data, out, locations=receivers)
+    assert counts == {'MT': 30, 'VTF': 29}                       # SYN030 has no tipper
+    obs = read_observe(out)
+    assert sorted(obs['MT']) == list(range(1, 31)) and sorted(obs['VTF']) == list(range(101, 130))
+    flagged = 0
+    comps = [c + p for c in ('ZXX', 'ZXY', 'ZYX', 'ZYY') for p in ('R', 'I')]
+    for ii, name in enumerate(modem_data.site_names):
+        site = modem_data.sites[name]
+        x, y, rows = obs['MT'][ii + 1]
+        np.testing.assert_allclose((x, y), np.array(receivers[name][:2]) / 1000, atol=1e-6)
+        for jj, period in enumerate(modem_data.periods):
+            row = _femtic_row(rows, period)
+            errors = np.array([site.used_error[c][jj] for c in comps])
+            if row is None:                                    # dropped: nothing usable at this period
+                assert (errors == modem_data.REMOVE_FLAG).all()
+                flagged += 1
+                continue
+            for k, comp in enumerate(comps):
+                if errors[k] == modem_data.REMOVE_FLAG:
+                    assert row[9 + k] == -1
+                else:
+                    np.testing.assert_allclose(row[1 + k], site.data[comp][jj], rtol=1e-6, atol=1e-12)
+                    np.testing.assert_allclose(row[9 + k], abs(errors[k]), rtol=1e-6)
+    assert flagged                                             # SYN029 / SYN030 stop at ~470 s
+    _x, _y, rows = obs['VTF'][101]
+    row = _femtic_row(rows, modem_data.periods[0])
+    site = modem_data.sites['SYN001']
+    np.testing.assert_allclose(row[1:5], [site.data[c][0] for c in ('TZXR', 'TZXI', 'TZYR', 'TZYI')], rtol=1e-6)
+    with open(tmp_path / 'observe_sites.csv') as f:
+        lines = f.read().splitlines()
+    assert lines[1].startswith('1,MT,SYN001,') and lines[31].startswith('101,VTF,SYN001,')
+
+
+def test_femtic_phase_tensor_is_femtics_own(tmp_path, modem_data):
+    """FEMTIC's phase tensor is X^-1 Y of its own impedance (ObservedDataStationPT.cpp), i.e. of
+    the stored one; the stored phase tensor is its negative."""
+    import copy
+    data = copy.deepcopy(modem_data)
+    with quiet():
+        data.set_inversion_type(6)
+    out = str(tmp_path / 'observe.dat')
+    assert IO.write_femtic(data, out) == {'PT': 30}
+    _x, _y, rows = read_observe(out)['PT'][1]
+    site = data.sites['SYN001']
+    for jj, period in enumerate(data.periods):
+        z = np.array([[site.data['ZXXR'][jj] + 1j * site.data['ZXXI'][jj],
+                       site.data['ZXYR'][jj] + 1j * site.data['ZXYI'][jj]],
+                      [site.data['ZYXR'][jj] + 1j * site.data['ZYXI'][jj],
+                       site.data['ZYYR'][jj] + 1j * site.data['ZYYI'][jj]]])
+        row = _femtic_row(rows, period)
+        np.testing.assert_allclose(row[1:5], np.linalg.solve(z.real, z.imag).ravel(), rtol=1e-5, atol=1e-6)
+        assert (row[5:] > 0).all()
+
+
+def test_femtic_through_write_data(tmp_path, modem_data):
+    """file_format='femtic' uses the data's own locations."""
+    out = str(tmp_path / 'observe.dat')
+    with quiet():
+        modem_data.write(outfile=out, file_format='femtic')
+    x, y, _rows = read_observe(out)['MT'][1]
+    np.testing.assert_allclose((x, y), modem_data.locations[0] / 1000, atol=1e-6)
+
+
+def test_femtic_needs_every_site_located(tmp_path, modem_data):
+    with pytest.raises(ValueError, match='SYN002'):
+        IO.write_femtic(modem_data, str(tmp_path / 'observe.dat'), locations={'SYN001': (0, 0, 0)})
+
+
 def test_write_list(tmp_path, modem_data):
     out = str(tmp_path / 'sites.lst')
     IO.write_list(modem_data, out)

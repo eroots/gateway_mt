@@ -290,6 +290,20 @@ def test_data_plot_writes_the_data_it_shows(data_plot, canned_dialogs, tmp_path)
                                        original.sites[name].data[comp][used], rtol=1e-6, atol=1e-12)
 
 
+def test_data_plot_writes_femtic(data_plot, canned_dialogs, monkeypatch, tmp_path):
+    """File > Write > FEMTIC, with positions from the mesh's receiver file."""
+    from PyQt5 import QtWidgets
+    receivers = synthetic('receivers_projected.csv')
+    monkeypatch.setattr(QtWidgets.QFileDialog, 'getOpenFileName', staticmethod(lambda *a, **k: (receivers, '')))
+    canned_dialogs['save'] = str(tmp_path / 'observe.dat')
+    with quiet():
+        data_plot.write_femtic()
+    with open(tmp_path / 'observe.dat') as f:
+        text = f.read()
+    assert text.startswith('MT 30') and text.rstrip().endswith('END')
+    assert (tmp_path / 'observe_sites.csv').exists()
+
+
 def test_data_plot_rotation_round_trip(data_plot, canned_dialogs):
     before = data_plot.dataset.data.sites['SYN001'].data['ZXYR'].copy()
     with quiet():

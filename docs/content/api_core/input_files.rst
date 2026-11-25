@@ -45,6 +45,7 @@ Currently implemented formats are:
 * GoFEM
 * EM3DANI
 * Occam2D (writing only)
+* FEMTIC (writing only: ``observe.dat``, via :func:`gateway_mt.IO.write_femtic`; station positions can come from a GoFEM / mtinv ``receivers_projected.csv`` read with :func:`gateway_mt.IO.read_receivers`)
 
 The format is taken from the file extension (e.g., .dat for ModEM, .data for WSINV3DMT, .emdata for MARE2DEM, .gdat for GoFEM).
 

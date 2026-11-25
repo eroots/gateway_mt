@@ -108,6 +108,7 @@
      <addaction name="actionWriteWSINV3DMT"/>
      <addaction name="actionWriteModEM"/>
      <addaction name="actionWriteGoFEM"/>
+     <addaction name="actionWriteFEMTIC"/>
      <addaction name="actionWriteMARE2DEM"/>
      <addaction name="separator"/>
     </widget>
@@ -1475,6 +1476,14 @@
   <action name="actionWriteGoFEM">
    <property name="text">
     <string>GoFEM</string>
+   </property>
+  </action>
+  <action name="actionWriteFEMTIC">
+   <property name="text">
+    <string>FEMTIC</string>
+   </property>
+   <property name="toolTip">
+    <string>Write a FEMTIC observe.dat (station positions from the mesh's receivers_projected.csv, or the data's own)</string>
    </property>
   </action>
   <action name="actionSqrtScaling">

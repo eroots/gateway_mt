@@ -1444,6 +1444,7 @@ class DataMain(QMainWindow, Ui_MainWindow):
         self.actionWriteWSINV3DMT.triggered.connect(self.write_wsinv3dmt)
         self.actionWriteModEM.triggered.connect(self.write_ModEM)
         self.actionWriteGoFEM.triggered.connect(self.write_gofem)
+        self.actionWriteFEMTIC.triggered.connect(self.write_femtic)
         self.writeCurrentPlot.triggered.connect(self.write_current_plot)
         self.writeAllPlots.triggered.connect(self.write_all_plots)
         self.actionPhase_Wrap.triggered.connect(self.set_phase_wrap)
@@ -2140,6 +2141,79 @@ class DataMain(QMainWindow, Ui_MainWindow):
         """File-menu action: write the dataset as GoFEM."""
         self.write_data(file_format='gofem')
 
+    def write_femtic(self):
+        """File-menu action: write the dataset as a FEMTIC ``observe.dat``.
+
+        FEMTIC needs the stations in the frame of its mesh.  For a mesh built
+        with mtinv (or any GoFEM mesh), answer Yes and pick the mesh's
+        ``receivers_projected.csv``: positions are matched by site name.
+        Otherwise the data's own locations are used.  See
+        :func:`gateway_mt.IO.write_femtic`.
+        """
+        if not self._set_checked_inv_type():
+            return
+        data = self.dataset.data
+        locations = None
+        QMB = QtWidgets.QMessageBox
+        reply = QMB.question(self, 'FEMTIC station positions',
+                             'FEMTIC needs the stations in the frame of its mesh.\n\n'
+                             'Take the positions from the mesh\'s receiver file '
+                             '(receivers_projected.csv, as written by mtinv)?\n'
+                             'No uses the data\'s own locations.',
+                             QMB.Yes | QMB.No | QMB.Cancel)
+        if reply == QMB.Cancel:
+            return
+        if reply == QMB.Yes:
+            receiver_file, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self, 'Mesh receiver file', '', 'Receiver files (*.csv);; All Files (*)')
+            if not receiver_file:
+                return
+            locations = IO.read_receivers(receiver_file)
+            missing = [site for site in data.site_names if site not in locations]
+            if missing:
+                QMB.warning(self, 'FEMTIC',
+                            '{} site(s) are not in {}:\n{}'.format(len(missing), receiver_file,
+                                                                   ', '.join(missing)))
+                return
+        outfile, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save FEMTIC data', 'observe.dat',
+                                                           'FEMTIC data (*.dat);; All Files (*)')
+        if not outfile:
+            return
+        try:
+            counts = IO.write_femtic(data, outfile, locations=locations)
+        except (ValueError, OSError) as err:
+            QMB.warning(self, 'FEMTIC', str(err))
+            return
+        written = ', '.join('{} {} sites'.format(block, n) for block, n in counts.items())
+        QMB.information(self, 'FEMTIC',
+                        'Wrote {} ({}).\n\nobserve_sites.csv next to it maps FEMTIC\'s station ids '
+                        'to site names. FEMTIC reads a file called observe.dat.'.format(outfile, written))
+
+    def _set_checked_inv_type(self):
+        """Apply the inversion type checked in the menu to the dataset.
+
+        Also resets the dummy errors if 'Remove Flags' is checked.  Returns
+        False, after telling the user, if no type is selected or the data
+        lack its components.
+        """
+        inv_type = self.check_inv_type()
+        if not inv_type:
+            reply = QtWidgets.QMessageBox.question(self, 'Message',
+                                                   'No inversion type selected. Please choose one before writing',
+                                                   QtWidgets.QMessageBox.Ok)
+            return False
+        missing = self.dataset.data.missing_components(inv_type)
+        if missing:
+            reply = QtWidgets.QMessageBox.question(self, 'Message',
+                                                   'Selected inversion type is invalid for current data '
+                                                   '(missing {})'.format(', '.join(missing)),
+                                                   QtWidgets.QMessageBox.Ok)
+            return False
+        self.dataset.data.set_inversion_type(inv_type)
+        if self.actionRemoveFlags.isChecked():
+            self.reset_dummy_errors()
+        return True
+
     def check_inv_type(self):
         """Return the inversion type selected in the menu group (1-10),
         or the dataset's current ``inv_type`` if none is checked."""
@@ -2163,22 +2237,8 @@ class DataMain(QMainWindow, Ui_MainWindow):
         ----------
         file_format : {'WSINV3DMT', 'ModEM', 'gofem'}
         """
-        inv_type = self.check_inv_type()
-        if not inv_type:
-            reply = QtWidgets.QMessageBox.question(self, 'Message',
-                                                   'No inversion type selected. Please choose one before writing',
-                                                   QtWidgets.QMessageBox.Ok)
+        if not self._set_checked_inv_type():
             return
-        missing = self.dataset.data.missing_components(inv_type)
-        if missing:
-            reply = QtWidgets.QMessageBox.question(self, 'Message',
-                                                   'Selected inversion type is invalid for current data '
-                                                   '(missing {})'.format(', '.join(missing)),
-                                                   QtWidgets.QMessageBox.Ok)
-            return
-        self.dataset.data.set_inversion_type(inv_type)
-        if self.actionRemoveFlags.isChecked():
-            self.reset_dummy_errors()
         keep_going = True
         if self.sortSites.itemText(self.sortSites.currentIndex()) != 'Default':
             reply = QtWidgets.QMessageBox.question(self, 'Message',

@@ -44,7 +44,9 @@ The 'Write' menu gives various output options.
 
 	* List File: Writes out a new list file corresponding to any changes you've made in the GUI (e.g., order changes, addition or removal of stations)
 
-	* Data File: Writes out a data file in the chosen format (WSINV3DMT, ModEM, GoFEM or MARE2DEM) corresponding to the selected periods and inversion type
+	* Data File: Writes out a data file in the chosen format (WSINV3DMT, ModEM, GoFEM, FEMTIC or MARE2DEM) corresponding to the selected periods and inversion type
+
+		* FEMTIC: writes an ``observe.dat``. FEMTIC needs the stations in the frame of its mesh, so you are asked whether to take the positions from the mesh's receiver file (``receivers_projected.csv``, as written by mtinv for a GoFEM / FEMTIC mesh; sites are matched by name) or to use the data's own locations. Flagged points are written with a negative error, which FEMTIC skips. ``observe_sites.csv`` next to it maps FEMTIC's station numbers to site names.
 
 	* Current Plot: Writes out the current plot window to a PDF file. Note that a PNG version can also be saved using the `Toolbar`_, although the resolution may not be as good.
 
